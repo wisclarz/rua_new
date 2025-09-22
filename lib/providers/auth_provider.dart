@@ -30,31 +30,11 @@ class AuthProvider with ChangeNotifier {
       _setLoading(true);
       
       // Simulate loading delay
-      await Future.delayed(const Duration(seconds: 1));
+      await Future.delayed(const Duration(milliseconds: 1500));
       
-      // For development, automatically create a mock user
-      _currentUser = app_models.User(
-        id: 'mock_user_123',
-        email: 'demo@ruadream.com',
-        name: 'Demo Kullanıcı',
-        profileImageUrl: null,
-        createdAt: DateTime.now().subtract(const Duration(days: 30)),
-        lastLoginAt: DateTime.now(),
-        preferences: app_models.UserPreferences.defaultPreferences(),
-        stats: app_models.UserStats(
-          totalDreams: 15,
-          totalAnalyses: 12,
-          streakDays: 7,
-          currentStreak: 3,
-          lastDreamDate: DateTime.now().subtract(const Duration(days: 1)),
-          favoriteCount: 5,
-          moodCounts: {'mutlu': 8, 'üzgün': 3, 'kaygılı': 4},
-          tagCounts: {'renkli': 6, 'uçmak': 4, 'su': 3, 'aile': 5},
-          averageRating: 4.2,
-          totalRecordingMinutes: 45,
-        ),
-        isEmailVerified: true,
-      );
+      // Check for previously stored session (in real app, use SharedPreferences)
+      // For now, start with no authenticated user - user must log in
+      _currentUser = null;
       
     } catch (e) {
       _setError('Başlatma hatası: $e');

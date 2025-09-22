@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
-import '../providers/dream_provider.dart';
 import '../widgets/glassmorphic_container.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -83,7 +82,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -309,13 +307,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   onPressed: authProvider.isLoading
                                       ? null
                                       : () => _handleGoogleSignIn(context, authProvider),
-                                  icon: Image.asset(
-                                    'assets/images/google_logo.png',
-                                    height: 20,
-                                    width: 20,
-                                    errorBuilder: (context, error, stackTrace) =>
-                                        const Icon(Icons.g_mobiledata, size: 20),
-                                  ),
+                                  
                                   label: const Text('Google ile Devam Et'),
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: theme.colorScheme.onSurface,
@@ -544,7 +536,7 @@ class _LoginScreenState extends State<LoginScreen> {
           Icons.check_circle_outline,
         );
         
-        // Navigate to home
+        // Navigate to main navigation
         Navigator.pushReplacementNamed(context, '/home');
       } else {
         _showModernSnackBar(
@@ -569,7 +561,7 @@ class _LoginScreenState extends State<LoginScreen> {
           Icons.check_circle_outline,
         );
         
-        // Navigate to home
+        // Navigate to main navigation
         Navigator.pushReplacementNamed(context, '/home');
       } else {
         _showModernSnackBar(

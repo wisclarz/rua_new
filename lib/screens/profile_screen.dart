@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
-import '../widgets/glassmorphic_container.dart';
 import '../models/user_model.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -45,7 +44,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ProfileMenuItem(
       icon: Icons.analytics_outlined,
       title: 'İstatistikler',
-      subtitle: 'Rüya analizlerimi görüntüle',
+      subtitle: 'Analiz sonuçlarını görüntüle',
       color: const Color(0xFF06B6D4),
       route: '/statistics',
     ),
@@ -75,39 +74,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final screenHeight = MediaQuery.of(context).size.height;
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+    final availableHeight = screenHeight - statusBarHeight;
     
     return Scaffold(
       backgroundColor: theme.colorScheme.background,
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            expandedHeight: 280,
+            expandedHeight: availableHeight * 0.32, // Slightly reduced height
             floating: false,
             pinned: true,
-            backgroundColor: theme.colorScheme.surface,
+            backgroundColor: Colors.transparent,
             elevation: 0,
+            automaticallyImplyLeading: false,
             flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                'Profil',
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
               background: _buildProfileHeader(context),
             ),
           ),
           
           SliverPadding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 100), // Added bottom padding for navigation
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   if (index < _menuItems.length) {
                     final item = _menuItems[index];
-                    return _buildMenuItem(context, item, index);
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8), // Reduced spacing
+                      child: _buildMenuItem(context, item, index),
+                    );
                   } else {
-                    return _buildLogoutButton(context);
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: _buildLogoutButton(context),
+                    );
                   }
                 },
                 childCount: _menuItems.length + 1,
@@ -139,68 +141,92 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           child: SafeArea(
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20), // Optimized padding
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Profile Image
-                  GestureDetector(
-                    onTap: () => _showImagePickerDialog(context),
-                    child: Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white,
-                          width: 3,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            spreadRadius: 2,
-                            blurRadius: 10,
-                          ),
-                        ],
-                      ),
-                      child: ClipOval(
-                        child: user?.profileImageUrl != null
-                            ? Image.network(
-                                user!.profileImageUrl!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    _buildDefaultAvatar(user.name),
-                              )
-                            : _buildDefaultAvatar(user?.name ?? 'User'),
-                      ),
-                    ),
-                  ).animate().scale(delay: 200.ms, duration: 600.ms),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // User Name
+                  // Title at the top
                   Text(
-                    user?.name ?? 'Kullanıcı',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      color: Colors.white,
+                    'Profil',
+                    style: theme.textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
-                  ).animate().fadeIn(delay: 400.ms, duration: 600.ms),
+                  ).animate().fadeIn(delay: 100.ms, duration: 600.ms),
                   
-                  const SizedBox(height: 4),
+                  const Spacer(), // Push content to bottom
                   
-                  // User Email
-                  Text(
-                    user?.email ?? '',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.white70,
+                  // Profile content centered
+                  Center(
+                    child: Column(
+                      children: [
+                        // Profile Image
+                        GestureDetector(
+                          onTap: () => _showImagePickerDialog(context),
+                          child: Container(
+                            width: 80, // Slightly smaller
+                            height: 80,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 3,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  spreadRadius: 2,
+                                  blurRadius: 10,
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: user?.profileImageUrl != null
+                                  ? Image.network(
+                                      user!.profileImageUrl!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) =>
+                                          _buildDefaultAvatar(user.name),
+                                    )
+                                  : _buildDefaultAvatar(user?.name ?? 'User'),
+                            ),
+                          ),
+                        ).animate().scale(delay: 200.ms, duration: 600.ms),
+                        
+                        const SizedBox(height: 12), // Reduced spacing
+                        
+                        // User Name
+                        Text(
+                          user?.name ?? 'Kullanıcı',
+                          style: theme.textTheme.titleLarge?.copyWith( // Smaller text
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                        ).animate().fadeIn(delay: 400.ms, duration: 600.ms),
+                        
+                        const SizedBox(height: 2), // Reduced spacing
+                        
+                        // User Email
+                        Text(
+                          user?.email ?? '',
+                          style: theme.textTheme.bodySmall?.copyWith( // Smaller text
+                            color: Colors.white70,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                        ).animate().fadeIn(delay: 600.ms, duration: 600.ms),
+                        
+                        const SizedBox(height: 12), // Reduced spacing
+                        
+                        // Stats Row
+                        if (user != null) _buildStatsRow(context, user),
+                      ],
                     ),
-                  ).animate().fadeIn(delay: 600.ms, duration: 600.ms),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Stats Row
-                  if (user != null) _buildStatsRow(context, user),
+                  ),
                 ],
               ),
             ),
@@ -222,7 +248,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           name.isNotEmpty ? name[0].toUpperCase() : 'U',
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 36,
+            fontSize: 28, // Adjusted for smaller avatar
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -231,28 +257,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildStatsRow(BuildContext context, User user) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _buildStatItem(
-          context,
-          'Rüyalar',
-          '${user.stats?.totalDreams ?? 0}',
-          Icons.bedtime_outlined,
-        ),
-        _buildStatItem(
-          context,
-          'Analizler',
-          '${user.stats?.totalAnalyses ?? 0}',
-          Icons.analytics_outlined,
-        ),
-        _buildStatItem(
-          context,
-          'Gün',
-          '${user.stats?.streakDays ?? 0}',
-          Icons.local_fire_department_outlined,
-        ),
-      ],
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 60), // Limit height
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          Expanded(
+            child: _buildStatItem(
+              context,
+              'Rüyalar',
+              '${user.stats?.totalDreams ?? 0}',
+              Icons.bedtime_outlined,
+            ),
+          ),
+          Expanded(
+            child: _buildStatItem(
+              context,
+              'Analizler',
+              '${user.stats?.totalAnalyses ?? 0}',
+              Icons.analytics_outlined,
+            ),
+          ),
+          Expanded(
+            child: _buildStatItem(
+              context,
+              'Gün',
+              '${user.stats?.streakDays ?? 0}',
+              Icons.local_fire_department_outlined,
+            ),
+          ),
+        ],
+      ),
     ).animate().slide(
       begin: const Offset(0, 0.5),
       delay: 800.ms,
@@ -262,27 +297,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildStatItem(BuildContext context, String label, String value, IconData icon) {
     return Column(
+      mainAxisSize: MainAxisSize.min, // Important: prevent overflow
       children: [
         Icon(
           icon,
           color: Colors.white70,
-          size: 20,
+          size: 16, // Smaller icon
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 2), // Reduced spacing
         Text(
           value,
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 18,
+            fontSize: 14, // Smaller text
             fontWeight: FontWeight.bold,
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         Text(
           label,
           style: const TextStyle(
             color: Colors.white70,
-            fontSize: 12,
+            fontSize: 10, // Smaller text
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
         ),
       ],
     );
@@ -291,48 +332,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildMenuItem(BuildContext context, ProfileMenuItem item, int index) {
     final theme = Theme.of(context);
     
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: GlassmorphicContainer(
-        borderRadius: 16,
-        opacityValue: 0.1,
-        child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          leading: Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: item.color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              item.icon,
-              color: item.color,
-              size: 24,
-            ),
-          ),
-          title: Text(
-            item.title,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          subtitle: Text(
-            item.subtitle,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
-            ),
-          ),
-          trailing: Icon(
-            Icons.chevron_right,
-            color: theme.colorScheme.onSurface.withOpacity(0.5),
-          ),
-          onTap: () {
-            // Navigate to respective screen
-            if (item.route != null) {
-              Navigator.pushNamed(context, item.route!);
-            }
-          },
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: theme.colorScheme.outlineVariant,
+          width: 1,
         ),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), // Reduced padding
+        leading: Container(
+          padding: const EdgeInsets.all(8), // Reduced padding
+          decoration: BoxDecoration(
+            color: item.color.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            item.icon,
+            color: item.color,
+            size: 20, // Smaller icon
+          ),
+        ),
+        title: Text(
+          item.title,
+          style: theme.textTheme.titleSmall?.copyWith( // Smaller text
+            fontWeight: FontWeight.w600,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          item.subtitle,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurface.withOpacity(0.7),
+            fontSize: 11, // Smaller subtitle
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: Icon(
+          Icons.chevron_right,
+          color: theme.colorScheme.onSurface.withOpacity(0.5),
+          size: 18, // Smaller trailing icon
+        ),
+        onTap: () {
+          // Navigate to respective screen
+          if (item.route != null) {
+            Navigator.pushNamed(context, item.route!);
+          }
+        },
       ),
     ).animate()
         .slide(
@@ -346,40 +396,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildLogoutButton(BuildContext context) {
     final theme = Theme.of(context);
     
-    return Container(
-      margin: const EdgeInsets.only(top: 20),
-      child: GlassmorphicContainer(
-        borderRadius: 16,
-        opacityValue: 0.1,
-        child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          leading: Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.red.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.logout,
-              color: Colors.red,
-              size: 24,
-            ),
-          ),
-          title: Text(
-            'Çıkış Yap',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: Colors.red,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          subtitle: Text(
-            'Hesabından güvenli çıkış yap',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
-            ),
-          ),
-          onTap: () => _showLogoutConfirmDialog(context),
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: Colors.red.withOpacity(0.3),
+          width: 1,
         ),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.red.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(
+            Icons.logout,
+            color: Colors.red,
+            size: 20,
+          ),
+        ),
+        title: Text(
+          'Çıkış Yap',
+          style: theme.textTheme.titleSmall?.copyWith(
+            color: Colors.red,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        subtitle: Text(
+          'Hesabından güvenli çıkış yap',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurface.withOpacity(0.7),
+            fontSize: 11,
+          ),
+        ),
+        onTap: () => _showLogoutConfirmDialog(context),
       ),
     ).animate()
         .slide(

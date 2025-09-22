@@ -56,20 +56,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
             width: double.infinity,
             height: 80,
             borderRadius: 16,
-            blur: 20,
-            alignment: Alignment.center,
-            border: 2,
-            linearGradient: LinearGradient(
-              colors: [
-                color.withOpacity(0.9),
-                color.withOpacity(0.8),
-              ],
-            ),
-            borderGradient: LinearGradient(
-              colors: [
-                Colors.white.withOpacity(0.3),
-                Colors.white.withOpacity(0.1),
-              ],
+            blurValue: 20,
+            color: color.withOpacity(0.8),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.3),
+              width: 2,
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),

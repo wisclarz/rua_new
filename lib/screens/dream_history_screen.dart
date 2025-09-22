@@ -16,10 +16,14 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _loadDreams();
+    // Post-frame callback to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadDreams();
+    });
   }
 
   Future<void> _loadDreams() async {
+    if (!mounted) return; // Check if widget is still mounted
     final dreamProvider = Provider.of<DreamProvider>(context, listen: false);
     await dreamProvider.fetchDreams();
   }
@@ -240,7 +244,6 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen> {
         statusIcon = Icons.error;
         break;
       case DreamStatus.processing:
-      default:
         statusColor = Colors.orange;
         statusIcon = Icons.hourglass_empty;
         break;

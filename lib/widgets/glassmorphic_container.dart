@@ -3,8 +3,8 @@ import 'dart:ui';
 
 class GlassmorphicContainer extends StatelessWidget {
   final Widget child;
-  final double width;
-  final double height;
+  final double? width;
+  final double? height;
   final double borderRadius;
   final Color? color;
   final double blurValue;
@@ -16,8 +16,8 @@ class GlassmorphicContainer extends StatelessWidget {
   const GlassmorphicContainer({
     super.key,
     required this.child,
-    this.width = double.infinity,
-    this.height = double.infinity,
+    this.width,
+    this.height,
     this.borderRadius = 10.0,
     this.color,
     this.blurValue = 15.0,
@@ -33,8 +33,11 @@ class GlassmorphicContainer extends StatelessWidget {
     
     return Container(
       width: width,
-      height: height,
+      height: height, // double.infinity kaldırıldı
       margin: margin,
+      constraints: height == null ? null : BoxConstraints(
+        maxHeight: height == double.infinity ? double.infinity : height!,
+      ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(borderRadius),
         border: border ?? Border.all(
