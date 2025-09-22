@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "465923178325",
+    "project_id": "dreamy-2e75c",
+    "storage_bucket": "dreamy-2e75c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:465923178325:android:e999272d6002a43c4239dc",
+        "android_client_info": {
+          "package_name": "com.example.rua_new"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "465923178325-vktmrpubkkh1he002embkguotaogqtn0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9ghT0WBLJG1uydI5rHEBwy1M53-Ennho"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "465923178325-vktmrpubkkh1he002embkguotaogqtn0.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "465923178325-nh1gb76sgudtgqtqjgff3omhehkdp902.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.ruaNew"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
