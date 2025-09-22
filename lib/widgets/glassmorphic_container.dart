@@ -1,82 +1,59 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'dart:ui';
 
 class GlassmorphicContainer extends StatelessWidget {
+  final Widget child;
   final double width;
   final double height;
   final double borderRadius;
-  final double blur;
-  final Alignment alignment;
-  final double border;
-  final LinearGradient linearGradient;
-  final LinearGradient borderGradient;
-  final Widget child;
+  final Color? color;
+  final double blurValue;
+  final double opacityValue;
+  final Border? border;
+  final EdgeInsets? margin;
+  final EdgeInsets? padding;
 
   const GlassmorphicContainer({
     super.key,
-    required this.width,
-    required this.height,
-    required this.borderRadius,
-    required this.blur,
-    required this.alignment,
-    required this.border,
-    required this.linearGradient,
-    required this.borderGradient,
     required this.child,
+    this.width = double.infinity,
+    this.height = double.infinity,
+    this.borderRadius = 10.0,
+    this.color,
+    this.blurValue = 15.0,
+    this.opacityValue = 0.1,
+    this.border,
+    this.margin,
+    this.padding,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: Container(
-        width: width,
-        height: height,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(borderRadius),
-          border: Border.all(
-            width: border,
-            color: Colors.white.withOpacity(0.2),
-          ),
+    final theme = Theme.of(context);
+    
+    return Container(
+      width: width,
+      height: height,
+      margin: margin,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+        border: border ?? Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1.0,
         ),
-        child: Stack(
-          children: [
-            // Backdrop filter for blur effect
-            BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-              child: Container(),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: blurValue, sigmaY: blurValue),
+          child: Container(
+            decoration: BoxDecoration(
+              color: color ?? theme.colorScheme.surface.withOpacity(opacityValue),
+              borderRadius: BorderRadius.circular(borderRadius),
             ),
-            // Gradient overlay
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(borderRadius),
-                gradient: linearGradient,
-                border: Border.all(
-                  width: border,
-                  color: Colors.transparent,
-                ),
-              ),
-            ),
-            // Border gradient
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(borderRadius),
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.white.withOpacity(0.1),
-                    Colors.white.withOpacity(0.05),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-            ),
-            // Child content
-            Container(
-              alignment: alignment,
-              child: child,
-            ),
-          ],
+            padding: padding,
+            child: child,
+          ),
         ),
       ),
     );

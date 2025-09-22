@@ -17,10 +17,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -28,15 +25,9 @@ class DefaultFirebaseOptions {
       case TargetPlatform.iOS:
         return ios;
       case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return macos;
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -49,21 +40,51 @@ class DefaultFirebaseOptions {
     }
   }
 
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyCmDCU3a3jES2BgSEL0dNf8afftOHWkA74',
+    appId: '1:237643816620:web:461e059e9b0003f9710909',
+    messagingSenderId: '237643816620',
+    projectId: 'dreamy-app-2025',
+    authDomain: 'dreamy-app-2025.firebaseapp.com',
+    storageBucket: 'dreamy-app-2025.firebasestorage.app',
+    measurementId: 'G-LY4ND7JDYQ',
+  );
+
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyD9ghT0WBLJG1uydI5rHEBwy1M53-Ennho',
-    appId: '1:465923178325:android:e999272d6002a43c4239dc',
-    messagingSenderId: '465923178325',
-    projectId: 'dreamy-2e75c',
-    storageBucket: 'dreamy-2e75c.firebasestorage.app',
+    apiKey: 'AIzaSyBN9VTpjsfywnYNlhBYb3B8aAFofi7FYKc',
+    appId: '1:237643816620:android:48955560b852b13e710909',
+    messagingSenderId: '237643816620',
+    projectId: 'dreamy-app-2025',
+    storageBucket: 'dreamy-app-2025.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDzWTW1fybvqqGV0y11ao9YtbKQ2d63hPM',
-    appId: '1:465923178325:ios:3cf7469887083ebe4239dc',
-    messagingSenderId: '465923178325',
-    projectId: 'dreamy-2e75c',
-    storageBucket: 'dreamy-2e75c.firebasestorage.app',
-    iosClientId: '465923178325-nh1gb76sgudtgqtqjgff3omhehkdp902.apps.googleusercontent.com',
+    apiKey: 'AIzaSyAMDcWaKiZGOJwbTTIBfISYg1TGQjSj_q8',
+    appId: '1:237643816620:ios:68d5b3d73c4849e4710909',
+    messagingSenderId: '237643816620',
+    projectId: 'dreamy-app-2025',
+    storageBucket: 'dreamy-app-2025.firebasestorage.app',
+    iosClientId: '237643816620-he40fn1ku3627812bobtmbnk596eto3p.apps.googleusercontent.com',
+    iosBundleId: 'com.dreamy.app',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyAMDcWaKiZGOJwbTTIBfISYg1TGQjSj_q8',
+    appId: '1:237643816620:ios:87b1bcaa3571f213710909',
+    messagingSenderId: '237643816620',
+    projectId: 'dreamy-app-2025',
+    storageBucket: 'dreamy-app-2025.firebasestorage.app',
+    iosClientId: '237643816620-porflk8t93e9m42filsjab903plgv8f4.apps.googleusercontent.com',
     iosBundleId: 'com.example.ruaNew',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyCmDCU3a3jES2BgSEL0dNf8afftOHWkA74',
+    appId: '1:237643816620:web:adbe37a85f3efa7b710909',
+    messagingSenderId: '237643816620',
+    projectId: 'dreamy-app-2025',
+    authDomain: 'dreamy-app-2025.firebaseapp.com',
+    storageBucket: 'dreamy-app-2025.firebasestorage.app',
+    measurementId: 'G-8GMF6TYLWZ',
   );
 }

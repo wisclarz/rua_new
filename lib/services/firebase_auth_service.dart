@@ -46,7 +46,7 @@ class FirebaseAuthService {
       }
       return null;
     } on firebase_auth.FirebaseAuthException catch (e) {
-      throw _handleAuthException(e);
+      throw Exception(_handleAuthException(e));
     } catch (e) {
       throw Exception('Beklenmeyen bir hata oluştu: $e');
     }
@@ -70,7 +70,7 @@ class FirebaseAuthService {
       }
       return null;
     } on firebase_auth.FirebaseAuthException catch (e) {
-      throw _handleAuthException(e);
+      throw Exception(_handleAuthException(e));
     } catch (e) {
       throw Exception('Beklenmeyen bir hata oluştu: $e');
     }
@@ -80,9 +80,10 @@ class FirebaseAuthService {
   Future<app_models.User?> signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return null;
+      if (googleUser == null) return null; // User cancelled
 
-      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      
       final credential = firebase_auth.GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
@@ -91,72 +92,124 @@ class FirebaseAuthService {
       final userCredential = await _auth.signInWithCredential(credential);
       
       if (userCredential.user != null) {
-        final existingUser = await getUserProfile(userCredential.user!.uid);
+        final firebaseUser = userCredential.user!;
         
-        if (existingUser == null) {
+        // Check if user profile exists, create if not
+        app_models.User? user = await getUserProfile(firebaseUser.uid);
+        
+        if (user == null) {
           // Create new user profile
-          final user = app_models.User(
-            id: userCredential.user!.uid,
-            email: userCredential.user!.email ?? '',
-            name: userCredential.user!.displayName ?? 'Kullanıcı',
-            profileImageUrl: userCredential.user!.photoURL,
+          user = app_models.User(
+            id: firebaseUser.uid,
+            email: firebaseUser.email ?? '',
+            name: firebaseUser.displayName ?? 'Google User',
+            profileImageUrl: firebaseUser.photoURL,
             createdAt: DateTime.now(),
             preferences: app_models.UserPreferences.defaultPreferences(),
-            isEmailVerified: userCredential.user!.emailVerified,
           );
           
           await _createUserProfile(user);
-          return user;
         } else {
           // Update last login time
-          await _updateLastLoginTime(userCredential.user!.uid);
-          return existingUser;
+          await _updateLastLoginTime(firebaseUser.uid);
         }
+        
+        return user;
       }
       return null;
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      throw Exception(_handleAuthException(e));
     } catch (e) {
       throw Exception('Google ile giriş yapılırken hata oluştu: $e');
     }
   }
 
-  // Send password reset email
-  Future<void> sendPasswordResetEmail(String email) async {
+  // Sign out
+  Future<void> signOut() async {
+    try {
+      await Future.wait([
+        _auth.signOut(),
+        _googleSignIn.signOut(),
+      ]);
+    } catch (e) {
+      throw Exception('Çıkış yapılırken hata oluştu: $e');
+    }
+  }
+
+  // Reset password
+  Future<void> resetPassword(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
     } on firebase_auth.FirebaseAuthException catch (e) {
-      throw _handleAuthException(e);
+      throw Exception(_handleAuthException(e));
+    } catch (e) {
+      throw Exception('Şifre sıfırlama e-postası gönderilirken hata oluştu: $e');
+    }
+  }
+
+  // Change password
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('Kullanıcı oturumu bulunamadı');
+
+      // Re-authenticate user
+      final credential = firebase_auth.EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+      
+      await user.reauthenticateWithCredential(credential);
+      
+      // Update password
+      await user.updatePassword(newPassword);
+      
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      throw Exception(_handleAuthException(e));
+    } catch (e) {
+      throw Exception('Şifre değiştirilirken hata oluştu: $e');
+    }
+  }
+
+  // Delete account
+  Future<void> deleteAccount(String password) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('Kullanıcı oturumu bulunamadı');
+
+      // Re-authenticate user
+      final credential = firebase_auth.EmailAuthProvider.credential(
+        email: user.email!,
+        password: password,
+      );
+      
+      await user.reauthenticateWithCredential(credential);
+      
+      // Delete user data from Firestore
+      await _deleteUserData(user.uid);
+      
+      // Delete Firebase Auth account
+      await user.delete();
+      
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      throw Exception(_handleAuthException(e));
+    } catch (e) {
+      throw Exception('Hesap silinirken hata oluştu: $e');
     }
   }
 
   // Send email verification
   Future<void> sendEmailVerification() async {
-    final user = _auth.currentUser;
-    if (user != null && !user.emailVerified) {
-      await user.sendEmailVerification();
-    }
-  }
-
-  // Reload user to check verification status
-  Future<void> reloadUser() async {
-    await _auth.currentUser?.reload();
-  }
-
-  // Sign out
-  Future<void> signOut() async {
-    await Future.wait([
-      _auth.signOut(),
-      _googleSignIn.signOut(),
-    ]);
-  }
-
-  // Delete account
-  Future<void> deleteAccount() async {
-    final user = _auth.currentUser;
-    if (user != null) {
-      // Delete user data from Firestore
-      await _deleteUserData(user.uid);
-      // Delete Firebase Auth account
-      await user.delete();
+    try {
+      final user = _auth.currentUser;
+      if (user != null && !user.emailVerified) {
+        await user.sendEmailVerification();
+      }
+    } catch (e) {
+      throw Exception('E-posta doğrulama gönderilirken hata oluştu: $e');
     }
   }
 
@@ -164,8 +217,11 @@ class FirebaseAuthService {
   Future<app_models.User?> getUserProfile(String userId) async {
     try {
       final doc = await _firestore.collection('users').doc(userId).get();
-      if (doc.exists) {
-        return app_models.User.fromJson(doc.data()!);
+      if (doc.exists && doc.data() != null) {
+        return app_models.User.fromJson({
+          'id': doc.id,
+          ...doc.data()!,
+        });
       }
       return null;
     } catch (e) {
@@ -182,6 +238,18 @@ class FirebaseAuthService {
     }
   }
 
+  // Update user profile image URL
+  Future<void> updateProfileImageUrl(String userId, String imageUrl) async {
+    try {
+      await _firestore.collection('users').doc(userId).update({
+        'profileImageUrl': imageUrl,
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
+    } catch (e) {
+      throw Exception('Profil resmi güncellenirken hata oluştu: $e');
+    }
+  }
+
   // Create user profile in Firestore
   Future<void> _createUserProfile(app_models.User user) async {
     await _firestore.collection('users').doc(user.id).set(user.toJson());
@@ -191,6 +259,7 @@ class FirebaseAuthService {
   Future<void> _updateLastLoginTime(String userId) async {
     await _firestore.collection('users').doc(userId).update({
       'lastLoginAt': Timestamp.fromDate(DateTime.now()),
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
     });
   }
 
@@ -198,20 +267,40 @@ class FirebaseAuthService {
   Future<void> _deleteUserData(String userId) async {
     final batch = _firestore.batch();
     
-    // Delete user document
-    batch.delete(_firestore.collection('users').doc(userId));
-    
-    // Delete user's dreams
-    final dreamsQuery = await _firestore
-        .collection('dreams')
-        .where('userId', isEqualTo: userId)
-        .get();
-    
-    for (final doc in dreamsQuery.docs) {
-      batch.delete(doc.reference);
+    try {
+      // Delete user document
+      batch.delete(_firestore.collection('users').doc(userId));
+      
+      // Delete user's dreams
+      final dreamsQuery = await _firestore
+          .collection('dreams')
+          .where('userId', isEqualTo: userId)
+          .get();
+      
+      for (final doc in dreamsQuery.docs) {
+        batch.delete(doc.reference);
+      }
+      
+      // Delete user's analyses
+      final analysesQuery = await _firestore
+          .collection('dream_analyses')
+          .where('userId', isEqualTo: userId)
+          .get();
+      
+      for (final doc in analysesQuery.docs) {
+        batch.delete(doc.reference);
+      }
+      
+      // Delete user stats
+      batch.delete(_firestore.collection('user_stats').doc(userId));
+      
+      // Delete user preferences
+      batch.delete(_firestore.collection('user_preferences').doc(userId));
+      
+      await batch.commit();
+    } catch (e) {
+      throw Exception('Kullanıcı verisi silinirken hata oluştu: $e');
     }
-    
-    await batch.commit();
   }
 
   // Handle Firebase Auth exceptions
@@ -235,8 +324,14 @@ class FirebaseAuthService {
         return 'Bu işlem şu anda mevcut değil.';
       case 'requires-recent-login':
         return 'Bu işlem için yeniden giriş yapmanız gerekiyor.';
+      case 'invalid-credential':
+        return 'Geçersiz kimlik bilgileri.';
+      case 'account-exists-with-different-credential':
+        return 'Bu e-posta adresi farklı bir giriş yöntemi ile kayıtlı.';
+      case 'credential-already-in-use':
+        return 'Bu kimlik bilgisi zaten başka bir hesap tarafından kullanılıyor.';
       default:
-        return 'Giriş yapılırken bir hata oluştu: ${e.message}';
+        return 'Kimlik doğrulama hatası: ${e.message ?? e.code}';
     }
   }
 }

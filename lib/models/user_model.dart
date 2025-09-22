@@ -7,36 +7,43 @@ class User {
   final String? profileImageUrl;
   final DateTime createdAt;
   final DateTime? lastLoginAt;
-  final HealthData? healthData;
+  final DateTime? updatedAt;
   final UserPreferences preferences;
+  final UserStats? stats;
   final bool isEmailVerified;
+  final String? phoneNumber;
 
-  User({
+  const User({
     required this.id,
     required this.email,
     required this.name,
     this.profileImageUrl,
     required this.createdAt,
     this.lastLoginAt,
-    this.healthData,
+    this.updatedAt,
     required this.preferences,
+    this.stats,
     this.isEmailVerified = false,
+    this.phoneNumber,
   });
 
+  // Convert to JSON for Firestore
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
       'email': email,
       'name': name,
       'profileImageUrl': profileImageUrl,
       'createdAt': Timestamp.fromDate(createdAt),
       'lastLoginAt': lastLoginAt != null ? Timestamp.fromDate(lastLoginAt!) : null,
-      'healthData': healthData?.toJson(),
+      'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
       'preferences': preferences.toJson(),
+      'stats': stats?.toJson(),
       'isEmailVerified': isEmailVerified,
+      'phoneNumber': phoneNumber,
     };
   }
 
+  // Create from Firestore JSON
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: json['id'] ?? '',
@@ -45,16 +52,15 @@ class User {
       profileImageUrl: json['profileImageUrl'],
       createdAt: (json['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       lastLoginAt: (json['lastLoginAt'] as Timestamp?)?.toDate(),
-      healthData: json['healthData'] != null 
-          ? HealthData.fromJson(json['healthData']) 
-          : null,
-      preferences: json['preferences'] != null 
-          ? UserPreferences.fromJson(json['preferences'])
-          : UserPreferences.defaultPreferences(),
+      updatedAt: (json['updatedAt'] as Timestamp?)?.toDate(),
+      preferences: UserPreferences.fromJson(json['preferences'] ?? {}),
+      stats: json['stats'] != null ? UserStats.fromJson(json['stats']) : null,
       isEmailVerified: json['isEmailVerified'] ?? false,
+      phoneNumber: json['phoneNumber'],
     );
   }
 
+  // CopyWith method
   User copyWith({
     String? id,
     String? email,
@@ -62,9 +68,11 @@ class User {
     String? profileImageUrl,
     DateTime? createdAt,
     DateTime? lastLoginAt,
-    HealthData? healthData,
+    DateTime? updatedAt,
     UserPreferences? preferences,
+    UserStats? stats,
     bool? isEmailVerified,
+    String? phoneNumber,
   }) {
     return User(
       id: id ?? this.id,
@@ -73,142 +81,194 @@ class User {
       profileImageUrl: profileImageUrl ?? this.profileImageUrl,
       createdAt: createdAt ?? this.createdAt,
       lastLoginAt: lastLoginAt ?? this.lastLoginAt,
-      healthData: healthData ?? this.healthData,
+      updatedAt: updatedAt ?? this.updatedAt,
       preferences: preferences ?? this.preferences,
+      stats: stats ?? this.stats,
       isEmailVerified: isEmailVerified ?? this.isEmailVerified,
+      phoneNumber: phoneNumber ?? this.phoneNumber,
     );
   }
-}
-
-class HealthData {
-  final DateTime? bedTime;
-  final DateTime? wakeTime;
-  final int sleepQuality; // 1-10 scale
-  final double sleepDuration; // hours
-  final bool isHealthKitConnected;
-  final DateTime? lastSyncAt;
-
-  HealthData({
-    this.bedTime,
-    this.wakeTime,
-    this.sleepQuality = 5,
-    this.sleepDuration = 8.0,
-    this.isHealthKitConnected = false,
-    this.lastSyncAt,
-  });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'bedTime': bedTime?.toIso8601String(),
-      'wakeTime': wakeTime?.toIso8601String(),
-      'sleepQuality': sleepQuality,
-      'sleepDuration': sleepDuration,
-      'isHealthKitConnected': isHealthKitConnected,
-      'lastSyncAt': lastSyncAt?.toIso8601String(),
-    };
-  }
-
-  factory HealthData.fromJson(Map<String, dynamic> json) {
-    return HealthData(
-      bedTime: json['bedTime'] != null ? DateTime.parse(json['bedTime']) : null,
-      wakeTime: json['wakeTime'] != null ? DateTime.parse(json['wakeTime']) : null,
-      sleepQuality: json['sleepQuality'] ?? 5,
-      sleepDuration: (json['sleepDuration'] ?? 8.0).toDouble(),
-      isHealthKitConnected: json['isHealthKitConnected'] ?? false,
-      lastSyncAt: json['lastSyncAt'] != null ? DateTime.parse(json['lastSyncAt']) : null,
-    );
-  }
-}
-
-class UserPreferences {
-  final bool notificationsEnabled;
-  final TimeOfDay? dreamReminderTime;
-  final bool voiceRecordingEnabled;
-  final String language;
-  final bool darkModeEnabled;
-  final bool analyticsEnabled;
-
-  UserPreferences({
-    this.notificationsEnabled = true,
-    this.dreamReminderTime,
-    this.voiceRecordingEnabled = true,
-    this.language = 'tr',
-    this.darkModeEnabled = false,
-    this.analyticsEnabled = true,
-  });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'notificationsEnabled': notificationsEnabled,
-      'dreamReminderTime': dreamReminderTime != null 
-          ? '${dreamReminderTime!.hour}:${dreamReminderTime!.minute}'
-          : null,
-      'voiceRecordingEnabled': voiceRecordingEnabled,
-      'language': language,
-      'darkModeEnabled': darkModeEnabled,
-      'analyticsEnabled': analyticsEnabled,
-    };
-  }
-
-  factory UserPreferences.fromJson(Map<String, dynamic> json) {
-    TimeOfDay? reminderTime;
-    if (json['dreamReminderTime'] != null) {
-      final timeParts = json['dreamReminderTime'].split(':');
-      reminderTime = TimeOfDay(
-        hour: int.parse(timeParts[0]),
-        minute: int.parse(timeParts[1]),
-      );
-    }
-
-    return UserPreferences(
-      notificationsEnabled: json['notificationsEnabled'] ?? true,
-      dreamReminderTime: reminderTime,
-      voiceRecordingEnabled: json['voiceRecordingEnabled'] ?? true,
-      language: json['language'] ?? 'tr',
-      darkModeEnabled: json['darkModeEnabled'] ?? false,
-      analyticsEnabled: json['analyticsEnabled'] ?? true,
-    );
-  }
-
-  static UserPreferences defaultPreferences() {
-    return UserPreferences(
-      notificationsEnabled: true,
-      dreamReminderTime: const TimeOfDay(hour: 9, minute: 0),
-      voiceRecordingEnabled: true,
-      language: 'tr',
-      darkModeEnabled: false,
-      analyticsEnabled: true,
-    );
-  }
-
-  UserPreferences copyWith({
-    bool? notificationsEnabled,
-    TimeOfDay? dreamReminderTime,
-    bool? voiceRecordingEnabled,
-    String? language,
-    bool? darkModeEnabled,
-    bool? analyticsEnabled,
-  }) {
-    return UserPreferences(
-      notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
-      dreamReminderTime: dreamReminderTime ?? this.dreamReminderTime,
-      voiceRecordingEnabled: voiceRecordingEnabled ?? this.voiceRecordingEnabled,
-      language: language ?? this.language,
-      darkModeEnabled: darkModeEnabled ?? this.darkModeEnabled,
-      analyticsEnabled: analyticsEnabled ?? this.analyticsEnabled,
-    );
-  }
-}
-
-// TimeOfDay helper class for material design
-class TimeOfDay {
-  final int hour;
-  final int minute;
-
-  const TimeOfDay({required this.hour, required this.minute});
 
   @override
   String toString() {
-    return '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+    return 'User(id: $id, email: $email, name: $name, isEmailVerified: $isEmailVerified)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is User && other.id == id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
+}
+
+class UserPreferences {
+  final bool isDarkMode;
+  final String language;
+  final bool notificationsEnabled;
+  final bool soundEnabled;
+  final String dateFormat;
+  final String timeFormat;
+  final bool analyticsEnabled;
+  final int dreamReminderHour;
+  final List<String> interests;
+
+  const UserPreferences({
+    this.isDarkMode = false,
+    this.language = 'tr',
+    this.notificationsEnabled = true,
+    this.soundEnabled = true,
+    this.dateFormat = 'dd/MM/yyyy',
+    this.timeFormat = '24',
+    this.analyticsEnabled = true,
+    this.dreamReminderHour = 9,
+    this.interests = const [],
+  });
+
+  // Default preferences
+  static UserPreferences defaultPreferences() {
+    return const UserPreferences();
+  }
+
+  // Convert to JSON
+  Map<String, dynamic> toJson() {
+    return {
+      'isDarkMode': isDarkMode,
+      'language': language,
+      'notificationsEnabled': notificationsEnabled,
+      'soundEnabled': soundEnabled,
+      'dateFormat': dateFormat,
+      'timeFormat': timeFormat,
+      'analyticsEnabled': analyticsEnabled,
+      'dreamReminderHour': dreamReminderHour,
+      'interests': interests,
+    };
+  }
+
+  // Create from JSON
+  factory UserPreferences.fromJson(Map<String, dynamic> json) {
+    return UserPreferences(
+      isDarkMode: json['isDarkMode'] ?? false,
+      language: json['language'] ?? 'tr',
+      notificationsEnabled: json['notificationsEnabled'] ?? true,
+      soundEnabled: json['soundEnabled'] ?? true,
+      dateFormat: json['dateFormat'] ?? 'dd/MM/yyyy',
+      timeFormat: json['timeFormat'] ?? '24',
+      analyticsEnabled: json['analyticsEnabled'] ?? true,
+      dreamReminderHour: json['dreamReminderHour'] ?? 9,
+      interests: List<String>.from(json['interests'] ?? []),
+    );
+  }
+
+  // CopyWith method
+  UserPreferences copyWith({
+    bool? isDarkMode,
+    String? language,
+    bool? notificationsEnabled,
+    bool? soundEnabled,
+    String? dateFormat,
+    String? timeFormat,
+    bool? analyticsEnabled,
+    int? dreamReminderHour,
+    List<String>? interests,
+  }) {
+    return UserPreferences(
+      isDarkMode: isDarkMode ?? this.isDarkMode,
+      language: language ?? this.language,
+      notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
+      soundEnabled: soundEnabled ?? this.soundEnabled,
+      dateFormat: dateFormat ?? this.dateFormat,
+      timeFormat: timeFormat ?? this.timeFormat,
+      analyticsEnabled: analyticsEnabled ?? this.analyticsEnabled,
+      dreamReminderHour: dreamReminderHour ?? this.dreamReminderHour,
+      interests: interests ?? this.interests,
+    );
+  }
+}
+
+class UserStats {
+  final int totalDreams;
+  final int totalAnalyses;
+  final int streakDays;
+  final int currentStreak;
+  final DateTime? lastDreamDate;
+  final int favoriteCount;
+  final Map<String, int> moodCounts;
+  final Map<String, int> tagCounts;
+  final double averageRating;
+  final int totalRecordingMinutes;
+
+  const UserStats({
+    this.totalDreams = 0,
+    this.totalAnalyses = 0,
+    this.streakDays = 0,
+    this.currentStreak = 0,
+    this.lastDreamDate,
+    this.favoriteCount = 0,
+    this.moodCounts = const {},
+    this.tagCounts = const {},
+    this.averageRating = 0.0,
+    this.totalRecordingMinutes = 0,
+  });
+
+  // Convert to JSON
+  Map<String, dynamic> toJson() {
+    return {
+      'totalDreams': totalDreams,
+      'totalAnalyses': totalAnalyses,
+      'streakDays': streakDays,
+      'currentStreak': currentStreak,
+      'lastDreamDate': lastDreamDate != null ? Timestamp.fromDate(lastDreamDate!) : null,
+      'favoriteCount': favoriteCount,
+      'moodCounts': moodCounts,
+      'tagCounts': tagCounts,
+      'averageRating': averageRating,
+      'totalRecordingMinutes': totalRecordingMinutes,
+    };
+  }
+
+  // Create from JSON
+  factory UserStats.fromJson(Map<String, dynamic> json) {
+    return UserStats(
+      totalDreams: json['totalDreams'] ?? 0,
+      totalAnalyses: json['totalAnalyses'] ?? 0,
+      streakDays: json['streakDays'] ?? 0,
+      currentStreak: json['currentStreak'] ?? 0,
+      lastDreamDate: (json['lastDreamDate'] as Timestamp?)?.toDate(),
+      favoriteCount: json['favoriteCount'] ?? 0,
+      moodCounts: Map<String, int>.from(json['moodCounts'] ?? {}),
+      tagCounts: Map<String, int>.from(json['tagCounts'] ?? {}),
+      averageRating: (json['averageRating'] ?? 0.0).toDouble(),
+      totalRecordingMinutes: json['totalRecordingMinutes'] ?? 0,
+    );
+  }
+
+  // CopyWith method
+  UserStats copyWith({
+    int? totalDreams,
+    int? totalAnalyses,
+    int? streakDays,
+    int? currentStreak,
+    DateTime? lastDreamDate,
+    int? favoriteCount,
+    Map<String, int>? moodCounts,
+    Map<String, int>? tagCounts,
+    double? averageRating,
+    int? totalRecordingMinutes,
+  }) {
+    return UserStats(
+      totalDreams: totalDreams ?? this.totalDreams,
+      totalAnalyses: totalAnalyses ?? this.totalAnalyses,
+      streakDays: streakDays ?? this.streakDays,
+      currentStreak: currentStreak ?? this.currentStreak,
+      lastDreamDate: lastDreamDate ?? this.lastDreamDate,
+      favoriteCount: favoriteCount ?? this.favoriteCount,
+      moodCounts: moodCounts ?? this.moodCounts,
+      tagCounts: tagCounts ?? this.tagCounts,
+      averageRating: averageRating ?? this.averageRating,
+      totalRecordingMinutes: totalRecordingMinutes ?? this.totalRecordingMinutes,
+    );
   }
 }

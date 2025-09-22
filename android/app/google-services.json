@@ -1,40 +1,40 @@
 {
   "project_info": {
-    "project_number": "465923178325",
-    "project_id": "dreamy-2e75c",
-    "storage_bucket": "dreamy-2e75c.firebasestorage.app"
+    "project_number": "237643816620",
+    "project_id": "dreamy-app-2025",
+    "storage_bucket": "dreamy-app-2025.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:465923178325:android:e999272d6002a43c4239dc",
+        "mobilesdk_app_id": "1:237643816620:android:48955560b852b13e710909",
         "android_client_info": {
-          "package_name": "com.example.rua_new"
+          "package_name": "com.dreamy.app"
         }
       },
       "oauth_client": [
         {
-          "client_id": "465923178325-vktmrpubkkh1he002embkguotaogqtn0.apps.googleusercontent.com",
+          "client_id": "237643816620-h5facpj138u61cnnelnkgjla5vg0p2h7.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyD9ghT0WBLJG1uydI5rHEBwy1M53-Ennho"
+          "current_key": "AIzaSyBN9VTpjsfywnYNlhBYb3B8aAFofi7FYKc"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "465923178325-vktmrpubkkh1he002embkguotaogqtn0.apps.googleusercontent.com",
+              "client_id": "237643816620-h5facpj138u61cnnelnkgjla5vg0p2h7.apps.googleusercontent.com",
               "client_type": 3
             },
             {
-              "client_id": "465923178325-nh1gb76sgudtgqtqjgff3omhehkdp902.apps.googleusercontent.com",
+              "client_id": "237643816620-he40fn1ku3627812bobtmbnk596eto3p.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.ruaNew"
+                "bundle_id": "com.dreamy.app"
               }
             }
           ]
