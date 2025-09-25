@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'config/app_theme.dart';
-import 'providers/auth_provider.dart';
+import 'config/firebase_options.dart';
+import 'providers/auth_provider_interface.dart';
+import 'providers/firebase_auth_provider.dart';
+import 'providers/mock_auth_provider.dart';
 import 'providers/dream_provider.dart';
 import 'screens/splash_screen.dart';
-import 'screens/login_screen.dart';
+import 'screens/phone_auth_screen.dart';
 import 'screens/main_navigation.dart';
 import 'screens/profile_screen.dart';
-import 'screens/register_screen.dart';
+
+bool _isFirebaseInitialized = false;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,10 +35,16 @@ void main() async {
   ]);
   
   try {
-    // Firebase will be initialized later
-    print('✅ App initialized successfully');
+    // Initialize Firebase
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    _isFirebaseInitialized = true;
+    print('✅ Firebase initialized successfully');
   } catch (e) {
-    print('❌ App initialization error: $e');
+    _isFirebaseInitialized = false;
+    print('❌ Firebase initialization error: $e');
+    print('📱 Using mock authentication provider');
   }
   
   runApp(const MyApp());
@@ -46,7 +57,11 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider<AuthProviderInterface>(
+          create: (_) => _isFirebaseInitialized 
+              ? FirebaseAuthProvider()
+              : MockAuthProvider(),
+        ),
         ChangeNotifierProvider(create: (_) => DreamProvider()),
       ],
       child: MaterialApp(
@@ -57,8 +72,7 @@ class MyApp extends StatelessWidget {
         themeMode: ThemeMode.system,
         home: const AuthWrapper(),
         routes: {
-          '/login': (context) => const LoginScreen(),
-          '/register': (context) => const RegisterScreen(),
+          '/login': (context) => const PhoneAuthScreen(),
           '/home': (context) => const MainNavigation(),
           '/profile': (context) => const ProfileScreen(),
           '/profile-edit': (context) => _buildComingSoonScreen(
@@ -193,7 +207,7 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<AuthProvider>(
+    return Consumer<AuthProviderInterface>(
       builder: (context, authProvider, _) {
         // Show loading screen while checking authentication
         if (authProvider.isLoading) {
@@ -204,7 +218,7 @@ class AuthWrapper extends StatelessWidget {
         if (authProvider.isAuthenticated && authProvider.currentUser != null) {
           return const MainNavigation();
         } else {
-          return const LoginScreen();
+          return const PhoneAuthScreen();
         }
       },
     );

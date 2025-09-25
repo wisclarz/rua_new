@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
+import '../providers/auth_provider_interface.dart';
 import '../models/user_model.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -124,7 +124,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildProfileHeader(BuildContext context) {
     final theme = Theme.of(context);
     
-    return Consumer<AuthProvider>(
+    return Consumer<AuthProviderInterface>(
       builder: (context, authProvider, _) {
         final user = authProvider.currentUser;
         
@@ -475,7 +475,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onPressed: () async {
               Navigator.pop(context);
               try {
-                await context.read<AuthProvider>().signOut();
+                await context.read<AuthProviderInterface>().signOut();
                 if (context.mounted) {
                   Navigator.pushReplacementNamed(context, '/login');
                 }

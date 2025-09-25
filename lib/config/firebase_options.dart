@@ -44,38 +44,38 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'your-web-api-key',
-    appId: 'your-web-app-id',
-    messagingSenderId: 'your-sender-id',
-    projectId: 'your-project-id',
-    authDomain: 'your-project.firebaseapp.com',
-    storageBucket: 'your-project.appspot.com',
-    measurementId: 'your-measurement-id',
+    apiKey: 'AIzaSyCmDCU3a3jES2BgSEL0dNf8afftOHWkA74',
+    appId: '1:237643816620:web:461e059e9b0003f9710909',
+    messagingSenderId: '237643816620',
+    projectId: 'dreamy-app-2025',
+    authDomain: 'dreamy-app-2025.firebaseapp.com',
+    storageBucket: 'dreamy-app-2025.firebasestorage.app',
+    measurementId: 'G-LY4ND7JDYQ',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'your-android-api-key',
-    appId: 'your-android-app-id',
-    messagingSenderId: 'your-sender-id',
-    projectId: 'your-project-id',
-    storageBucket: 'your-project.appspot.com',
+    apiKey: 'AIzaSyBN9VTpjsfywnYNlhBYb3B8aAFofi7FYKc',
+    appId: '1:237643816620:android:48955560b852b13e710909',
+    messagingSenderId: '237643816620',
+    projectId: 'dreamy-app-2025',
+    storageBucket: 'dreamy-app-2025.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'your-ios-api-key',
-    appId: 'your-ios-app-id',
-    messagingSenderId: 'your-sender-id',
-    projectId: 'your-project-id',
-    storageBucket: 'your-project.appspot.com',
-    iosBundleId: 'com.example.ruaDreamApp',
+    apiKey: 'AIzaSyAMDcWaKiZGOJwbTTIBfISYg1TGQjSj_q8',
+    appId: '1:237643816620:ios:68d5b3d73c4849e4710909',
+    messagingSenderId: '237643816620',
+    projectId: 'dreamy-app-2025',
+    storageBucket: 'dreamy-app-2025.firebasestorage.app',
+    iosBundleId: 'com.dreamy.app',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'your-ios-api-key',
-    appId: 'your-ios-app-id',
-    messagingSenderId: 'your-sender-id',
-    projectId: 'your-project-id',
-    storageBucket: 'your-project.appspot.com',
-    iosBundleId: 'com.example.ruaDreamApp',
+    apiKey: 'AIzaSyAMDcWaKiZGOJwbTTIBfISYg1TGQjSj_q8',
+    appId: '1:237643816620:ios:87b1bcaa3571f213710909',
+    messagingSenderId: '237643816620',
+    projectId: 'dreamy-app-2025',
+    storageBucket: 'dreamy-app-2025.firebasestorage.app',
+    iosBundleId: 'com.dreamy.app',
   );
 }

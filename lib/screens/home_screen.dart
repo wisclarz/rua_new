@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
+import '../providers/auth_provider_interface.dart';
 import '../providers/dream_provider.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -90,7 +90,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     
     return Scaffold(
       backgroundColor: theme.colorScheme.background,
-      body: Consumer2<AuthProvider, DreamProvider>(
+      body: Consumer2<AuthProviderInterface, DreamProvider>(
         builder: (context, authProvider, dreamProvider, child) {
           final user = authProvider.currentUser;
           

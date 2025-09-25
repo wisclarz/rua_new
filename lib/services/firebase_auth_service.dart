@@ -124,6 +124,91 @@ class FirebaseAuthService {
     }
   }
 
+  // Phone authentication - Send verification code
+  Future<void> sendPhoneVerificationCode({
+    required String phoneNumber,
+    required Function(String verificationId) onCodeSent,
+    required Function(firebase_auth.FirebaseAuthException) onVerificationFailed,
+    Function()? onAutoVerificationCompleted,
+  }) async {
+    try {
+      print('📱 Starting phone verification for: $phoneNumber');
+      
+      await _auth.verifyPhoneNumber(
+        phoneNumber: phoneNumber,
+        timeout: const Duration(seconds: 60), // Timeout süresi eklendi
+        verificationCompleted: (firebase_auth.PhoneAuthCredential credential) async {
+          print('✅ Phone verification completed automatically');
+          // Auto verification completed (Android only)
+          if (onAutoVerificationCompleted != null) {
+            onAutoVerificationCompleted();
+          }
+        },
+        verificationFailed: (firebase_auth.FirebaseAuthException e) {
+          print('❌ Phone verification failed: ${e.code} - ${e.message}');
+          onVerificationFailed(e);
+        },
+        codeSent: (String verificationId, int? resendToken) {
+          print('📨 SMS code sent, verification ID: $verificationId');
+          onCodeSent(verificationId);
+        },
+        codeAutoRetrievalTimeout: (String verificationId) {
+          print('⏰ Auto retrieval timeout for: $verificationId');
+        },
+      );
+    } catch (e) {
+      print('💥 Exception in sendPhoneVerificationCode: $e');
+      throw Exception('SMS gönderilirken hata oluştu: $e');
+    }
+  }
+
+  // Phone authentication - Verify SMS code
+  Future<app_models.User?> verifyPhoneCode({
+    required String verificationId,
+    required String smsCode,
+    String? userName,
+  }) async {
+    try {
+      final credential = firebase_auth.PhoneAuthProvider.credential(
+        verificationId: verificationId,
+        smsCode: smsCode,
+      );
+
+      final userCredential = await _auth.signInWithCredential(credential);
+      
+      if (userCredential.user != null) {
+        final firebaseUser = userCredential.user!;
+        
+        // Check if user profile exists, create if not
+        app_models.User? user = await getUserProfile(firebaseUser.uid);
+        
+        if (user == null) {
+          // Create new user profile
+          user = app_models.User(
+            id: firebaseUser.uid,
+            email: '', // Phone auth doesn't require email
+            phoneNumber: firebaseUser.phoneNumber,
+            name: userName ?? 'Telefon Kullanıcısı',
+            createdAt: DateTime.now(),
+            preferences: app_models.UserPreferences.defaultPreferences(),
+          );
+          
+          await _createUserProfile(user);
+        } else {
+          // Update last login time
+          await _updateLastLoginTime(firebaseUser.uid);
+        }
+        
+        return user;
+      }
+      return null;
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      throw Exception(_handleAuthException(e));
+    } catch (e) {
+      throw Exception('Telefon doğrulaması yapılırken hata oluştu: $e');
+    }
+  }
+
   // Sign out
   Future<void> signOut() async {
     try {
@@ -216,15 +301,21 @@ class FirebaseAuthService {
   // Get user profile from Firestore
   Future<app_models.User?> getUserProfile(String userId) async {
     try {
+      print('📄 Getting user profile from Firestore for: $userId');
       final doc = await _firestore.collection('users').doc(userId).get();
+      
       if (doc.exists && doc.data() != null) {
+        print('✅ User document found in Firestore');
         return app_models.User.fromJson({
           'id': doc.id,
           ...doc.data()!,
         });
       }
+      
+      print('⚠️ User document not found in Firestore');
       return null;
     } catch (e) {
+      print('❌ Error getting user profile: $e');
       throw Exception('Kullanıcı profili alınırken hata oluştu: $e');
     }
   }
@@ -232,8 +323,11 @@ class FirebaseAuthService {
   // Update user profile
   Future<void> updateUserProfile(app_models.User user) async {
     try {
-      await _firestore.collection('users').doc(user.id).update(user.toJson());
+      print('💾 Saving user profile to Firestore: ${user.id}');
+      await _firestore.collection('users').doc(user.id).set(user.toJson(), SetOptions(merge: true));
+      print('✅ User profile saved successfully');
     } catch (e) {
+      print('❌ Error saving user profile: $e');
       throw Exception('Profil güncellenirken hata oluştu: $e');
     }
   }
@@ -330,6 +424,21 @@ class FirebaseAuthService {
         return 'Bu e-posta adresi farklı bir giriş yöntemi ile kayıtlı.';
       case 'credential-already-in-use':
         return 'Bu kimlik bilgisi zaten başka bir hesap tarafından kullanılıyor.';
+      // Phone authentication specific errors
+      case 'invalid-phone-number':
+        return 'Geçersiz telefon numarası formatı.';
+      case 'invalid-verification-code':
+        return 'Geçersiz doğrulama kodu.';
+      case 'invalid-verification-id':
+        return 'Geçersiz doğrulama ID\'si.';
+      case 'missing-verification-code':
+        return 'Doğrulama kodu eksik.';
+      case 'missing-verification-id':
+        return 'Doğrulama ID\'si eksik.';
+      case 'quota-exceeded':
+        return 'SMS kotası aşıldı. Lütfen daha sonra tekrar deneyin.';
+      case 'session-expired':
+        return 'Doğrulama oturumu süresi doldu. Lütfen tekrar deneyin.';
       default:
         return 'Kimlik doğrulama hatası: ${e.message ?? e.code}';
     }

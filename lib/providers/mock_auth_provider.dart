@@ -1,170 +1,257 @@
 import 'package:flutter/material.dart';
+import '../models/user_model.dart' as app_models;
+import 'auth_provider_interface.dart';
 
-class MockUser {
-  final String uid;
-  final String email;
-  final String? displayName;
-
-  MockUser({
-    required this.uid,
-    required this.email,
-    this.displayName,
-  });
-}
-
-class MockAuthProvider extends ChangeNotifier {
-  MockUser? _currentUser;
-  MockUser? get currentUser => _currentUser;
-  bool get isAuthenticated => _currentUser != null;
-
+// Fallback mock auth provider for when Firebase is not available
+class MockAuthProvider extends AuthProviderInterface {
+  app_models.User? _currentUser;
+  bool _isLoading = true;
   String? _errorMessage;
-  String? get errorMessage => _errorMessage;
-
-  bool _isLoading = false;
+  
+  // Mock users for testing
+  final List<Map<String, String>> _mockUsers = [
+    {'phone': '+905551234567', 'name': 'Test User'},
+    {'phone': '+905559876543', 'name': 'Admin User'},
+  ];
+  
+  // Getters
+  app_models.User? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
-
+  String? get errorMessage => _errorMessage;
+  bool get isAuthenticated => _currentUser != null;
+  bool get isVerifyingPhone => false;
+  String? get verificationId => null;
+  bool get isInitialized => true;
+  
+  // Constructor
   MockAuthProvider() {
-    // Auto login for demo purposes
-    _currentUser = MockUser(
-      uid: 'demo_user_123',
-      email: 'demo@rua.app',
-      displayName: 'Demo User',
-    );
+    _initializeAsync();
   }
-
-  // Mock sign in
-  Future<bool> signInWithEmailAndPassword(String email, String password) async {
+  
+  Future<void> _initializeAsync() async {
+    try {
+      _setLoading(true);
+      
+      // Simulate loading delay
+      await Future.delayed(const Duration(milliseconds: 1500));
+      
+      // Start with no authenticated user
+      _currentUser = null;
+      
+    } catch (e) {
+      _setError('Başlatma hatası: $e');
+      _currentUser = null;
+    } finally {
+      _setLoading(false);
+    }
+  }
+  
+  // Mock Google sign in
+  Future<bool> signInWithGoogle() async {
     try {
       _setLoading(true);
       _clearError();
-
+      
+      // Simulate network delay
+      await Future.delayed(const Duration(seconds: 2));
+      
+      // Mock Google user
+      _currentUser = app_models.User(
+        id: 'google_mock_user',
+        email: 'google.user@gmail.com',
+        name: 'Google Kullanıcı',
+        profileImageUrl: 'https://via.placeholder.com/100',
+        createdAt: DateTime.now().subtract(const Duration(days: 5)),
+        lastLoginAt: DateTime.now(),
+        preferences: app_models.UserPreferences.defaultPreferences(),
+        stats: app_models.UserStats(
+          totalDreams: 3,
+          totalAnalyses: 2,
+          streakDays: 1,
+        ),
+        isEmailVerified: true,
+      );
+      
+      return true;
+    } catch (e) {
+      _setError('Google ile giriş başarısız: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+  
+  // Mock phone verification
+  Future<bool> sendPhoneVerificationCode(String phoneNumber) async {
+    try {
+      _setLoading(true);
+      _clearError();
+      
       // Simulate network delay
       await Future.delayed(const Duration(seconds: 1));
-
-      // Mock validation
-      if (email.isEmpty || password.isEmpty) {
-        _setError('E-posta ve şifre gereklidir');
-        return false;
-      }
-
-      if (password.length < 6) {
-        _setError('Şifre en az 6 karakter olmalıdır');
-        return false;
-      }
-
-      // Mock successful login
-      _currentUser = MockUser(
-        uid: 'user_${DateTime.now().millisecondsSinceEpoch}',
-        email: email,
-        displayName: email.split('@').first,
-      );
-
-      notifyListeners();
+      
       return true;
     } catch (e) {
-      _setError('Giriş yapılırken hata oluştu: $e');
+      _setError('SMS gönderilirken hata: $e');
       return false;
     } finally {
       _setLoading(false);
     }
   }
-
-  // Mock register
-  Future<bool> registerWithEmailAndPassword(String email, String password) async {
+  
+  // Mock phone code verification
+  Future<bool> verifyPhoneCode({
+    required String smsCode,
+    String? userName,
+  }) async {
     try {
       _setLoading(true);
       _clearError();
-
+      
       // Simulate network delay
-      await Future.delayed(const Duration(milliseconds: 1500));
-
-      // Mock validation
-      if (email.isEmpty || password.isEmpty) {
-        _setError('E-posta ve şifre gereklidir');
-        return false;
+      await Future.delayed(const Duration(seconds: 1));
+      
+      // Accept any 6-digit code
+      if (smsCode.length == 6) {
+        _currentUser = app_models.User(
+          id: 'phone_mock_user',
+          email: '',
+          phoneNumber: '+905551234567',
+          name: userName ?? 'Telefon Kullanıcısı',
+          createdAt: DateTime.now(),
+          lastLoginAt: DateTime.now(),
+          preferences: app_models.UserPreferences.defaultPreferences(),
+          stats: app_models.UserStats(
+            totalDreams: 1,
+            totalAnalyses: 1,
+            streakDays: 1,
+          ),
+          isEmailVerified: false,
+        );
+        return true;
       }
-
-      if (!email.contains('@')) {
-        _setError('Geçerli bir e-posta adresi girin');
-        return false;
-      }
-
-      if (password.length < 6) {
-        _setError('Şifre en az 6 karakter olmalıdır');
-        return false;
-      }
-
-      // Mock successful registration
-      _currentUser = MockUser(
-        uid: 'user_${DateTime.now().millisecondsSinceEpoch}',
-        email: email,
-        displayName: email.split('@').first,
-      );
-
-      notifyListeners();
-      return true;
+      
+      _setError('Geçersiz doğrulama kodu');
+      return false;
     } catch (e) {
-      _setError('Kayıt olurken hata oluştu: $e');
+      _setError('Doğrulama kodu hatası: $e');
       return false;
     } finally {
       _setLoading(false);
     }
   }
-
-  // Mock sign out
+  
+  // Sign out
   Future<void> signOut() async {
     try {
       _setLoading(true);
+      _clearError();
       
       // Simulate network delay
       await Future.delayed(const Duration(milliseconds: 500));
       
       _currentUser = null;
-      _clearError();
-      notifyListeners();
     } catch (e) {
-      debugPrint('Sign out error: $e');
+      _setError('Çıkış yapılırken hata oluştu: $e');
     } finally {
       _setLoading(false);
     }
   }
-
-  // Mock reset password
-  Future<bool> resetPassword(String email) async {
+  
+  // Update user profile
+  Future<bool> updateUserProfile(app_models.User user) async {
     try {
       _setLoading(true);
       _clearError();
-
-      // Simulate network delay
-      await Future.delayed(const Duration(seconds: 1));
-
-      if (email.isEmpty || !email.contains('@')) {
-        _setError('Geçerli bir e-posta adresi girin');
-        return false;
-      }
-
-      // Mock successful password reset
+      
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      _currentUser = user.copyWith(updatedAt: DateTime.now());
+      
       return true;
     } catch (e) {
-      _setError('Şifre sıfırlama hatası: $e');
+      _setError('Profil güncelleme hatası: $e');
       return false;
     } finally {
       _setLoading(false);
     }
   }
-
+  
+  // Update profile image
+  Future<bool> updateProfileImage(String imageUrl) async {
+    try {
+      _setLoading(true);
+      _clearError();
+      
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      if (_currentUser != null) {
+        _currentUser = _currentUser!.copyWith(
+          profileImageUrl: imageUrl,
+          updatedAt: DateTime.now(),
+        );
+        return true;
+      }
+      
+      return false;
+    } catch (e) {
+      _setError('Profil resmi güncelleme hatası: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+  
+  // Delete account
+  Future<bool> deleteAccount() async {
+    try {
+      _setLoading(true);
+      _clearError();
+      
+      await Future.delayed(const Duration(seconds: 1));
+      
+      _currentUser = null;
+      
+      return true;
+    } catch (e) {
+      _setError('Hesap silme hatası: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+  
+  // Send email verification (not applicable for mock)
+  Future<void> sendEmailVerification() async {
+    // Do nothing in mock
+  }
+  
+  // Reset phone verification
+  void resetPhoneVerification() {
+    _clearError();
+    notifyListeners();
+  }
+  
+  // Clear error message
+  void clearError() {
+    _clearError();
+  }
+  
+  // Private methods
   void _setLoading(bool loading) {
     _isLoading = loading;
     notifyListeners();
   }
-
+  
   void _setError(String error) {
     _errorMessage = error;
     notifyListeners();
   }
-
+  
   void _clearError() {
     _errorMessage = null;
-    notifyListeners();
+    if (!_isLoading) {
+      notifyListeners();
+    }
   }
 }
