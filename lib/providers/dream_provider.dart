@@ -67,75 +67,91 @@ class DreamProvider extends ChangeNotifier {
 
   // Fetch user's dreams from Firestore
   Future<void> fetchDreams() async {
-    debugPrint('📥 Fetching dreams...');
-    try {
-      _setLoading(true);
-      _clearError();
+  debugPrint('📥 Fetching dreams...');
+  try {
+    _setLoading(true);
+    _clearError();
 
-      final user = _auth.currentUser;
-      if (user == null) {
-        debugPrint('❌ No authenticated user');
-        _setError('Kullanıcı oturumu bulunamadı');
-        return;
-      }
-
-      debugPrint('👤 Fetching dreams for user: ${user.uid}');
-
-      final QuerySnapshot querySnapshot = await _firestore
-          .collection('dreams')
-          .where('userId', isEqualTo: user.uid)
-          .orderBy('createdAt', descending: true)
-          .get();
-
-      debugPrint('📊 Found ${querySnapshot.docs.length} dreams in Firestore');
-
-      _dreams = querySnapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        return Dream(
-          id: doc.id,
-          userId: data['userId'],
-          audioUrl: data['audioUrl'],
-          fileName: data['fileName'],
-          title: data['title'],
-          dreamText: data['dreamText'],
-          content: data['content'],
-          analysis: data['analysis'],
-          mood: data['mood'],
-          status: _parseStatus(data['status']),
-          createdAt: (data['createdAt'] as Timestamp).toDate(),
-          updatedAt: data['updatedAt'] != null 
-              ? (data['updatedAt'] as Timestamp).toDate() 
-              : null,
-        );
-      }).toList();
-
-      // If no dreams in Firestore, add a demo dream
-      if (_dreams.isEmpty) {
-        debugPrint('📝 No dreams found, adding demo dream');
-        _dreams = [
-          Dream(
-            id: 'demo_1',
-            userId: user.uid,
-            title: 'Demo Rüya',
-            dreamText: 'Bu bir demo rüyadır.',
-            content: 'Bu bir demo rüyadır.',
-            analysis: 'Demo analiz.',
-            mood: 'Huzurlu',
-            status: DreamStatus.completed,
-            createdAt: DateTime.now().subtract(const Duration(days: 1)),
-          ),
-        ];
-      }
-
-      debugPrint('✅ Dreams fetched: ${_dreams.length} items');
-      notifyListeners();
-    } catch (e) {
-      debugPrint('❌ Error fetching dreams: $e');
-      _setError('Rüyalar yüklenirken hata oluştu: $e');
-    } finally {
-      _setLoading(false);
+    final user = _auth.currentUser;
+    if (user == null) {
+      debugPrint('❌ No authenticated user');
+      _setError('Kullanıcı oturumu bulunamadı');
+      return;
     }
+
+    debugPrint('👤 Fetching dreams for user: ${user.uid}');
+
+    final QuerySnapshot querySnapshot = await _firestore
+        .collection('dreams')
+        .where('userId', isEqualTo: user.uid)
+        .orderBy('createdAt', descending: true)
+        .get();
+
+    debugPrint('📊 Found ${querySnapshot.docs.length} dreams in Firestore');
+
+    _dreams = querySnapshot.docs.map((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      return Dream(
+        id: doc.id,
+        userId: data['userId'] ?? '',
+        audioUrl: data['audioUrl'],
+        fileName: data['fileName'],
+        title: data['title'],
+        dreamText: data['dreamText'],
+        content: data['content'],
+        analysis: data['analysis'],
+        mood: data['mood'],
+        status: _parseStatus(data['status']),
+        createdAt: _parseDateTime(data['createdAt']) ?? DateTime.now(),
+        updatedAt: _parseDateTime(data['updatedAt']),
+      );
+    }).toList();
+
+    debugPrint('✅ Successfully loaded ${_dreams.length} dreams');
+    notifyListeners();
+    
+  } catch (e) {
+    debugPrint('❌ Error fetching dreams: $e');
+    _setError('Rüyalar yüklenirken hata oluştu: $e');
+  } finally {
+    _setLoading(false);
   }
+}
+
+// Helper metodu ekleyin - tarih parsing için
+DateTime? _parseDateTime(dynamic value) {
+  if (value == null) return null;
+  
+  try {
+    if (value is Timestamp) {
+      return value.toDate();
+    } else if (value is String) {
+      return DateTime.parse(value);
+    } else {
+      debugPrint('⚠️ Unknown datetime format: ${value.runtimeType}');
+      return null;
+    }
+  } catch (e) {
+    debugPrint('❌ Error parsing datetime: $e');
+    return null;
+  }
+}
+
+// Status parsing metodunu da güncelleyin
+DreamStatus _parseStatus(dynamic status) {
+  if (status == null) return DreamStatus.processing;
+  
+  final statusString = status.toString().toLowerCase();
+  switch (statusString) {
+    case 'completed':
+      return DreamStatus.completed;
+    case 'failed':
+      return DreamStatus.failed;
+    case 'processing':
+    default:
+      return DreamStatus.processing;
+  }
+}
 
   // Start recording
   Future<bool> startRecording() async {
@@ -445,18 +461,7 @@ class DreamProvider extends ChangeNotifier {
     return '${text.substring(0, 30)}...';
   }
 
-  DreamStatus _parseStatus(String status) {
-    switch (status) {
-      case 'processing':
-        return DreamStatus.processing;
-      case 'completed':
-        return DreamStatus.completed;
-      case 'failed':
-        return DreamStatus.failed;
-      default:
-        return DreamStatus.processing;
-    }
-  }
+  
 
   void _setLoading(bool loading) {
     if (_isLoading != loading) {
