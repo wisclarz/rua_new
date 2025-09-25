@@ -1,5 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_sound/flutter_sound.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:io';
+import 'dart:math';
 import '../models/dream_model.dart';
+import '../services/n8n_service.dart';
 
 class DreamProvider extends ChangeNotifier {
   List<Dream> _dreams = [];
@@ -14,96 +22,157 @@ class DreamProvider extends ChangeNotifier {
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
+  // Audio recording variables
+  FlutterSoundRecorder? _recorder;
+  String? _currentRecordingPath;
+  
+  // Firebase instances  
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final N8nService _n8nService = N8nService();
 
-  // Fetch user's dreams (mock data for testing)
+  DreamProvider() {
+    debugPrint('🏗️ DreamProvider initialized');
+    _initializeRecorder();
+  }
+
+  // Initialize audio recorder
+  Future<void> _initializeRecorder() async {
+    try {
+      debugPrint('🎤 Initializing recorder...');
+      _recorder = FlutterSoundRecorder();
+      await _recorder!.openRecorder();
+      debugPrint('✅ Recorder initialized successfully');
+    } catch (e) {
+      debugPrint('❌ Recorder initialization failed: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    debugPrint('🔄 Disposing DreamProvider...');
+    _recorder?.closeRecorder();
+    super.dispose();
+  }
+
+  // Request microphone permission
+  Future<bool> _requestMicrophonePermission() async {
+    debugPrint('🔒 Requesting microphone permission...');
+    final status = await Permission.microphone.request();
+    final granted = status == PermissionStatus.granted;
+    debugPrint(granted ? '✅ Microphone permission granted' : '❌ Microphone permission denied');
+    return granted;
+  }
+
+  // Fetch user's dreams from Firestore
   Future<void> fetchDreams() async {
+    debugPrint('📥 Fetching dreams...');
     try {
       _setLoading(true);
       _clearError();
 
-      // Mock data for testing
-      await Future.delayed(const Duration(seconds: 1)); // Simulate network delay
-      
-      _dreams = [
-        Dream(
-          id: '1',
-          userId: 'demo_user',
-          title: 'Uçma Rüyası',
-          dreamText: 'Uçtuğum bir rüya gördüm, çok güzeldi! Bulutların arasından geçiyordum.',
-          content: 'Uçtuğum bir rüya gördüm, çok güzeldi! Bulutların arasından geçiyordum.',
-          analysis: 'Uçma rüyaları genellikle özgürlük arzusu ve yaşamınızda yeni bir perspektif elde etme isteğinizi simgeler.',
-          mood: 'Mutlu',
-          status: DreamStatus.completed,
-          createdAt: DateTime.now().subtract(const Duration(days: 1)),
-        ),
-        Dream(
-          id: '2',
-          userId: 'demo_user',
-          title: 'Denizde Yüzme',
-          dreamText: 'Denizde yüzdüğüm bir rüya. Sular berraktı ve çok huzurlu hissediyordum.',
-          content: 'Denizde yüzdüğüm bir rüya. Sular berraktı ve çok huzurlu hissediyordum.',
-          analysis: 'Su ile ilgili rüyalar duygusal durumunuzu yansıtır. Berrak suda yüzmek huzur ve iç barışı ifade eder.',
-          mood: 'Huzurlu',
-          status: DreamStatus.completed,
-          createdAt: DateTime.now().subtract(const Duration(days: 2)),
-        ),
-        Dream(
-          id: '3',
-          userId: 'demo_user',
-          title: 'Eski Evim',
-          dreamText: 'Eski evimde geziniyordum. Her oda çok tanıdık geliyordu.',
-          content: 'Eski evimde geziniyordum. Her oda çok tanıdık geliyordu.',
-          analysis: 'Analiz yapılıyor... Bu rüya geçmişinizle bağlantılı anılarınızı işaret ediyor olabilir.',
-          mood: 'Nostaljik',
-          status: DreamStatus.processing,
-          createdAt: DateTime.now().subtract(const Duration(days: 3)),
-        ),
-        Dream(
-          id: '4',
-          userId: 'demo_user',
-          title: 'Karanlık Yol',
-          dreamText: 'Karanlık bir yerde kaybolmuştum. Çıkışı bulamıyordum.',
-          content: 'Karanlık bir yerde kaybolmuştum. Çıkışı bulamıyordum.',
-          analysis: 'Kaybolma rüyaları belirsizlik ve karar verme zorluğu yaşadığınız durumları simgeleyebilir.',
-          mood: 'Kaygılı',
-          status: DreamStatus.completed,
-          createdAt: DateTime.now().subtract(const Duration(days: 4)),
-        ),
-        Dream(
-          id: '5',
-          userId: 'demo_user',
-          title: 'Yağmur Altında',
-          dreamText: 'Yağmur altında yürüyordum ama ıslanmıyordum.',
-          content: 'Yağmur altında yürüyordum ama ıslanmıyordum.',
-          analysis: 'Yağmur korunma ihtiyacı hissettiğiniz durumları simgeleyebilir.',
-          mood: 'Huzurlu',
-          status: DreamStatus.processing,
-          createdAt: DateTime.now().subtract(const Duration(days: 5)),
-        ),
-      ];
+      final user = _auth.currentUser;
+      if (user == null) {
+        debugPrint('❌ No authenticated user');
+        _setError('Kullanıcı oturumu bulunamadı');
+        return;
+      }
 
+      debugPrint('👤 Fetching dreams for user: ${user.uid}');
+
+      final QuerySnapshot querySnapshot = await _firestore
+          .collection('dreams')
+          .where('userId', isEqualTo: user.uid)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      debugPrint('📊 Found ${querySnapshot.docs.length} dreams in Firestore');
+
+      _dreams = querySnapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return Dream(
+          id: doc.id,
+          userId: data['userId'],
+          audioUrl: data['audioUrl'],
+          fileName: data['fileName'],
+          title: data['title'],
+          dreamText: data['dreamText'],
+          content: data['content'],
+          analysis: data['analysis'],
+          mood: data['mood'],
+          status: _parseStatus(data['status']),
+          createdAt: (data['createdAt'] as Timestamp).toDate(),
+          updatedAt: data['updatedAt'] != null 
+              ? (data['updatedAt'] as Timestamp).toDate() 
+              : null,
+        );
+      }).toList();
+
+      // If no dreams in Firestore, add a demo dream
+      if (_dreams.isEmpty) {
+        debugPrint('📝 No dreams found, adding demo dream');
+        _dreams = [
+          Dream(
+            id: 'demo_1',
+            userId: user.uid,
+            title: 'Demo Rüya',
+            dreamText: 'Bu bir demo rüyadır.',
+            content: 'Bu bir demo rüyadır.',
+            analysis: 'Demo analiz.',
+            mood: 'Huzurlu',
+            status: DreamStatus.completed,
+            createdAt: DateTime.now().subtract(const Duration(days: 1)),
+          ),
+        ];
+      }
+
+      debugPrint('✅ Dreams fetched: ${_dreams.length} items');
       notifyListeners();
     } catch (e) {
+      debugPrint('❌ Error fetching dreams: $e');
       _setError('Rüyalar yüklenirken hata oluştu: $e');
     } finally {
       _setLoading(false);
     }
   }
 
-  // Mock start recording
+  // Start recording
   Future<bool> startRecording() async {
+    debugPrint('🔴 START RECORDING CALLED');
     try {
       _setLoading(true);
       _clearError();
 
-      // Simulate recording start delay
-      await Future.delayed(const Duration(milliseconds: 500));
+      // Request microphone permission
+      final hasPermission = await _requestMicrophonePermission();
+      if (!hasPermission) {
+        debugPrint('❌ No microphone permission');
+        _setError('Mikrofon izni gerekli');
+        return false;
+      }
+
+      // Create temporary file path
+      final String fileName = 'dream_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      final Directory tempDir = Directory.systemTemp;
+      _currentRecordingPath = '${tempDir.path}/$fileName';
+      
+      debugPrint('📁 Recording path: $_currentRecordingPath');
+
+      // Start recording
+      await _recorder!.startRecorder(
+        toFile: _currentRecordingPath,
+        codec: Codec.aacMP4,
+        bitRate: 128000,
+        sampleRate: 44100,
+      );
 
       _isRecording = true;
-
+      debugPrint('🎤 Recording started successfully!');
       notifyListeners();
       return true;
     } catch (e) {
+      debugPrint('❌ Recording start error: $e');
       _setError('Kayıt başlatılırken hata oluştu: $e');
       return false;
     } finally {
@@ -111,43 +180,70 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // Mock stop recording and save dream
+  // Stop recording and save dream
   Future<bool> stopRecordingAndSave() async {
+    debugPrint('🛑 STOP RECORDING CALLED');
     try {
       _setLoading(true);
       _clearError();
 
-      if (!_isRecording) {
+      if (!_isRecording || _currentRecordingPath == null) {
+        debugPrint('❌ Not recording or no path');
         _setError('Kayıt yapılmıyor');
         return false;
       }
 
-      // Simulate processing delay
-      await Future.delayed(const Duration(seconds: 2));
-
+      // Stop recording
+      debugPrint('⏹️ Stopping recorder...');
+      await _recorder!.stopRecorder();
       _isRecording = false;
 
-      // Create new dream
-      final newDream = Dream(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        userId: 'demo_user',
-        audioUrl: 'mock_audio.m4a',
-        fileName: 'dream_${DateTime.now().millisecondsSinceEpoch}.m4a',
-        title: 'Yeni Rüya Kaydı',
-        dreamText: 'Yeni kaydedilen rüya (demo)',
-        content: 'Yeni kaydedilen rüya (demo)',
-        analysis: 'Analiz yapılıyor...',
-        mood: 'Belirsiz',
-        createdAt: DateTime.now(),
-        status: DreamStatus.processing,
-      );
+      // Check if file exists and has content
+      final File audioFile = File(_currentRecordingPath!);
+      if (!audioFile.existsSync()) {
+        debugPrint('❌ Audio file does not exist');
+        _setError('Ses dosyası oluşturulamadı');
+        return false;
+      }
+
+      final int fileSize = audioFile.lengthSync();
+      debugPrint('📁 Audio file size: $fileSize bytes');
+
+      if (fileSize == 0) {
+        debugPrint('❌ Audio file is empty');
+        _setError('Ses dosyası boş');
+        return false;
+      }
+
+      // Upload to Firebase Storage
+      debugPrint('☁️ Uploading audio file to Firebase Storage...');
+      final String downloadUrl = await _uploadAudioToStorage(audioFile);
+      debugPrint('✅ Audio uploaded successfully: $downloadUrl');
+      
+      // Create dream document in Firestore
+      debugPrint('📝 Creating dream document in Firestore...');
+      final Dream newDream = await _createDreamDocument(downloadUrl, audioFile.path);
+      debugPrint('✅ Dream document created: ${newDream.id}');
       
       // Add to local list
       _dreams.insert(0, newDream);
-
       notifyListeners();
+
+      // Trigger N8N workflow
+      debugPrint('🤖 Triggering N8N workflow...');
+      _triggerN8NWorkflow(newDream.id, downloadUrl);
+
+      // Clean up temporary file
+      try {
+        await audioFile.delete();
+        debugPrint('🗑️ Temporary file cleaned up');
+      } catch (e) {
+        debugPrint('⚠️ Could not delete temp file: $e');
+      }
+      
       return true;
     } catch (e) {
+      debugPrint('❌ Stop recording error: $e');
       _setError('Rüya kaydedilirken hata oluştu: $e');
       return false;
     } finally {
@@ -155,23 +251,216 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // Mock cancel recording
+  // Upload audio file to Firebase Storage
+  Future<String> _uploadAudioToStorage(File audioFile) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Kullanıcı oturumu bulunamadı');
+    }
+
+    debugPrint('📤 Starting Firebase Storage upload for user: ${user.uid}');
+
+    final String fileName = 'dream_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    final Reference storageRef = _storage
+        .ref()
+        .child('users')
+        .child(user.uid)
+        .child('dreams')
+        .child(fileName);
+
+    debugPrint('📂 Storage path: users/${user.uid}/dreams/$fileName');
+
+    // Upload file with metadata
+    final SettableMetadata metadata = SettableMetadata(
+      contentType: 'audio/mp4',
+      customMetadata: {
+        'uploadedBy': user.uid,
+        'uploadedAt': DateTime.now().toIso8601String(),
+        'fileSize': audioFile.lengthSync().toString(),
+      },
+    );
+
+    try {
+      debugPrint('⬆️ Starting upload...');
+      final UploadTask uploadTask = storageRef.putFile(audioFile, metadata);
+      
+      // Show upload progress
+      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
+        final progress = snapshot.bytesTransferred / snapshot.totalBytes;
+        debugPrint('📊 Upload progress: ${(progress * 100).toStringAsFixed(1)}%');
+      });
+
+      final TaskSnapshot snapshot = await uploadTask;
+      final String downloadUrl = await snapshot.ref.getDownloadURL();
+      
+      debugPrint('✅ Upload completed successfully');
+      debugPrint('🔗 Download URL: $downloadUrl');
+      
+      return downloadUrl;
+    } catch (e) {
+      debugPrint('❌ Firebase Storage upload failed: $e');
+      throw Exception('Firebase Storage upload başarısız: $e');
+    }
+  }
+
+  // Create dream document in Firestore
+  Future<Dream> _createDreamDocument(String audioUrl, String originalPath) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Kullanıcı oturumu bulunamadı');
+    }
+
+    debugPrint('📝 Creating Firestore document for user: ${user.uid}');
+
+    final String dreamId = _generateDreamId();
+    final Dream newDream = Dream(
+      id: dreamId,
+      userId: user.uid,
+      audioUrl: audioUrl,
+      fileName: originalPath.split('/').last,
+      title: 'Yeni Rüya Kaydı',
+      dreamText: null, // Will be filled by OpenAI
+      content: null,   // Will be filled by OpenAI
+      analysis: 'Analiz yapılıyor...', // Will be updated by N8N workflow
+      mood: 'Belirsiz',
+      status: DreamStatus.processing,
+      createdAt: DateTime.now(),
+    );
+
+    try {
+      // Save to Firestore
+      await _firestore.collection('dreams').doc(dreamId).set(newDream.toMap());
+      debugPrint('✅ Dream document created in Firestore: $dreamId');
+      
+      return newDream;
+    } catch (e) {
+      debugPrint('❌ Failed to create dream document: $e');
+      throw Exception('Firestore document oluşturulamadı: $e');
+    }
+  }
+
+  // Trigger N8N workflow for dream analysis
+  Future<void> _triggerN8NWorkflow(String dreamId, String audioUrl) async {
+    try {
+      debugPrint('🚀 Triggering N8N workflow for dream: $dreamId');
+      final success = await _n8nService.triggerDreamAnalysis(dreamId, audioUrl);
+      if (success) {
+        debugPrint('✅ N8N workflow triggered successfully');
+      } else {
+        debugPrint('❌ Failed to trigger N8N workflow');
+      }
+    } catch (e) {
+      debugPrint('💥 Error triggering N8N workflow: $e');
+      // Don't throw error here - the dream is already saved, N8N failure shouldn't break the flow
+    }
+  }
+
+  // Update dream with analysis results (called by N8N webhook or manual update)
+  Future<void> updateDreamWithAnalysis({
+    required String dreamId,
+    required String dreamText,
+    required String analysis,
+    required String mood,
+    String? title,
+  }) async {
+    try {
+      debugPrint('🔄 Updating dream $dreamId with analysis results');
+      
+      // Update Firestore
+      await _firestore.collection('dreams').doc(dreamId).update({
+        'dreamText': dreamText,
+        'content': dreamText,
+        'analysis': analysis,
+        'mood': mood,
+        'title': title ?? _generateTitleFromText(dreamText),
+        'status': 'completed',
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
+
+      // Update local list
+      final index = _dreams.indexWhere((dream) => dream.id == dreamId);
+      if (index != -1) {
+        _dreams[index] = _dreams[index].copyWith(
+          dreamText: dreamText,
+          content: dreamText,
+          analysis: analysis,
+          mood: mood,
+          title: title ?? _generateTitleFromText(dreamText),
+          status: DreamStatus.completed,
+          updatedAt: DateTime.now(),
+        );
+        notifyListeners();
+      }
+
+      debugPrint('✅ Dream analysis updated successfully');
+      
+    } catch (e) {
+      debugPrint('❌ Error updating dream with analysis: $e');
+      
+      // Mark dream as failed
+      try {
+        await _firestore.collection('dreams').doc(dreamId).update({
+          'status': 'failed',
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        });
+      } catch (updateError) {
+        debugPrint('❌ Failed to mark dream as failed: $updateError');
+      }
+    }
+  }
+
+  // Cancel recording
   Future<void> cancelRecording() async {
+    debugPrint('❌ CANCEL RECORDING CALLED');
     try {
       if (_isRecording) {
-        await Future.delayed(const Duration(milliseconds: 200));
+        await _recorder!.stopRecorder();
         _isRecording = false;
+        
+        // Delete temporary file if exists
+        if (_currentRecordingPath != null) {
+          final File file = File(_currentRecordingPath!);
+          if (file.existsSync()) {
+            await file.delete();
+            debugPrint('🗑️ Temp file deleted on cancel');
+          }
+        }
+        
+        debugPrint('✅ Recording cancelled');
         notifyListeners();
       }
     } catch (e) {
-      debugPrint('Cancel recording error: $e');
+      debugPrint('❌ Cancel recording error: $e');
+    }
+  }
+
+  // Helper methods
+  String _generateDreamId() {
+    return 'dream_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}';
+  }
+
+  String _generateTitleFromText(String text) {
+    if (text.isEmpty) return 'Başlıksız Rüya';
+    if (text.length <= 30) return text;
+    return '${text.substring(0, 30)}...';
+  }
+
+  DreamStatus _parseStatus(String status) {
+    switch (status) {
+      case 'processing':
+        return DreamStatus.processing;
+      case 'completed':
+        return DreamStatus.completed;
+      case 'failed':
+        return DreamStatus.failed;
+      default:
+        return DreamStatus.processing;
     }
   }
 
   void _setLoading(bool loading) {
     if (_isLoading != loading) {
       _isLoading = loading;
-      // Use post-frame callback to avoid setState during build
       WidgetsBinding.instance.addPostFrameCallback((_) {
         notifyListeners();
       });
@@ -181,7 +470,6 @@ class DreamProvider extends ChangeNotifier {
   void _setError(String error) {
     if (_errorMessage != error) {
       _errorMessage = error;
-      // Use post-frame callback to avoid setState during build
       WidgetsBinding.instance.addPostFrameCallback((_) {
         notifyListeners();
       });
@@ -191,7 +479,6 @@ class DreamProvider extends ChangeNotifier {
   void _clearError() {
     if (_errorMessage != null) {
       _errorMessage = null;
-      // Use post-frame callback to avoid setState during build
       WidgetsBinding.instance.addPostFrameCallback((_) {
         notifyListeners();
       });

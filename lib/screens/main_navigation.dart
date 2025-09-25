@@ -6,6 +6,8 @@ import 'home_screen.dart';
 import 'dream_history_screen.dart';
 import 'profile_screen.dart';
 import 'explore_screen.dart';
+import 'package:provider/provider.dart';
+import '../providers/dream_provider.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -378,6 +380,7 @@ class _MainNavigationState extends State<MainNavigation>
                 shape: const CircleBorder(),
                 child: InkWell(
                   onTap: () {
+                    debugPrint('🎤 FAB: Microphone button pressed');
                     HapticFeedback.heavyImpact();
                     _showRecordDreamBottomSheet(context);
                   },
@@ -470,6 +473,7 @@ class _MainNavigationState extends State<MainNavigation>
   }
 
   void _showRecordDreamBottomSheet(BuildContext context) {
+    debugPrint('📋 Showing RecordDreamBottomSheet');
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -539,64 +543,6 @@ class ModernNotchPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(CustomPainter oldDelegate) => false;
-}
-
-class ModernWavePainter extends CustomPainter {
-  final Animation<double> animation;
-  final Color primaryColor;
-  final Color secondaryColor;
-
-  ModernWavePainter({
-    required this.animation,
-    required this.primaryColor,
-    required this.secondaryColor,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(0, 0, size.width, size.height),
-      const Radius.circular(20),
-    );
-    canvas.clipRRect(rect);
-
-    final waveOffset = animation.value * size.width * 2;
-    
-    // Create wave patterns
-    final path1 = Path();
-    final path2 = Path();
-    
-    // First wave
-    path1.moveTo(-size.width + waveOffset, size.height * 0.7);
-    for (double x = -size.width + waveOffset; x <= size.width * 2 + waveOffset; x += 10) {
-      final y = size.height * 0.7 + 
-        15 * sin((x - waveOffset) * 0.02) * sin(animation.value * 2 * pi);
-      path1.lineTo(x, y);
-    }
-    path1.lineTo(size.width * 2 + waveOffset, size.height);
-    path1.lineTo(-size.width + waveOffset, size.height);
-    path1.close();
-
-    // Second wave
-    path2.moveTo(-size.width + waveOffset * 0.7, size.height * 0.4);
-    for (double x = -size.width + waveOffset * 0.7; x <= size.width * 2 + waveOffset * 0.7; x += 8) {
-      final y = size.height * 0.4 + 
-        20 * sin((x - waveOffset * 0.7) * 0.015) * cos(animation.value * 1.5 * pi);
-      path2.lineTo(x, y);
-    }
-    path2.lineTo(size.width * 2 + waveOffset * 0.7, size.height);
-    path2.lineTo(-size.width + waveOffset * 0.7, size.height);
-    path2.close();
-
-    // Draw waves
-    canvas.drawPath(path1, Paint()..color = primaryColor);
-    canvas.drawPath(path2, Paint()..color = secondaryColor);
-  }
-
-  @override
-  bool shouldRepaint(ModernWavePainter oldDelegate) {
-    return animation != oldDelegate.animation;
-  }
 }
 
 class NotchedCircularButtonPainter extends CustomPainter {
@@ -721,7 +667,6 @@ class NotchedCircularButtonPainter extends CustomPainter {
   }
 }
 
-
 class RecordDreamBottomSheet extends StatefulWidget {
   const RecordDreamBottomSheet({super.key});
 
@@ -734,10 +679,12 @@ class _RecordDreamBottomSheetState extends State<RecordDreamBottomSheet>
   late AnimationController _slideController;
   late AnimationController _pulseController;
   bool _isRecording = false;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
+    debugPrint('🎬 RecordDreamBottomSheet initialized');
     _slideController = AnimationController(
       duration: const Duration(milliseconds: 400),
       vsync: this,
@@ -751,21 +698,86 @@ class _RecordDreamBottomSheetState extends State<RecordDreamBottomSheet>
 
   @override
   void dispose() {
+    debugPrint('🗑️ RecordDreamBottomSheet disposed');
     _slideController.dispose();
     _pulseController.dispose();
     super.dispose();
   }
 
-  void _toggleRecording() {
+  void _toggleRecording() async {
+    debugPrint('🔘 UI: Toggle recording button pressed (current state: $_isRecording)');
+    
+    final dreamProvider = Provider.of<DreamProvider>(context, listen: false);
+    
     setState(() {
-      _isRecording = !_isRecording;
+      _isLoading = true;
     });
     
-    if (_isRecording) {
-      _pulseController.repeat();
-    } else {
+    try {
+      if (!_isRecording) {
+        // Start recording
+        debugPrint('🔴 UI: Attempting to start recording...');
+        final success = await dreamProvider.startRecording();
+        if (success) {
+          setState(() {
+            _isRecording = true;
+            _isLoading = false;
+          });
+          _pulseController.repeat();
+          debugPrint('✅ UI: Recording started successfully');
+        } else {
+          setState(() {
+            _isLoading = false;
+          });
+          debugPrint('❌ UI: Failed to start recording');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(dreamProvider.errorMessage ?? 'Kayıt başlatılamadı'))
+            );
+          }
+        }
+      } else {
+        // Stop recording
+        debugPrint('🛑 UI: Attempting to stop recording...');
+        final success = await dreamProvider.stopRecordingAndSave();
+        setState(() {
+          _isRecording = false;
+          _isLoading = false;
+        });
+        _pulseController.stop();
+        _pulseController.reset();
+        
+        if (success) {
+          debugPrint('✅ UI: Recording saved successfully');
+          if (mounted) {
+            Navigator.pop(context); // Close bottom sheet
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Rüya kaydedildi! ✅'))
+            );
+          }
+        } else {
+          debugPrint('❌ UI: Failed to save recording');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(dreamProvider.errorMessage ?? 'Kayıt kaydedilemedi'))
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ UI: Exception in _toggleRecording: $e');
+      setState(() {
+        _isRecording = false;
+        _isLoading = false;
+      });
       _pulseController.stop();
       _pulseController.reset();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Hata oluştu: $e'))
+        );
+      }
     }
   }
 
@@ -773,165 +785,195 @@ class _RecordDreamBottomSheetState extends State<RecordDreamBottomSheet>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     
-    return SlideTransition(
-      position: Tween<Offset>(
-        begin: const Offset(0, 1),
-        end: Offset.zero,
-      ).animate(CurvedAnimation(
-        parent: _slideController,
-        curve: Curves.easeOutCubic,
-      )),
-      child: Container(
-        height: MediaQuery.of(context).size.height * 0.6,
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-        ),
-        child: Column(
-          children: [
-            // Handle
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(top: 16),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.onSurface.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
+    return Consumer<DreamProvider>(
+      builder: (context, dreamProvider, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 1),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(
+            parent: _slideController,
+            curve: Curves.easeOutCubic,
+          )),
+          child: Container(
+            height: MediaQuery.of(context).size.height * 0.6,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
             ),
-            
-            const SizedBox(height: 32),
-            
-            // Title
-            Text(
-              _isRecording ? 'Rüyanızı Anlatın' : 'Rüya Kaydet',
-              style: theme.textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            
-            const SizedBox(height: 16),
-            
-            Text(
-              _isRecording
-                  ? 'Dinliyorum... Rüyanızı rahatça anlatabilirsiniz'
-                  : 'Rüyanızı sesli olarak kaydetmek için mikrofon butonuna basın',
-              style: theme.textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
-            
-            const Spacer(),
-            
-            // Record Button
-            GestureDetector(
-              onTap: _toggleRecording,
-              child: AnimatedBuilder(
-                animation: _pulseController,
-                builder: (context, child) {
-                  return Container(
-                    width: 140,
-                    height: 140,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: _isRecording 
-                            ? [Colors.red.shade400, Colors.red.shade600]
-                            : [theme.colorScheme.primary, theme.colorScheme.secondary],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: (_isRecording ? Colors.red : theme.colorScheme.primary)
-                              .withOpacity(0.4),
-                          blurRadius: 30,
-                          spreadRadius: _isRecording ? _pulseController.value * 15 : 5,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.3),
-                          width: 3,
-                        ),
-                      ),
-                      child: Icon(
-                        _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
-                        size: 56,
-                        color: Colors.white,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            
-            const SizedBox(height: 32),
-            
-            if (_isRecording) ...[
-              // Recording indicator
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
+            child: Column(
+              children: [
+                // Handle
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(top: 16),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.onSurface.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                
+                const SizedBox(height: 32),
+                
+                // Title
+                Text(
+                  _isRecording ? 'Rüyanızı Anlatın' : 'Rüya Kaydet',
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                Text(
+                  _isRecording
+                      ? 'Dinliyorum... Rüyanızı rahatça anlatabilirsiniz'
+                      : 'Rüyanızı sesli olarak kaydetmek için mikrofon butonuna basın',
+                  style: theme.textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
+                
+                // Loading indicator
+                if (_isLoading || dreamProvider.isLoading) ...[
+                  const SizedBox(height: 16),
+                  const CircularProgressIndicator(),
+                  const Text('İşleniyor...'),
+                ],
+                
+                // Error message
+                if (dreamProvider.errorMessage != null) ...[
+                  const SizedBox(height: 16),
                   Container(
-                    width: 12,
-                    height: 12,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.red,
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.symmetric(horizontal: 32),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade100,
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                  ).animate(onPlay: (controller) => controller.repeat())
-                    .fadeIn(duration: const Duration(milliseconds: 500))
-                    .then()
-                    .fadeOut(duration: const Duration(milliseconds: 500)),
-                  
-                  const SizedBox(width: 8),
-                  Text(
-                    'Kayıt yapılıyor...',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.red,
-                      fontWeight: FontWeight.w600,
+                    child: Text(
+                      dreamProvider.errorMessage!,
+                      style: TextStyle(color: Colors.red.shade700),
+                      textAlign: TextAlign.center,
                     ),
                   ),
                 ],
-              ),
-              
-              const SizedBox(height: 24),
-              
-              // Cancel button
-              TextButton(
-                onPressed: () {
-                  _toggleRecording();
-                  Navigator.pop(context);
-                },
-                child: const Text('İptal'),
-              ),
-            ] else ...[
-              // Tips
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Column(
-                  children: [
-                    _buildTip(context, Icons.lightbulb_outline, 
-                        'Rüyanızı olabildiğince detaylı anlatın'),
-                    const SizedBox(height: 8),
-                    _buildTip(context, Icons.volume_up_outlined, 
-                        'Sessiz bir ortamda kayıt yapın'),
-                    const SizedBox(height: 8),
-                    _buildTip(context, Icons.timer_outlined, 
-                        'Kayıt süresi 5 dakika ile sınırlıdır'),
-                  ],
+                
+                const Spacer(),
+                
+                // Record Button
+                GestureDetector(
+                  onTap: _isLoading ? null : _toggleRecording,
+                  child: AnimatedBuilder(
+                    animation: _pulseController,
+                    builder: (context, child) {
+                      return Container(
+                        width: 140,
+                        height: 140,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: _isRecording 
+                                ? [Colors.red.shade400, Colors.red.shade600]
+                                : [theme.colorScheme.primary, theme.colorScheme.secondary],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: (_isRecording ? Colors.red : theme.colorScheme.primary)
+                                  .withOpacity(0.4),
+                              blurRadius: 30,
+                              spreadRadius: _isRecording ? _pulseController.value * 15 : 5,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.3),
+                              width: 3,
+                            ),
+                          ),
+                          child: Icon(
+                            _isLoading 
+                                ? Icons.hourglass_empty
+                                : (_isRecording ? Icons.stop_rounded : Icons.mic_rounded),
+                            size: 56,
+                            color: Colors.white,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
-            
-            const SizedBox(height: 32),
-          ],
-        ),
-      ),
+                
+                const SizedBox(height: 32),
+                
+                if (_isRecording) ...[
+                  // Recording indicator
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 12,
+                        height: 12,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.red,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Kayıt yapılıyor...',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: Colors.red,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Cancel button
+                  TextButton(
+                    onPressed: () async {
+                      debugPrint('❌ UI: Cancel button pressed');
+                      await dreamProvider.cancelRecording();
+                      if (mounted) {
+                        Navigator.pop(context);
+                      }
+                    },
+                    child: const Text('İptal'),
+                  ),
+                ] else ...[
+                  // Tips
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Column(
+                      children: [
+                        _buildTip(context, Icons.lightbulb_outline, 
+                            'Rüyanızı olabildiğince detaylı anlatın'),
+                        const SizedBox(height: 8),
+                        _buildTip(context, Icons.volume_up_outlined, 
+                            'Sessiz bir ortamda kayıt yapın'),
+                        const SizedBox(height: 8),
+                        _buildTip(context, Icons.timer_outlined, 
+                            'Kayıt süresi 5 dakika ile sınırlıdır'),
+                      ],
+                    ),
+                  ),
+                ],
+                
+                const SizedBox(height: 32),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
