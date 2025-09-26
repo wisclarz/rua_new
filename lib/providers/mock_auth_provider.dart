@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import '../models/user_model.dart' as app_models;
 import 'auth_provider_interface.dart';
 

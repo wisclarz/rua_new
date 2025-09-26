@@ -2,12 +2,15 @@ import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../models/user_model.dart' as app_models;
+import 'google_sign_in_helper.dart';
 
 class FirebaseAuthService {
   final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: <String>['email'],
+    // Force account selection to avoid cached credential issues
+    forceCodeForRefreshToken: true,
   );
 
   // Current user stream
@@ -79,10 +82,55 @@ class FirebaseAuthService {
   // Sign in with Google
   Future<app_models.User?> signInWithGoogle() async {
     try {
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return null; // User cancelled
+      // First clear any existing Google Sign-In session
+      await GoogleSignInHelper.safeClearGoogleSignIn(_googleSignIn);
+      
+      GoogleSignInAccount? googleUser;
+      GoogleSignInAuthentication? googleAuth;
+      
+      // Try to get Google Sign-In account with multiple attempts
+      int attempts = 0;
+      const maxAttempts = 3;
+      
+      while (attempts < maxAttempts) {
+        try {
+          googleUser = await _googleSignIn.signIn();
+          if (googleUser == null) return null; // User cancelled
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+          // Try to get authentication tokens
+          googleAuth = await googleUser.authentication;
+          
+          // Validate tokens using helper
+          if (GoogleSignInHelper.validateGoogleAuthTokens(googleAuth)) {
+            break; // Success, exit the retry loop
+          } else {
+            throw Exception('Invalid tokens received');
+          }
+        } catch (e) {
+          attempts++;
+          print('🔄 Google Sign-In attempt $attempts failed: $e');
+          
+          if (GoogleSignInHelper.isPigeonUserDetailsError(e)) {
+            print('⚠️ PigeonUserDetails error detected, retrying...');
+            // Clear and retry
+            await GoogleSignInHelper.safeClearGoogleSignIn(_googleSignIn);
+            await Future.delayed(const Duration(milliseconds: 500));
+            continue;
+          }
+          
+          if (attempts >= maxAttempts) {
+            rethrow;
+          }
+          
+          // Wait before retry
+          await Future.delayed(const Duration(milliseconds: 1000));
+        }
+      }
+      
+      // If we still don't have valid auth, throw error
+      if (googleAuth == null || !GoogleSignInHelper.validateGoogleAuthTokens(googleAuth)) {
+        throw Exception('Failed to get valid Google authentication after $maxAttempts attempts');
+      }
       
       final credential = firebase_auth.GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
@@ -93,6 +141,7 @@ class FirebaseAuthService {
       
       if (userCredential.user != null) {
         final firebaseUser = userCredential.user!;
+        print('✅ Firebase authentication successful for: ${firebaseUser.uid}');
         
         // Check if user profile exists, create if not
         app_models.User? user = await getUserProfile(firebaseUser.uid);
@@ -109,18 +158,43 @@ class FirebaseAuthService {
           );
           
           await _createUserProfile(user);
+          print('✅ New user profile created: ${user.name}');
         } else {
           // Update last login time
           await _updateLastLoginTime(firebaseUser.uid);
+          print('✅ User login time updated: ${user.name}');
         }
         
         return user;
       }
       return null;
     } on firebase_auth.FirebaseAuthException catch (e) {
+      print('🔥 Firebase Auth Exception in Google Sign-In: ${e.code} - ${e.message}');
       throw Exception(_handleAuthException(e));
     } catch (e) {
-      throw Exception('Google ile giriş yapılırken hata oluştu: $e');
+      print('❌ Error in Google Sign-In: $e');
+      
+      // Special handling for PigeonUserDetails error
+      if (GoogleSignInHelper.isPigeonUserDetailsError(e)) {
+        // Check if user is already authenticated in Firebase
+        final currentUser = _auth.currentUser;
+        if (currentUser != null) {
+          print('🔄 PigeonUserDetails error but Firebase user exists, attempting recovery...');
+          
+          try {
+            final user = await getUserProfile(currentUser.uid);
+            if (user != null) {
+              print('✅ Successfully recovered user session: ${user.name}');
+              return user;
+            }
+          } catch (recoveryError) {
+            print('❌ Recovery attempt failed: $recoveryError');
+          }
+        }
+      }
+      
+      // Use helper to get appropriate error message
+      throw Exception(GoogleSignInHelper.getErrorMessage(e));
     }
   }
 
@@ -212,11 +286,17 @@ class FirebaseAuthService {
   // Sign out
   Future<void> signOut() async {
     try {
-      await Future.wait([
-        _auth.signOut(),
-        _googleSignIn.signOut(),
-      ]);
+      print('🚪 Starting sign out process...');
+      
+      // Use helper to safely clear Google Sign-In
+      await GoogleSignInHelper.safeClearGoogleSignIn(_googleSignIn);
+      
+      // Sign out from Firebase
+      await _auth.signOut();
+      print('✅ Firebase sign out completed');
+      
     } catch (e) {
+      print('❌ Error during sign out: $e');
       throw Exception('Çıkış yapılırken hata oluştu: $e');
     }
   }

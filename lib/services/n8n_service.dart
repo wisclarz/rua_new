@@ -31,6 +31,7 @@ class N8nService {
         // OpenAI configuration
         'openai_config': {
           'model': 'whisper-1', // For speech-to-text
+          'language': 'tr', // Turkish language for Whisper
           'gpt_model': 'gpt-4o-mini', // For dream analysis
           'max_tokens': 2000,
           'temperature': 0.7,

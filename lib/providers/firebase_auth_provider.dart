@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import '../models/user_model.dart' as app_models;
 import '../services/firebase_auth_service.dart';
+import '../services/google_sign_in_helper.dart';
 import 'auth_provider_interface.dart';
 
 class FirebaseAuthProvider extends AuthProviderInterface {
@@ -131,12 +131,51 @@ class FirebaseAuthProvider extends AuthProviderInterface {
       final user = await _authService!.signInWithGoogle();
       if (user != null) {
         _currentUser = user;
+        print('✅ Google Sign-In successful in provider: ${user.name}');
         return true;
+      }
+      
+      // If sign-in returns null but Firebase user exists, try recovery
+      final firebaseUser = _authService!.currentUser;
+      if (firebaseUser != null) {
+        print('🔄 Sign-in returned null but Firebase user exists, attempting recovery...');
+        try {
+          final recoveredUser = await _authService!.getUserProfile(firebaseUser.uid);
+          if (recoveredUser != null) {
+            _currentUser = recoveredUser;
+            print('✅ Successfully recovered user in provider: ${recoveredUser.name}');
+            return true;
+          }
+        } catch (e) {
+          print('❌ Recovery failed in provider: $e');
+        }
       }
       
       return false;
     } catch (e) {
-      _setError('Google ile giriş hatası: $e');
+      print('🔴 Google Sign-In error in provider: $e');
+      
+      // Try recovery if PigeonUserDetails error and Firebase user exists
+      if (GoogleSignInHelper.isPigeonUserDetailsError(e)) {
+        final firebaseUser = _authService!.currentUser;
+        if (firebaseUser != null) {
+          print('🔄 Attempting recovery from PigeonUserDetails error...');
+          try {
+            final recoveredUser = await _authService!.getUserProfile(firebaseUser.uid);
+            if (recoveredUser != null) {
+              _currentUser = recoveredUser;
+              print('✅ Successfully recovered from error: ${recoveredUser.name}');
+              return true;
+            }
+          } catch (recoveryError) {
+            print('❌ Recovery attempt failed: $recoveryError');
+          }
+        }
+      }
+      
+      // Use helper to get appropriate error message
+      _setError(GoogleSignInHelper.getErrorMessage(e));
+      
       return false;
     } finally {
       _setLoading(false);
