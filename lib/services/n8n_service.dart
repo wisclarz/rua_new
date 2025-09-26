@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
-
+import 'package:rua_new/services/firebase_auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 class N8nService {
   // N8N configuration - URL'leri düzelttik
   static const String _baseUrl = 'https://wisclarz.app.n8n.cloud'; 
@@ -17,72 +18,170 @@ class N8nService {
 
   // Trigger dream analysis via n8n webhook
   Future<bool> triggerDreamAnalysis(String dreamId, String audioUrl) async {
-    try {
-      debugPrint('🚀 Triggering N8N dream analysis for: $dreamId');
-      debugPrint('📡 Webhook URL: $_webhookUrl');
-      
-      final Map<String, dynamic> payload = {
-        'dreamId': dreamId,
-        'audioUrl': audioUrl,
-        'timestamp': DateTime.now().toIso8601String(),
-        'action': 'analyze_dream',
-        'workflow': 'dream_analysis_v1',
-        'version': '1.0.0',
-        // OpenAI configuration
-        'openai_config': {
-          'model': 'whisper-1', // For speech-to-text
-          'language': 'tr', // Turkish language for Whisper
-          'gpt_model': 'gpt-4o-mini', // For dream analysis
-          'max_tokens': 2000,
-          'temperature': 0.7,
-        },
-        // Firebase config for callback
-        'callback_config': {
-          'firebase_project': 'dreamy-app-2025',
-          'collection': 'dreams',
-          'document_id': dreamId,
-        },
-        // Debug info
-        'debug': {
-          'client': 'flutter_app',
-          'platform': defaultTargetPlatform.name,
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
-        }
-      };
-
-      debugPrint('📤 Payload: ${jsonEncode(payload)}');
-
-      final response = await http.post(
-        Uri.parse(_webhookUrl),
-        headers: _headers,
-        body: jsonEncode(payload),
-      ).timeout(const Duration(seconds: 30));
-
-      debugPrint('📥 Response status: ${response.statusCode}');
-      debugPrint('📥 Response headers: ${response.headers}');
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        debugPrint('✅ N8N webhook triggered successfully');
-        try {
-          final responseData = jsonDecode(response.body);
-          debugPrint('📥 Response: $responseData');
-        } catch (e) {
-          debugPrint('📥 Response (raw): ${response.body}');
-        }
-        return true;
-      } else {
-        debugPrint('❌ N8N webhook failed: ${response.statusCode}');
-        debugPrint('❌ Error body: ${response.body}');
-        debugPrint('❌ Error headers: ${response.headers}');
-        return false;
-      }
-    } catch (e) {
-      debugPrint('💥 N8N webhook error: $e');
-      debugPrint('💥 Stack trace: ${StackTrace.current}');
+  try {
+    debugPrint('🚀 Triggering N8N dream analysis for: $dreamId');
+    debugPrint('📡 Webhook URL: $_webhookUrl');
+    
+    // 🔥 Firebase Authentication - ZORUNLU
+    final user = FirebaseAuthService().currentUser;
+    if (user == null) {
+      debugPrint('❌ User not authenticated');
       return false;
     }
-  }
+    
+    // Firebase ID Token al
+    final String idToken = await user.getIdTokenResult().then((value) => value.token ?? '');
+    debugPrint('🔑 Got Firebase ID token for user: ${user.uid}');
+    
+    final Map<String, dynamic> payload = {
+      'dreamId': dreamId,
+      'audioUrl': audioUrl,
+      'userId': user.uid,  // ✅ UserId eklendi
+      'idToken': idToken,  // ✅ Firebase ID Token eklendi
+      'timestamp': DateTime.now().toIso8601String(),
+      'action': 'analyze_dream',
+      'workflow': 'dream_analysis_v1',
+      'version': '1.0.0',
+      // OpenAI configuration
+      'openai_config': {
+        'model': 'whisper-1', // For speech-to-text
+        'language': 'tr', // Turkish language for Whisper
+        'gpt_model': 'gpt-4o-mini', // For dream analysis
+        'max_tokens': 2000,
+        'temperature': 0.7,
+      },
+      // Firebase config for callback
+      'callback_config': {
+        'firebase_project': 'dreamy-app-2025',
+        'collection': 'dreams',
+        'document_id': dreamId,
+      },
+      // Debug info
+      'debug': {
+        'client': 'flutter_app',
+        'platform': defaultTargetPlatform.name,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'user_id': user.uid, // Debug için user ID
+      }
+    };
 
+    debugPrint('📤 Payload keys: ${payload.keys.join(', ')}');
+    // ID Token'ı log'a yazmayalım (güvenlik)
+    debugPrint('📤 UserId: ${user.uid}');
+
+    final response = await http.post(
+      Uri.parse(_webhookUrl),
+      headers: _headers,
+      body: jsonEncode(payload),
+    ).timeout(const Duration(seconds: 30));
+
+    debugPrint('📥 Response status: ${response.statusCode}');
+    debugPrint('📥 Response headers: ${response.headers}');
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      debugPrint('✅ N8N webhook triggered successfully');
+      try {
+        final responseData = jsonDecode(response.body);
+        debugPrint('📥 Response: $responseData');
+      } catch (e) {
+        debugPrint('📥 Response (raw): ${response.body}');
+      }
+      return true;
+    } else {
+      debugPrint('❌ N8N webhook failed: ${response.statusCode}');
+      debugPrint('❌ Error body: ${response.body}');
+      debugPrint('❌ Error headers: ${response.headers}');
+      return false;
+    }
+  } catch (e) {
+    debugPrint('💥 N8N webhook error: $e');
+    debugPrint('💥 Stack trace: ${StackTrace.current}');
+    return false;
+  }
+}
+
+  Future<bool> triggerDreamAnalysisWithUser({
+  required String dreamId,
+  required String audioUrl,
+  required firebase_auth.User user,
+}) async {
+  try {
+    debugPrint('🚀 Triggering N8N dream analysis for: $dreamId');
+    debugPrint('📡 Webhook URL: $_webhookUrl');
+    debugPrint('👤 User ID: ${user.uid}');
+    
+    // ID Token al - user direkt geçildiği için hata olması daha az
+    String idToken = '';
+    try {
+      idToken = await user.getIdTokenResult().then((result) => result.token ?? '');
+      debugPrint('🔑 ID Token length: ${idToken.length} characters');
+    } catch (tokenError) {
+      debugPrint('⚠️ ID Token error: $tokenError - continuing without token');
+    }
+    
+    final Map<String, dynamic> payload = {
+      'dreamId': dreamId,
+      'audioUrl': audioUrl,
+      'userId': user.uid,        // Direkt user'dan
+      'idToken': idToken,        // Token var veya boş
+      'timestamp': DateTime.now().toIso8601String(),
+      'action': 'analyze_dream',
+      'workflow': 'dream_analysis_v1',
+      'version': '1.0.0',
+      // OpenAI configuration
+      'openai_config': {
+        'model': 'whisper-1',
+        'language': 'tr',
+        'gpt_model': 'gpt-4o-mini',
+        'max_tokens': 2000,
+        'temperature': 0.7,
+      },
+      // Firebase config for callback
+      'callback_config': {
+        'firebase_project': 'dreamy-app-2025',
+        'collection': 'dreams',
+        'document_id': dreamId,
+      },
+      // Debug info
+      'debug': {
+        'client': 'flutter_app',
+        'platform': defaultTargetPlatform.name,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'user_id': user.uid,
+      }
+    };
+
+    // Debug payload
+    debugPrint('📤 Sending userId: ${payload['userId']}');
+    debugPrint('📤 IdToken present: ${payload['idToken'].toString().isNotEmpty}');
+
+    final response = await http.post(
+      Uri.parse(_webhookUrl),
+      headers: _headers,
+      body: jsonEncode(payload),
+    ).timeout(const Duration(seconds: 30));
+
+    debugPrint('📥 Response status: ${response.statusCode}');
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      debugPrint('✅ N8N webhook triggered successfully');
+      try {
+        final responseData = jsonDecode(response.body);
+        debugPrint('📥 Response: $responseData');
+      } catch (e) {
+        debugPrint('📥 Response (raw): ${response.body}');
+      }
+      return true;
+    } else {
+      debugPrint('❌ N8N webhook failed: ${response.statusCode}');
+      debugPrint('❌ Error body: ${response.body}');
+      return false;
+    }
+  } catch (e) {
+    debugPrint('💥 N8N webhook error: $e');
+    return false;
+  }
+}
   // Alternative webhook endpoints for testing
   Future<bool> triggerDreamAnalysisAlternative(String dreamId, String audioUrl) async {
     try {

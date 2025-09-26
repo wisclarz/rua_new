@@ -357,19 +357,34 @@ DreamStatus _parseStatus(dynamic status) {
 
   // Trigger N8N workflow for dream analysis
   Future<void> _triggerN8NWorkflow(String dreamId, String audioUrl) async {
-    try {
-      debugPrint('🚀 Triggering N8N workflow for dream: $dreamId');
-      final success = await _n8nService.triggerDreamAnalysis(dreamId, audioUrl);
-      if (success) {
-        debugPrint('✅ N8N workflow triggered successfully');
-      } else {
-        debugPrint('❌ Failed to trigger N8N workflow');
-      }
-    } catch (e) {
-      debugPrint('💥 Error triggering N8N workflow: $e');
-      // Don't throw error here - the dream is already saved, N8N failure shouldn't break the flow
+  try {
+    debugPrint('🚀 Triggering N8N workflow for dream: $dreamId');
+    
+    // User bilgisini al
+    final user = _auth.currentUser;
+    if (user == null) {
+      debugPrint('❌ No user available for N8N workflow');
+      return;
     }
+    
+    debugPrint('👤 Triggering workflow for user: ${user.uid}');
+    
+    // User bilgisi ile beraber çağır
+    final success = await _n8nService.triggerDreamAnalysisWithUser(
+      dreamId: dreamId, 
+      audioUrl: audioUrl, 
+      user: user,
+    );
+    
+    if (success) {
+      debugPrint('✅ N8N workflow triggered successfully');
+    } else {
+      debugPrint('❌ Failed to trigger N8N workflow');
+    }
+  } catch (e) {
+    debugPrint('💥 Error triggering N8N workflow: $e');
   }
+}
 
   // Update dream with analysis results (called by N8N webhook or manual update)
   Future<void> updateDreamWithAnalysis({
