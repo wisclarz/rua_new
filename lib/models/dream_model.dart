@@ -1,5 +1,4 @@
-// Firebase temporarily disabled for UI development  
-// import 'package:cloud_firestore/cloud_firestore.dart';
+// lib/models/dream_model.dart - Snake Case uyumlu
 
 enum DreamStatus {
   processing,
@@ -13,12 +12,12 @@ class Dream {
   final String? audioUrl;
   final String? fileName;
   final DateTime createdAt;
-  final DateTime? date; // Added for compatibility
+  final DateTime? date;
   final DreamStatus status;
   final String? analysis;
   final String? dreamText;
-  final String? title; // Added title property
-  final String? content; // Added content property (alias for dreamText)
+  final String? title;
+  final String? content;
   final String? mood;
   final Map<String, dynamic>? analysisData;
   final DateTime? updatedAt;
@@ -39,6 +38,68 @@ class Dream {
     this.analysisData,
     this.updatedAt,
   }) : date = date ?? createdAt;
+
+  // Factory constructor from Firestore data (Snake Case compatible)
+  factory Dream.fromMap(Map<String, dynamic> map) {
+    return Dream(
+      id: map['id'] ?? '',
+      userId: map['userId'] ?? map['user_id'] ?? '',
+      audioUrl: map['audioUrl'] ?? map['audio_url'],
+      fileName: map['fileName'] ?? map['file_name'],
+      createdAt: _parseDateTime(map['createdAt'] ?? map['created_at']) ?? DateTime.now(),
+      date: _parseDateTime(map['date']),
+      status: _parseStatus(map['status']),
+      analysis: map['analysis'],
+      dreamText: map['dreamText'] ?? map['dream_text'], // Support both formats
+      title: map['title'],
+      content: map['content'],
+      mood: map['mood'],
+      analysisData: map['analysisData'] as Map<String, dynamic>? ?? 
+                    map['analysis_data'] as Map<String, dynamic>?,
+      updatedAt: _parseDateTime(map['updatedAt'] ?? map['updated_at']),
+    );
+  }
+
+  // Helper method to parse DateTime from various formats
+  static DateTime? _parseDateTime(dynamic value) {
+    if (value == null) return null;
+    
+    if (value is DateTime) return value;
+    
+    if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (e) {
+        return null;
+      }
+    }
+    
+    // Firestore Timestamp
+    if (value.runtimeType.toString() == 'Timestamp') {
+      try {
+        return (value as dynamic).toDate();
+      } catch (e) {
+        return null;
+      }
+    }
+    
+    return null;
+  }
+
+  // Helper method to parse status
+  static DreamStatus _parseStatus(dynamic value) {
+    if (value == null) return DreamStatus.processing;
+    
+    switch (value.toString().toLowerCase()) {
+      case 'completed':
+        return DreamStatus.completed;
+      case 'failed':
+        return DreamStatus.failed;
+      case 'processing':
+      default:
+        return DreamStatus.processing;
+    }
+  }
 
   // Getter for content (returns dreamText or content)
   String? get displayContent => content ?? dreamText;
@@ -63,25 +124,32 @@ class Dream {
     return 'Başlıksız Rüya';
   }
 
+  // Convert to Firestore Map (Snake Case for N8N compatibility)
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'userId': userId,
+      'user_id': userId, // Both formats for compatibility
       'audioUrl': audioUrl,
+      'audio_url': audioUrl,
       'fileName': fileName,
+      'file_name': fileName,
       'createdAt': createdAt.toIso8601String(),
+      'created_at': createdAt.toIso8601String(),
       'date': date?.toIso8601String(),
       'status': statusName,
       'analysis': analysis,
       'dreamText': dreamText,
+      'dream_text': dreamText, // N8N compatible field
       'title': title,
       'content': content,
       'mood': mood,
       'analysisData': analysisData,
+      'analysis_data': analysisData,
       'updatedAt': updatedAt?.toIso8601String(),
+      'updated_at': updatedAt?.toIso8601String(), // N8N compatible field
     };
   }
-
 
   String get statusText {
     switch (status) {

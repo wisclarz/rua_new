@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
 import 'dart:math';
+import 'dart:async';
 import '../models/dream_model.dart';
 import '../services/n8n_service.dart';
 
@@ -31,6 +32,9 @@ class DreamProvider extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final N8nService _n8nService = N8nService();
+  
+  // Real-time listener
+  StreamSubscription<QuerySnapshot>? _dreamsSubscription;
 
   DreamProvider() {
     debugPrint('🏗️ DreamProvider initialized');
@@ -52,6 +56,7 @@ class DreamProvider extends ChangeNotifier {
   @override
   void dispose() {
     debugPrint('🔄 Disposing DreamProvider...');
+    stopListeningToDreams();
     _recorder?.closeRecorder();
     super.dispose();
   }
@@ -65,93 +70,192 @@ class DreamProvider extends ChangeNotifier {
     return granted;
   }
 
-  // Fetch user's dreams from Firestore
-  Future<void> fetchDreams() async {
-  debugPrint('📥 Fetching dreams...');
-  try {
-    _setLoading(true);
-    _clearError();
-
+  // Real-time listener for dreams
+  void startListeningToDreams() {
     final user = _auth.currentUser;
-    if (user == null) {
-      debugPrint('❌ No authenticated user');
-      _setError('Kullanıcı oturumu bulunamadı');
-      return;
-    }
+    if (user == null) return;
 
-    debugPrint('👤 Fetching dreams for user: ${user.uid}');
-
-    final QuerySnapshot querySnapshot = await _firestore
+    debugPrint('🎧 Starting real-time listener for dreams...');
+    
+    _dreamsSubscription = _firestore
         .collection('dreams')
         .where('userId', isEqualTo: user.uid)
         .orderBy('createdAt', descending: true)
-        .get();
-
-    debugPrint('📊 Found ${querySnapshot.docs.length} dreams in Firestore');
-
-    _dreams = querySnapshot.docs.map((doc) {
-      final data = doc.data() as Map<String, dynamic>;
-      return Dream(
-        id: doc.id,
-        userId: data['userId'] ?? '',
-        audioUrl: data['audioUrl'],
-        fileName: data['fileName'],
-        title: data['title'],
-        dreamText: data['dreamText'],
-        content: data['content'],
-        analysis: data['analysis'],
-        mood: data['mood'],
-        status: _parseStatus(data['status']),
-        createdAt: _parseDateTime(data['createdAt']) ?? DateTime.now(),
-        updatedAt: _parseDateTime(data['updatedAt']),
-      );
-    }).toList();
-
-    debugPrint('✅ Successfully loaded ${_dreams.length} dreams');
-    notifyListeners();
-    
-  } catch (e) {
-    debugPrint('❌ Error fetching dreams: $e');
-    _setError('Rüyalar yüklenirken hata oluştu: $e');
-  } finally {
-    _setLoading(false);
+        .snapshots()
+        .listen(
+      (snapshot) {
+        debugPrint('🔄 Firestore snapshot received: ${snapshot.docs.length} dreams');
+        
+        _dreams.clear();
+        for (var doc in snapshot.docs) {
+          try {
+            final dreamData = doc.data() as Map<String, dynamic>;
+            dreamData['id'] = doc.id;
+            
+            final dream = Dream.fromMap(dreamData);
+            _dreams.add(dream);
+            
+            // Log analysis updates
+            if (dream.analysis != null && dream.analysis != 'Analiz yapılıyor...') {
+              debugPrint('✅ Dream analysis updated: ${dream.id} - ${dream.analysis?.substring(0, 50)}...');
+            }
+          } catch (e) {
+            debugPrint('❌ Error parsing dream document ${doc.id}: $e');
+          }
+        }
+        
+        notifyListeners();
+      },
+      onError: (error) {
+        debugPrint('❌ Firestore listener error: $error');
+      },
+    );
   }
-}
 
-// Helper metodu ekleyin - tarih parsing için
-DateTime? _parseDateTime(dynamic value) {
-  if (value == null) return null;
-  
-  try {
-    if (value is Timestamp) {
-      return value.toDate();
-    } else if (value is String) {
-      return DateTime.parse(value);
+  // Stop listening when provider is disposed
+  void stopListeningToDreams() {
+    debugPrint('🛑 Stopping dreams listener...');
+    _dreamsSubscription?.cancel();
+    _dreamsSubscription = null;
+  }
+
+  // Auth-aware listener starter
+  void startListeningToAuthenticatedUser() {
+    final user = _auth.currentUser;
+    if (user != null) {
+      debugPrint('🔐 User authenticated, starting dream listener for: ${user.uid}');
+      
+      // Load dreams with real-time listener
+      loadDreams();
     } else {
-      debugPrint('⚠️ Unknown datetime format: ${value.runtimeType}');
+      debugPrint('🔐 No authenticated user, stopping listener');
+      stopListeningToDreams();
+    }
+  }
+
+  // Load dreams and start listener
+  Future<void> loadDreams() async {
+    if (_isLoading) return;
+    
+    _setLoading(true);
+    _clearError();
+
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        _setError('Kullanıcı oturumu bulunamadı');
+        return;
+      }
+
+      debugPrint('📱 Loading dreams for user: ${user.uid}');
+      
+      // Start real-time listener instead of one-time fetch
+      startListeningToDreams();
+      
+      debugPrint('✅ Dreams loaded successfully with real-time listener');
+      
+    } catch (e) {
+      debugPrint('❌ Error loading dreams: $e');
+      _setError('Rüyalar yüklenirken hata oluştu: $e');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Manual refresh method for pull-to-refresh
+  Future<void> refreshDreams() async {
+    debugPrint('🔄 Refreshing dreams...');
+    
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      // Force refresh by stopping and starting listener
+      stopListeningToDreams();
+      await Future.delayed(Duration(milliseconds: 500));
+      startListeningToDreams();
+      
+      debugPrint('✅ Dreams refreshed');
+    } catch (e) {
+      debugPrint('❌ Error refreshing dreams: $e');
+    }
+  }
+
+  // Legacy fetch method (keeping for compatibility)
+  Future<void> fetchDreams() async {
+    debugPrint('📥 Fetching dreams (legacy method)...');
+    try {
+      _setLoading(true);
+      _clearError();
+
+      final user = _auth.currentUser;
+      if (user == null) {
+        debugPrint('❌ No authenticated user');
+        _setError('Kullanıcı oturumu bulunamadı');
+        return;
+      }
+
+      debugPrint('👤 Fetching dreams for user: ${user.uid}');
+
+      final QuerySnapshot querySnapshot = await _firestore
+          .collection('dreams')
+          .where('userId', isEqualTo: user.uid)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      debugPrint('📊 Found ${querySnapshot.docs.length} dreams in Firestore');
+
+      _dreams = querySnapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id;
+        return Dream.fromMap(data);
+      }).toList();
+
+      debugPrint('✅ Successfully loaded ${_dreams.length} dreams');
+      notifyListeners();
+      
+    } catch (e) {
+      debugPrint('❌ Error fetching dreams: $e');
+      _setError('Rüyalar yüklenirken hata oluştu: $e');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Helper method - tarih parsing için
+  DateTime? _parseDateTime(dynamic value) {
+    if (value == null) return null;
+    
+    try {
+      if (value is Timestamp) {
+        return value.toDate();
+      } else if (value is String) {
+        return DateTime.parse(value);
+      } else {
+        debugPrint('⚠️ Unknown datetime format: ${value.runtimeType}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('❌ Error parsing datetime: $e');
       return null;
     }
-  } catch (e) {
-    debugPrint('❌ Error parsing datetime: $e');
-    return null;
   }
-}
 
-// Status parsing metodunu da güncelleyin
-DreamStatus _parseStatus(dynamic status) {
-  if (status == null) return DreamStatus.processing;
-  
-  final statusString = status.toString().toLowerCase();
-  switch (statusString) {
-    case 'completed':
-      return DreamStatus.completed;
-    case 'failed':
-      return DreamStatus.failed;
-    case 'processing':
-    default:
-      return DreamStatus.processing;
+  // Status parsing method
+  DreamStatus _parseStatus(dynamic status) {
+    if (status == null) return DreamStatus.processing;
+    
+    final statusString = status.toString().toLowerCase();
+    switch (statusString) {
+      case 'completed':
+        return DreamStatus.completed;
+      case 'failed':
+        return DreamStatus.failed;
+      case 'processing':
+      default:
+        return DreamStatus.processing;
+    }
   }
-}
 
   // Start recording
   Future<bool> startRecording() async {
@@ -238,16 +342,8 @@ DreamStatus _parseStatus(dynamic status) {
       
       // Create dream document in Firestore
       debugPrint('📝 Creating dream document in Firestore...');
-      final Dream newDream = await _createDreamDocument(downloadUrl, audioFile.path);
+      final Dream newDream = await createDreamRecord(downloadUrl, audioFile.path);
       debugPrint('✅ Dream document created: ${newDream.id}');
-      
-      // Add to local list
-      _dreams.insert(0, newDream);
-      notifyListeners();
-
-      // Trigger N8N workflow
-      debugPrint('🤖 Triggering N8N workflow...');
-      _triggerN8NWorkflow(newDream.id, downloadUrl);
 
       // Clean up temporary file
       try {
@@ -319,34 +415,44 @@ DreamStatus _parseStatus(dynamic status) {
     }
   }
 
-  // Create dream document in Firestore
-  Future<Dream> _createDreamDocument(String audioUrl, String originalPath) async {
+  // Create dream record (updated with real-time listener)
+  Future<Dream> createDreamRecord(String audioUrl, String originalPath) async {
+    debugPrint('🔄 Creating dream record...');
+    
     final user = _auth.currentUser;
     if (user == null) {
       throw Exception('Kullanıcı oturumu bulunamadı');
     }
 
-    debugPrint('📝 Creating Firestore document for user: ${user.uid}');
-
     final String dreamId = _generateDreamId();
+    
     final Dream newDream = Dream(
       id: dreamId,
       userId: user.uid,
       audioUrl: audioUrl,
       fileName: originalPath.split('/').last,
       title: 'Yeni Rüya Kaydı',
-      dreamText: null, // Will be filled by OpenAI
-      content: null,   // Will be filled by OpenAI
-      analysis: 'Analiz yapılıyor...', // Will be updated by N8N workflow
+      dreamText: null,
+      content: null,
+      analysis: 'Analiz yapılıyor...',
       mood: 'Belirsiz',
       status: DreamStatus.processing,
       createdAt: DateTime.now(),
     );
 
     try {
-      // Save to Firestore
-      await _firestore.collection('dreams').doc(dreamId).set(newDream.toMap());
+      // Save to Firestore with both field formats for compatibility
+      final dreamMap = newDream.toMap();
+      await _firestore.collection('dreams').doc(dreamId).set(dreamMap);
       debugPrint('✅ Dream document created in Firestore: $dreamId');
+      
+      // Start listening if not already listening
+      if (_dreamsSubscription == null) {
+        startListeningToDreams();
+      }
+      
+      // Trigger N8N workflow
+      await _triggerN8NWorkflow(dreamId, audioUrl);
       
       return newDream;
     } catch (e) {
@@ -355,38 +461,43 @@ DreamStatus _parseStatus(dynamic status) {
     }
   }
 
+  // Legacy create dream document method
+  Future<Dream> _createDreamDocument(String audioUrl, String originalPath) async {
+    return await createDreamRecord(audioUrl, originalPath);
+  }
+
   // Trigger N8N workflow for dream analysis
   Future<void> _triggerN8NWorkflow(String dreamId, String audioUrl) async {
-  try {
-    debugPrint('🚀 Triggering N8N workflow for dream: $dreamId');
-    
-    // User bilgisini al
-    final user = _auth.currentUser;
-    if (user == null) {
-      debugPrint('❌ No user available for N8N workflow');
-      return;
+    try {
+      debugPrint('🚀 Triggering N8N workflow for dream: $dreamId');
+      
+      // User bilgisini al
+      final user = _auth.currentUser;
+      if (user == null) {
+        debugPrint('❌ No user available for N8N workflow');
+        return;
+      }
+      
+      debugPrint('👤 Triggering workflow for user: ${user.uid}');
+      
+      // User bilgisi ile beraber çağır
+      final success = await _n8nService.triggerDreamAnalysisWithUser(
+        dreamId: dreamId, 
+        audioUrl: audioUrl, 
+        user: user,
+      );
+      
+      if (success) {
+        debugPrint('✅ N8N workflow triggered successfully');
+      } else {
+        debugPrint('❌ Failed to trigger N8N workflow');
+      }
+    } catch (e) {
+      debugPrint('💥 Error triggering N8N workflow: $e');
     }
-    
-    debugPrint('👤 Triggering workflow for user: ${user.uid}');
-    
-    // User bilgisi ile beraber çağır
-    final success = await _n8nService.triggerDreamAnalysisWithUser(
-      dreamId: dreamId, 
-      audioUrl: audioUrl, 
-      user: user,
-    );
-    
-    if (success) {
-      debugPrint('✅ N8N workflow triggered successfully');
-    } else {
-      debugPrint('❌ Failed to trigger N8N workflow');
-    }
-  } catch (e) {
-    debugPrint('💥 Error triggering N8N workflow: $e');
   }
-}
 
-  // Update dream with analysis results (called by N8N webhook or manual update)
+  // Update dream with analysis results (Snake case compatible)
   Future<void> updateDreamWithAnalysis({
     required String dreamId,
     required String dreamText,
@@ -397,33 +508,21 @@ DreamStatus _parseStatus(dynamic status) {
     try {
       debugPrint('🔄 Updating dream $dreamId with analysis results');
       
-      // Update Firestore
+      // Update Firestore - Snake case field names for N8N compatibility
       await _firestore.collection('dreams').doc(dreamId).update({
         'dreamText': dreamText,
+        'dream_text': dreamText, // N8N compatible field
         'content': dreamText,
         'analysis': analysis,
         'mood': mood,
         'title': title ?? _generateTitleFromText(dreamText),
         'status': 'completed',
         'updatedAt': Timestamp.fromDate(DateTime.now()),
+        'updated_at': Timestamp.fromDate(DateTime.now()), // N8N compatible field
       });
 
-      // Update local list
-      final index = _dreams.indexWhere((dream) => dream.id == dreamId);
-      if (index != -1) {
-        _dreams[index] = _dreams[index].copyWith(
-          dreamText: dreamText,
-          content: dreamText,
-          analysis: analysis,
-          mood: mood,
-          title: title ?? _generateTitleFromText(dreamText),
-          status: DreamStatus.completed,
-          updatedAt: DateTime.now(),
-        );
-        notifyListeners();
-      }
-
-      debugPrint('✅ Dream analysis updated successfully');
+      // Real-time listener will handle local list updates automatically
+      debugPrint('✅ Dream analysis updated successfully in Firestore');
       
     } catch (e) {
       debugPrint('❌ Error updating dream with analysis: $e');
@@ -433,10 +532,28 @@ DreamStatus _parseStatus(dynamic status) {
         await _firestore.collection('dreams').doc(dreamId).update({
           'status': 'failed',
           'updatedAt': Timestamp.fromDate(DateTime.now()),
+          'updated_at': Timestamp.fromDate(DateTime.now()),
         });
       } catch (updateError) {
         debugPrint('❌ Failed to mark dream as failed: $updateError');
       }
+    }
+  }
+
+  // Force check for specific dream updates
+  Future<void> checkDreamStatus(String dreamId) async {
+    try {
+      debugPrint('🔍 Checking status for dream: $dreamId');
+      
+      final doc = await _firestore.collection('dreams').doc(dreamId).get();
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        debugPrint('📊 Dream status: ${data['status']}');
+        debugPrint('📊 Analysis: ${data['analysis']?.toString().substring(0, 50)}...');
+        debugPrint('📊 Dream text: ${data['dream_text']?.toString().substring(0, 50)}...');
+      }
+    } catch (e) {
+      debugPrint('❌ Error checking dream status: $e');
     }
   }
 
@@ -475,8 +592,6 @@ DreamStatus _parseStatus(dynamic status) {
     if (text.length <= 30) return text;
     return '${text.substring(0, 30)}...';
   }
-
-  
 
   void _setLoading(bool loading) {
     if (_isLoading != loading) {
