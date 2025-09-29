@@ -129,25 +129,18 @@ class Dream {
     return {
       'id': id,
       'userId': userId,
-      'user_id': userId, // Both formats for compatibility
       'audioUrl': audioUrl,
-      'audio_url': audioUrl,
       'fileName': fileName,
-      'file_name': fileName,
       'createdAt': createdAt.toIso8601String(),
-      'created_at': createdAt.toIso8601String(),
       'date': date?.toIso8601String(),
       'status': statusName,
       'analysis': analysis,
       'dreamText': dreamText,
-      'dream_text': dreamText, // N8N compatible field
       'title': title,
       'content': content,
       'mood': mood,
       'analysisData': analysisData,
-      'analysis_data': analysisData,
       'updatedAt': updatedAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(), // N8N compatible field
     };
   }
 

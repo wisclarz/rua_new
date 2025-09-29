@@ -451,7 +451,7 @@ class DreamProvider extends ChangeNotifier {
         startListeningToDreams();
       }
       
-      // Trigger N8N workflow
+      // 🔥 ÖNEMLİ: Yeni N8N workflow'unu tetikle (önceki rüyalarla birlikte)
       await _triggerN8NWorkflow(dreamId, audioUrl);
       
       return newDream;
@@ -466,37 +466,110 @@ class DreamProvider extends ChangeNotifier {
     return await createDreamRecord(audioUrl, originalPath);
   }
 
-  // Trigger N8N workflow for dream analysis
-  Future<void> _triggerN8NWorkflow(String dreamId, String audioUrl) async {
+  // 🔥 YENİ: Trigger N8N workflow with previous dreams history
+  // YENİ VERSİYON: N8N'den response al ve Firestore'a yaz
+Future<void> _triggerN8NWorkflow(String dreamId, String audioUrl) async {
+  try {
+    debugPrint('🚀 Triggering N8N workflow with history for dream: $dreamId');
+    
+    final user = _auth.currentUser;
+    if (user == null) {
+      debugPrint('❌ No user available for N8N workflow');
+      return;
+    }
+    
+    debugPrint('👤 Triggering workflow for user: ${user.uid}');
+    
+    // N8N'e gönder ve RESPONSE AL
+    final analysisResult = await _n8nService.triggerDreamAnalysisWithHistory(
+      dreamId: dreamId, 
+      audioUrl: audioUrl, 
+      user: user,
+    );
+    
+    if (analysisResult != null) {
+      debugPrint('✅ N8N analysis completed successfully');
+      debugPrint('📊 Analysis result: ${analysisResult.keys.join(', ')}');
+      
+      // Firestore'a yaz (Flutter'dan)
+      await _updateFirestoreWithAnalysis(dreamId, analysisResult);
+      
+    } else {
+      debugPrint('❌ Failed to get analysis from N8N');
+      
+      // Hata durumunda dream'i failed olarak işaretle
+      await _firestore.collection('dreams').doc(dreamId).update({
+        'status': 'failed',
+        'analysis': 'Analiz başlatılamadı. Lütfen tekrar deneyin.',
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
+    }
+  } catch (e) {
+    debugPrint('💥 Error triggering N8N workflow: $e');
+    
+    // Hata durumunda dream'i failed olarak işaretle
     try {
-      debugPrint('🚀 Triggering N8N workflow for dream: $dreamId');
-      
-      // User bilgisini al
-      final user = _auth.currentUser;
-      if (user == null) {
-        debugPrint('❌ No user available for N8N workflow');
-        return;
-      }
-      
-      debugPrint('👤 Triggering workflow for user: ${user.uid}');
-      
-      // User bilgisi ile beraber çağır
-      final success = await _n8nService.triggerDreamAnalysisWithUser(
-        dreamId: dreamId, 
-        audioUrl: audioUrl, 
-        user: user,
-      );
-      
-      if (success) {
-        debugPrint('✅ N8N workflow triggered successfully');
-      } else {
-        debugPrint('❌ Failed to trigger N8N workflow');
-      }
-    } catch (e) {
-      debugPrint('💥 Error triggering N8N workflow: $e');
+      await _firestore.collection('dreams').doc(dreamId).update({
+        'status': 'failed',
+        'analysis': 'Analiz sırasında hata oluştu: $e',
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
+    } catch (updateError) {
+      debugPrint('❌ Failed to update dream status: $updateError');
     }
   }
-
+}
+Future<void> _updateFirestoreWithAnalysis(
+  String dreamId, 
+  Map<String, dynamic> analysisResult
+) async {
+  try {
+    debugPrint('💾 Updating Firestore with analysis for dream: $dreamId');
+    
+    // Firestore'a yazılacak data
+    final Map<String, dynamic> updateData = {
+      'dreamText': analysisResult['dreamText'] ?? '',
+      'dream_text': analysisResult['dreamText'] ?? '',
+      'title': analysisResult['title'] ?? 'Başlıksız Rüya',
+      'mood': analysisResult['mood'] ?? 'Belirsiz',
+      'analysis': analysisResult['analysis'] ?? '',
+      'interpretation': analysisResult['interpretation'] ?? '',
+      'status': 'completed',
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+      'updated_at': Timestamp.fromDate(DateTime.now()),
+    };
+    
+    // Opsiyonel alanlar
+    if (analysisResult['symbols'] != null) {
+      updateData['symbols'] = analysisResult['symbols'];
+    }
+    
+    if (analysisResult['connection_to_past'] != null && 
+        analysisResult['connection_to_past'].toString().isNotEmpty) {
+      updateData['connection_to_past'] = analysisResult['connection_to_past'];
+      updateData['connectionToPast'] = analysisResult['connection_to_past'];
+    }
+    
+    // Firestore'a yaz
+    await _firestore.collection('dreams').doc(dreamId).update(updateData);
+    
+    debugPrint('✅ Firestore updated successfully');
+    
+  } catch (e) {
+    debugPrint('❌ Error updating Firestore: $e');
+    
+    // En azından status'u completed yap
+    try {
+      await _firestore.collection('dreams').doc(dreamId).update({
+        'status': 'failed',
+        'analysis': 'Sonuç kaydedilemedi: $e',
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
+    } catch (updateError) {
+      debugPrint('❌ Failed to update status: $updateError');
+    }
+  }
+}
   // Update dream with analysis results (Snake case compatible)
   Future<void> updateDreamWithAnalysis({
     required String dreamId,
@@ -504,22 +577,42 @@ class DreamProvider extends ChangeNotifier {
     required String analysis,
     required String mood,
     String? title,
+    List<String>? symbols,
+    String? interpretation,
+    String? connectionToPast,
   }) async {
     try {
       debugPrint('🔄 Updating dream $dreamId with analysis results');
       
-      // Update Firestore - Snake case field names for N8N compatibility
-      await _firestore.collection('dreams').doc(dreamId).update({
+      // Update Firestore - Both camelCase and snake_case for compatibility
+      final Map<String, dynamic> updateData = {
         'dreamText': dreamText,
-        'dream_text': dreamText, // N8N compatible field
+        'dream_text': dreamText, // N8N compatible
         'content': dreamText,
         'analysis': analysis,
         'mood': mood,
         'title': title ?? _generateTitleFromText(dreamText),
         'status': 'completed',
         'updatedAt': Timestamp.fromDate(DateTime.now()),
-        'updated_at': Timestamp.fromDate(DateTime.now()), // N8N compatible field
-      });
+        'updated_at': Timestamp.fromDate(DateTime.now()), // N8N compatible
+      };
+      
+      // Opsiyonel alanlar
+      if (symbols != null && symbols.isNotEmpty) {
+        updateData['symbols'] = symbols;
+      }
+      
+      if (interpretation != null && interpretation.isNotEmpty) {
+        updateData['interpretation'] = interpretation;
+      }
+      
+      // 🆕 Önceki rüyalarla bağlantı
+      if (connectionToPast != null && connectionToPast.isNotEmpty) {
+        updateData['connection_to_past'] = connectionToPast;
+        updateData['connectionToPast'] = connectionToPast;
+      }
+      
+      await _firestore.collection('dreams').doc(dreamId).update(updateData);
 
       // Real-time listener will handle local list updates automatically
       debugPrint('✅ Dream analysis updated successfully in Firestore');
@@ -531,6 +624,7 @@ class DreamProvider extends ChangeNotifier {
       try {
         await _firestore.collection('dreams').doc(dreamId).update({
           'status': 'failed',
+          'analysis': 'Analiz tamamlanamadı: $e',
           'updatedAt': Timestamp.fromDate(DateTime.now()),
           'updated_at': Timestamp.fromDate(DateTime.now()),
         });
@@ -549,8 +643,12 @@ class DreamProvider extends ChangeNotifier {
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
         debugPrint('📊 Dream status: ${data['status']}');
-        debugPrint('📊 Analysis: ${data['analysis']?.toString().substring(0, 50)}...');
-        debugPrint('📊 Dream text: ${data['dream_text']?.toString().substring(0, 50)}...');
+        debugPrint('📊 Analysis: ${data['analysis']?.toString().substring(0, min(50, data['analysis']?.toString().length ?? 0))}...');
+        debugPrint('📊 Dream text: ${data['dream_text']?.toString().substring(0, min(50, data['dream_text']?.toString().length ?? 0))}...');
+        
+        if (data['connection_to_past'] != null) {
+          debugPrint('📊 Connection to past: ${data['connection_to_past'].toString().substring(0, min(50, data['connection_to_past'].toString().length))}...');
+        }
       }
     } catch (e) {
       debugPrint('❌ Error checking dream status: $e');
