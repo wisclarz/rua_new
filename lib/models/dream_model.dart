@@ -1,4 +1,4 @@
-// lib/models/dream_model.dart - Snake Case uyumlu
+// lib/models/dream_model.dart
 
 enum DreamStatus {
   processing,
@@ -9,88 +9,101 @@ enum DreamStatus {
 class Dream {
   final String id;
   final String userId;
-  final String? audioUrl;
+  final String audioUrl;
   final String? fileName;
-  final DateTime createdAt;
-  final DateTime? date;
-  final DreamStatus status;
-  final String? analysis;
+  final String title;
   final String? dreamText;
-  final String? title;
-  final String? content;
-  final String? mood;
-  final Map<String, dynamic>? analysisData;
+  final String? analysis;
+  final String? interpretation;
+  final String? connectionToPast;
+  final String mood;
+  final List<String>? symbols;
+  final DreamStatus status;
+  final DateTime createdAt;
   final DateTime? updatedAt;
 
   Dream({
     required this.id,
     required this.userId,
-    this.audioUrl,
+    required this.audioUrl,
     this.fileName,
-    required this.createdAt,
-    DateTime? date,
-    required this.status,
-    this.analysis,
+    required this.title,
     this.dreamText,
-    this.title,
-    this.content,
-    this.mood,
-    this.analysisData,
+    this.analysis,
+    this.interpretation,
+    this.connectionToPast,
+    required this.mood,
+    this.symbols,
+    required this.status,
+    required this.createdAt,
     this.updatedAt,
-  }) : date = date ?? createdAt;
+  });
 
-  // Factory constructor from Firestore data (Snake Case compatible)
+  // Firestore'dan oku
   factory Dream.fromMap(Map<String, dynamic> map) {
     return Dream(
       id: map['id'] ?? '',
-      userId: map['userId'] ?? map['user_id'] ?? '',
-      audioUrl: map['audioUrl'] ?? map['audio_url'],
-      fileName: map['fileName'] ?? map['file_name'],
-      createdAt: _parseDateTime(map['createdAt'] ?? map['created_at']) ?? DateTime.now(),
-      date: _parseDateTime(map['date']),
-      status: _parseStatus(map['status']),
+      userId: map['userId'] ?? '',
+      audioUrl: map['audioUrl'] ?? '',
+      fileName: map['fileName'],
+      title: map['title'] ?? 'Başlıksız Rüya',
+      dreamText: map['dreamText'],
       analysis: map['analysis'],
-      dreamText: map['dreamText'] ?? map['dream_text'], // Support both formats
-      title: map['title'],
-      content: map['content'],
-      mood: map['mood'],
-      analysisData: map['analysisData'] as Map<String, dynamic>? ?? 
-                    map['analysis_data'] as Map<String, dynamic>?,
-      updatedAt: _parseDateTime(map['updatedAt'] ?? map['updated_at']),
+      interpretation: map['interpretation'],
+      connectionToPast: map['connectionToPast'] ?? map['connection_to_past'],
+      mood: map['mood'] ?? 'Belirsiz',
+      symbols: (map['symbols'] as List<dynamic>?)?.map((e) => e.toString()).toList(),
+      status: _parseStatus(map['status']),
+      createdAt: _parseDateTime(map['createdAt']) ?? DateTime.now(),
+      updatedAt: _parseDateTime(map['updatedAt']),
     );
   }
 
-  // Helper method to parse DateTime from various formats
+  // Firestore'a yaz
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'userId': userId,
+      'audioUrl': audioUrl,
+      'fileName': fileName,
+      'title': title,
+      'dreamText': dreamText,
+      'analysis': analysis,
+      'interpretation': interpretation,
+      'connectionToPast': connectionToPast,
+      'mood': mood,
+      'symbols': symbols,
+      'status': status.name,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
+    };
+  }
+
+  // Helper: DateTime parse
   static DateTime? _parseDateTime(dynamic value) {
     if (value == null) return null;
     
-    if (value is DateTime) return value;
-    
-    if (value is String) {
-      try {
+    try {
+      if (value is DateTime) {
+        return value;
+      } else if (value is String) {
         return DateTime.parse(value);
-      } catch (e) {
-        return null;
-      }
-    }
-    
-    // Firestore Timestamp
-    if (value.runtimeType.toString() == 'Timestamp') {
-      try {
+      } else if (value.runtimeType.toString().contains('Timestamp')) {
+        // Firestore Timestamp
         return (value as dynamic).toDate();
-      } catch (e) {
-        return null;
       }
+      return null;
+    } catch (e) {
+      return null;
     }
-    
-    return null;
   }
 
-  // Helper method to parse status
-  static DreamStatus _parseStatus(dynamic value) {
-    if (value == null) return DreamStatus.processing;
+  // Helper: Status parse
+  static DreamStatus _parseStatus(dynamic status) {
+    if (status == null) return DreamStatus.processing;
     
-    switch (value.toString().toLowerCase()) {
+    final statusString = status.toString().toLowerCase();
+    switch (statusString) {
       case 'completed':
         return DreamStatus.completed;
       case 'failed':
@@ -101,90 +114,21 @@ class Dream {
     }
   }
 
-  // Getter for content (returns dreamText or content)
-  String? get displayContent => content ?? dreamText;
-  
-  // Getter for title (auto-generates from content if not provided)
-  String? get displayTitle {
-    if (title != null && title!.isNotEmpty) {
-      return title;
-    }
-    
-    // Auto-generate title from content
-    final text = displayContent;
-    if (text != null && text.isNotEmpty) {
-      // Take first 30 characters and add "..."
-      if (text.length <= 30) {
-        return text;
-      } else {
-        return '${text.substring(0, 30)}...';
-      }
-    }
-    
-    return 'Başlıksız Rüya';
-  }
-
-  // Convert to Firestore Map (Snake Case for N8N compatibility)
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'userId': userId,
-      'audioUrl': audioUrl,
-      'fileName': fileName,
-      'createdAt': createdAt.toIso8601String(),
-      'date': date?.toIso8601String(),
-      'status': statusName,
-      'analysis': analysis,
-      'dreamText': dreamText,
-      'title': title,
-      'content': content,
-      'mood': mood,
-      'analysisData': analysisData,
-      'updatedAt': updatedAt?.toIso8601String(),
-    };
-  }
-
-  String get statusText {
-    switch (status) {
-      case DreamStatus.processing:
-        return 'Analiz Ediliyor';
-      case DreamStatus.completed:
-        return 'Tamamlandı';
-      case DreamStatus.failed:
-        return 'Başarısız';
-    }
-  }
-
-  String get statusName {
-    switch (status) {
-      case DreamStatus.processing:
-        return 'processing';
-      case DreamStatus.completed:
-        return 'completed';
-      case DreamStatus.failed:
-        return 'failed';
-    }
-  }
-
-  String get formattedDate {
-    final dateToFormat = date ?? createdAt;
-    return '${dateToFormat.day}/${dateToFormat.month}/${dateToFormat.year} ${dateToFormat.hour}:${dateToFormat.minute.toString().padLeft(2, '0')}';
-  }
-
+  // Copy with
   Dream copyWith({
     String? id,
     String? userId,
     String? audioUrl,
     String? fileName,
-    DateTime? createdAt,
-    DateTime? date,
-    DreamStatus? status,
-    String? analysis,
-    String? dreamText,
     String? title,
-    String? content,
+    String? dreamText,
+    String? analysis,
+    String? interpretation,
+    String? connectionToPast,
     String? mood,
-    Map<String, dynamic>? analysisData,
+    List<String>? symbols,
+    DreamStatus? status,
+    DateTime? createdAt,
     DateTime? updatedAt,
   }) {
     return Dream(
@@ -192,16 +136,63 @@ class Dream {
       userId: userId ?? this.userId,
       audioUrl: audioUrl ?? this.audioUrl,
       fileName: fileName ?? this.fileName,
-      createdAt: createdAt ?? this.createdAt,
-      date: date ?? this.date,
-      status: status ?? this.status,
-      analysis: analysis ?? this.analysis,
-      dreamText: dreamText ?? this.dreamText,
       title: title ?? this.title,
-      content: content ?? this.content,
+      dreamText: dreamText ?? this.dreamText,
+      analysis: analysis ?? this.analysis,
+      interpretation: interpretation ?? this.interpretation,
+      connectionToPast: connectionToPast ?? this.connectionToPast,
       mood: mood ?? this.mood,
-      analysisData: analysisData ?? this.analysisData,
+      symbols: symbols ?? this.symbols,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
+  }
+
+  // Analiz tamamlandı mı?
+  bool get isCompleted => status == DreamStatus.completed;
+  
+  // Analiz yapılıyor mu?
+  bool get isProcessing => status == DreamStatus.processing;
+  
+  // Analiz başarısız mı?
+  bool get isFailed => status == DreamStatus.failed;
+
+  // UI için başlık formatı
+  String get displayTitle => 'Rüyanız: $title';
+
+  // Tarih formatı
+  String get formattedDate {
+    final now = DateTime.now();
+    final difference = now.difference(createdAt);
+    
+    if (difference.inMinutes < 1) {
+      return 'Az önce';
+    } else if (difference.inHours < 1) {
+      return '${difference.inMinutes} dakika önce';
+    } else if (difference.inDays < 1) {
+      return '${difference.inHours} saat önce';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} gün önce';
+    } else {
+      // Format: 29/09/2025 12:15
+      return '${createdAt.day.toString().padLeft(2, '0')}/'
+             '${createdAt.month.toString().padLeft(2, '0')}/'
+             '${createdAt.year} '
+             '${createdAt.hour.toString().padLeft(2, '0')}:'
+             '${createdAt.minute.toString().padLeft(2, '0')}';
+    }
+  }
+
+  // Status text
+  String get statusText {
+    switch (status) {
+      case DreamStatus.completed:
+        return 'Tamamlandı';
+      case DreamStatus.processing:
+        return 'Analiz Yapılıyor';
+      case DreamStatus.failed:
+        return 'Başarısız';
+    }
   }
 }

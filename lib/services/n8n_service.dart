@@ -115,29 +115,89 @@ class N8nService {
     try {
       debugPrint('📚 Fetching previous dreams for user: $userId');
       
-      final QuerySnapshot snapshot = await _firestore
-          .collection('dreams')
-          .where('userId', isEqualTo: userId)
-          .where('status', isEqualTo: 'completed')
-          .orderBy('timestamp', descending: true)
-          .limit(6)
-          .get();
+      QuerySnapshot? snapshot;
+      
+      // Önce createdAt ile dene (en yaygın)
+      try {
+        snapshot = await _firestore
+            .collection('dreams')
+            .where('userId', isEqualTo: userId)
+            .where('status', isEqualTo: 'completed')
+            .orderBy('createdAt', descending: true)
+            .limit(6)
+            .get();
+        debugPrint('✅ Query with createdAt successful');
+      } catch (e) {
+        debugPrint('⚠️ createdAt query failed, trying timestamp: $e');
+        
+        // createdAt başarısız olursa timestamp dene
+        try {
+          snapshot = await _firestore
+              .collection('dreams')
+              .where('userId', isEqualTo: userId)
+              .where('status', isEqualTo: 'completed')
+              .orderBy('timestamp', descending: true)
+              .limit(6)
+              .get();
+          debugPrint('✅ Query with timestamp successful');
+        } catch (e2) {
+          debugPrint('⚠️ timestamp query also failed, trying without orderBy: $e2');
+          
+          // orderBy olmadan dene (index yoksa)
+          snapshot = await _firestore
+              .collection('dreams')
+              .where('userId', isEqualTo: userId)
+              .where('status', isEqualTo: 'completed')
+              .limit(6)
+              .get();
+          debugPrint('✅ Query without orderBy successful');
+        }
+      }
+
+      if (snapshot == null || snapshot.docs.isEmpty) {
+        debugPrint('📚 No completed dreams found, trying all statuses...');
+        
+        // Status filtresi olmadan dene - herhangi bir rüya
+        try {
+          snapshot = await _firestore
+              .collection('dreams')
+              .where('userId', isEqualTo: userId)
+              .orderBy('createdAt', descending: true)
+              .limit(6)
+              .get();
+          debugPrint('✅ Found ${snapshot.docs.length} dreams (any status)');
+        } catch (e) {
+          debugPrint('⚠️ Even fallback query failed: $e');
+          return [];
+        }
+      }
 
       if (snapshot.docs.isEmpty) {
-        debugPrint('📚 No previous dreams found');
+        debugPrint('📚 No previous dreams found at all');
         return [];
       }
 
       final List<Map<String, dynamic>> previousDreams = [];
       
       for (var doc in snapshot.docs) {
-        if (doc.id == currentDreamId) continue;
+        // Mevcut rüyayı dahil etme
+        if (doc.id == currentDreamId) {
+          debugPrint('⏭️ Skipping current dream: $currentDreamId');
+          continue;
+        }
         
         final data = doc.data() as Map<String, dynamic>;
         
+        // Sadece dreamText olan rüyaları al (analizi tamamlanmış)
+        final dreamText = data['dreamText'] ?? data['dream_text'] ?? '';
+        if (dreamText.isEmpty) {
+          debugPrint('⏭️ Skipping dream without dreamText: ${doc.id}');
+          continue;
+        }
+        
         previousDreams.add({
           'dreamId': doc.id,
-          'dreamText': data['dreamText'] ?? data['dream_text'] ?? '',
+          'dreamText': dreamText,
           'title': data['title'] ?? '',
           'mood': data['mood'] ?? '',
           'symbols': data['symbols'] ?? [],
@@ -146,14 +206,17 @@ class N8nService {
           'timestamp': data['timestamp']?.toString() ?? data['createdAt']?.toString() ?? '',
         });
         
+        debugPrint('✅ Added dream: ${data['title'] ?? doc.id}');
+        
         if (previousDreams.length >= 5) break;
       }
 
-      debugPrint('📚 Retrieved ${previousDreams.length} previous dreams');
+      debugPrint('📚 Retrieved ${previousDreams.length} previous dreams with analysis');
       return previousDreams;
       
     } catch (e) {
       debugPrint('💥 Error fetching previous dreams: $e');
+      debugPrint('💥 Stack trace: ${StackTrace.current}');
       return [];
     }
   }

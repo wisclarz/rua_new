@@ -433,7 +433,6 @@ class DreamProvider extends ChangeNotifier {
       fileName: originalPath.split('/').last,
       title: 'Yeni Rüya Kaydı',
       dreamText: null,
-      content: null,
       analysis: 'Analiz yapılıyor...',
       mood: 'Belirsiz',
       status: DreamStatus.processing,
@@ -519,6 +518,9 @@ Future<void> _triggerN8NWorkflow(String dreamId, String audioUrl) async {
     }
   }
 }
+
+
+
 Future<void> _updateFirestoreWithAnalysis(
   String dreamId, 
   Map<String, dynamic> analysisResult
