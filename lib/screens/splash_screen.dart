@@ -15,10 +15,9 @@ class SplashScreen extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              theme.colorScheme.primary.withOpacity(0.8),
-              theme.colorScheme.secondary.withOpacity(0.6),
-              theme.colorScheme.tertiary?.withOpacity(0.4) ?? 
-                  theme.colorScheme.primary.withOpacity(0.4),
+              theme.colorScheme.primary.withValues(alpha: 0.8),
+              theme.colorScheme.secondary.withValues(alpha: 0.6),
+              theme.colorScheme.tertiary.withValues(alpha: 0.4),
             ],
           ),
         ),
@@ -31,7 +30,7 @@ class SplashScreen extends StatelessWidget {
                 width: 120,
                 height: 120,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(30),
                 ),
                 child: const Icon(
@@ -63,7 +62,7 @@ class SplashScreen extends StatelessWidget {
               Text(
                 'Rüyalarınızı keşfedin ve analiz edin',
                 style: theme.textTheme.bodyLarge?.copyWith(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                 ),
                 textAlign: TextAlign.center,
               ).animate()
@@ -79,7 +78,7 @@ class SplashScreen extends StatelessWidget {
                 child: CircularProgressIndicator(
                   strokeWidth: 3,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    Colors.white.withOpacity(0.8),
+                    Colors.white.withValues(alpha: 0.8),
                   ),
                 ),
               ).animate()
@@ -91,7 +90,7 @@ class SplashScreen extends StatelessWidget {
               Text(
                 'Yükleniyor...',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: Colors.white.withOpacity(0.7),
+                  color: Colors.white.withValues(alpha: 0.7),
                 ),
               ).animate()
                 .fadeIn(delay: 1200.ms, duration: 800.ms),

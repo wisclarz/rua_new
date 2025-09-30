@@ -76,11 +76,9 @@ class AppTheme {
         onError: Colors.white,
         errorContainer: Color(0xFFFEF2F2),
         onErrorContainer: Color(0xFF7F1D1D),
-        background: lightBackground,
-        onBackground: lightOnBackground,
         surface: lightSurface,
         onSurface: lightOnSurface,
-        surfaceVariant: lightSurfaceVariant,
+        surfaceContainerHighest: lightSurfaceVariant,
         onSurfaceVariant: lightOnSurfaceVariant,
         outline: lightOutline,
         outlineVariant: lightOutlineVariant,
@@ -238,11 +236,9 @@ class AppTheme {
         onError: Colors.white,
         errorContainer: Color(0xFF7F1D1D),
         onErrorContainer: Color(0xFFFEF2F2),
-        background: darkBackground,
-        onBackground: darkOnBackground,
         surface: darkSurface,
         onSurface: darkOnSurface,
-        surfaceVariant: darkSurfaceVariant,
+        surfaceContainerHighest: darkSurfaceVariant,
         onSurfaceVariant: darkOnSurfaceVariant,
         outline: darkOutline,
         outlineVariant: darkOutlineVariant,
@@ -482,10 +478,10 @@ class AppTheme {
     double opacity = 0.1,
   }) {
     return BoxDecoration(
-      color: (color ?? Colors.white).withOpacity(opacity),
+      color: (color ?? Colors.white).withValues(alpha: opacity),
       borderRadius: BorderRadius.circular(borderRadius),
       border: Border.all(
-        color: Colors.white.withOpacity(0.2),
+        color: Colors.white.withValues(alpha: 0.2),
         width: 1,
       ),
     );
@@ -505,7 +501,7 @@ class AppTheme {
       ),
       boxShadow: elevated ? [
         BoxShadow(
-          color: colorScheme.shadow.withOpacity(0.05),
+          color: colorScheme.shadow.withValues(alpha: 0.05),
           blurRadius: 10,
           offset: const Offset(0, 2),
         ),

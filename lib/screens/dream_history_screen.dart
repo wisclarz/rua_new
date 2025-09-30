@@ -249,7 +249,7 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen> {
         });
       },
       backgroundColor: Colors.grey[100],
-      selectedColor: Theme.of(context).primaryColor.withOpacity(0.2),
+      selectedColor: Theme.of(context).primaryColor.withValues(alpha: 0.2),
       checkmarkColor: Theme.of(context).primaryColor,
       side: BorderSide(
         color: isSelected 
@@ -299,7 +299,7 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.1),
+                      color: statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
@@ -355,10 +355,10 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: _getMoodColor(dream.mood).withOpacity(0.1),
+                          color: _getMoodColor(dream.mood).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: _getMoodColor(dream.mood).withOpacity(0.3),
+                            color: _getMoodColor(dream.mood).withValues(alpha: 0.3),
                           ),
                         ),
                         child: Row(
@@ -391,10 +391,10 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.purple.withOpacity(0.1),
+                          color: Colors.purple.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: Colors.purple.withOpacity(0.3),
+                            color: Colors.purple.withValues(alpha: 0.3),
                           ),
                         ),
                         child: Row(

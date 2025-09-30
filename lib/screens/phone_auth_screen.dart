@@ -138,7 +138,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF6366F1).withOpacity(0.3),
+                color: const Color(0xFF6366F1).withValues(alpha: 0.3),
                 blurRadius: 20,
                 spreadRadius: 5,
               ),
@@ -178,7 +178,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
       borderRadius: 24,
       blurValue: 20,
       opacityValue: 0.1,
-      color: Colors.white.withOpacity(0.05),
+      color: Colors.white.withValues(alpha: 0.05),
       child: Padding(
         padding: const EdgeInsets.all(32.0),
         child: Form(
@@ -222,14 +222,14 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
         hintText: '5XX XXX XX XX',
         hintStyle: GoogleFonts.poppins(color: Colors.white30),
         filled: true,
-        fillColor: Colors.white.withOpacity(0.05),
+        fillColor: Colors.white.withValues(alpha: 0.05),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
@@ -259,14 +259,14 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
         hintText: 'Adınızı girin',
         hintStyle: GoogleFonts.poppins(color: Colors.white30),
         filled: true,
-        fillColor: Colors.white.withOpacity(0.05),
+        fillColor: Colors.white.withValues(alpha: 0.05),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
@@ -314,14 +314,14 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
             hintText: '000000',
             hintStyle: GoogleFonts.poppins(color: Colors.white30),
             filled: true,
-            fillColor: Colors.white.withOpacity(0.05),
+            fillColor: Colors.white.withValues(alpha: 0.05),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide.none,
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
@@ -360,7 +360,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF6366F1).withOpacity(0.3),
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.3),
                       blurRadius: 15,
                       offset: const Offset(0, 8),
                     ),
@@ -414,7 +414,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF10B981).withOpacity(0.3),
+                color: const Color(0xFF10B981).withValues(alpha: 0.3),
                 blurRadius: 15,
                 offset: const Offset(0, 8),
               ),
@@ -477,7 +477,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),

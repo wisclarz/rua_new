@@ -17,12 +17,19 @@ class FirebaseAuthProvider extends AuthProviderInterface {
   bool _isVerifyingPhone = false;
   
   // Getters
+  @override
   app_models.User? get currentUser => _currentUser;
+  @override
   bool get isLoading => _isLoading;
+  @override
   String? get errorMessage => _errorMessage;
+  @override
   bool get isAuthenticated => _currentUser != null;
+  @override
   String? get verificationId => _verificationId;
+  @override
   bool get isVerifyingPhone => _isVerifyingPhone;
+  @override
   bool get isInitialized => _isInitialized;
   
   // Constructor
@@ -118,6 +125,7 @@ class FirebaseAuthProvider extends AuthProviderInterface {
   }
   
   // Sign in with Google
+  @override
   Future<bool> signInWithGoogle() async {
     if (_authService == null) {
       _setError('Firebase henüz başlatılmadı');
@@ -183,6 +191,7 @@ class FirebaseAuthProvider extends AuthProviderInterface {
   }
   
   // Send phone verification code
+  @override
   Future<bool> sendPhoneVerificationCode(String phoneNumber) async {
     if (_authService == null) {
       _setError('Firebase henüz başlatılmadı');
@@ -225,6 +234,7 @@ class FirebaseAuthProvider extends AuthProviderInterface {
   }
   
   // Verify phone code
+  @override
   Future<bool> verifyPhoneCode({
     required String smsCode,
     String? userName,
@@ -266,6 +276,7 @@ class FirebaseAuthProvider extends AuthProviderInterface {
   }
   
   // Sign out
+  @override
   Future<void> signOut() async {
     if (_authService == null) {
       _setError('Firebase henüz başlatılmadı');
@@ -288,6 +299,7 @@ class FirebaseAuthProvider extends AuthProviderInterface {
   }
   
   // Update user profile
+  @override
   Future<bool> updateUserProfile(app_models.User user) async {
     if (_authService == null) {
       _setError('Firebase henüz başlatılmadı');
@@ -311,6 +323,7 @@ class FirebaseAuthProvider extends AuthProviderInterface {
   }
   
   // Update profile image
+  @override
   Future<bool> updateProfileImage(String imageUrl) async {
     if (_authService == null) {
       _setError('Firebase henüz başlatılmadı');
@@ -340,6 +353,7 @@ class FirebaseAuthProvider extends AuthProviderInterface {
   }
   
   // Delete account
+  @override
   Future<bool> deleteAccount() async {
     if (_authService == null) {
       _setError('Firebase henüz başlatılmadı');
@@ -370,6 +384,7 @@ class FirebaseAuthProvider extends AuthProviderInterface {
   }
   
   // Send email verification (not applicable for phone auth)
+  @override
   Future<void> sendEmailVerification() async {
     if (_authService == null) {
       _setError('Firebase henüz başlatılmadı');
@@ -384,6 +399,7 @@ class FirebaseAuthProvider extends AuthProviderInterface {
   }
   
   // Reset phone verification (allow user to enter new phone number)
+  @override
   void resetPhoneVerification() {
     _verificationId = null;
     _isVerifyingPhone = false;
@@ -392,6 +408,7 @@ class FirebaseAuthProvider extends AuthProviderInterface {
   }
   
   // Clear error message
+  @override
   void clearError() {
     _clearError();
   }

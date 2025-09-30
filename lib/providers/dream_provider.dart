@@ -89,7 +89,7 @@ class DreamProvider extends ChangeNotifier {
         _dreams.clear();
         for (var doc in snapshot.docs) {
           try {
-            final dreamData = doc.data() as Map<String, dynamic>;
+            final dreamData = doc.data();
             dreamData['id'] = doc.id;
             
             final dream = Dream.fromMap(dreamData);
@@ -222,40 +222,6 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // Helper method - tarih parsing için
-  DateTime? _parseDateTime(dynamic value) {
-    if (value == null) return null;
-    
-    try {
-      if (value is Timestamp) {
-        return value.toDate();
-      } else if (value is String) {
-        return DateTime.parse(value);
-      } else {
-        debugPrint('⚠️ Unknown datetime format: ${value.runtimeType}');
-        return null;
-      }
-    } catch (e) {
-      debugPrint('❌ Error parsing datetime: $e');
-      return null;
-    }
-  }
-
-  // Status parsing method
-  DreamStatus _parseStatus(dynamic status) {
-    if (status == null) return DreamStatus.processing;
-    
-    final statusString = status.toString().toLowerCase();
-    switch (statusString) {
-      case 'completed':
-        return DreamStatus.completed;
-      case 'failed':
-        return DreamStatus.failed;
-      case 'processing':
-      default:
-        return DreamStatus.processing;
-    }
-  }
 
   // Start recording
   Future<bool> startRecording() async {
@@ -363,6 +329,55 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
+   Future<Dream> uploadAudioFile(File audioFile) async {
+    debugPrint('📤 uploadAudioFile called with: ${audioFile.path}');
+    
+    try {
+      _setLoading(true);
+      _clearError();
+
+      // Validate file
+      if (!audioFile.existsSync()) {
+        throw Exception('Ses dosyası bulunamadı');
+      }
+
+      final int fileSize = audioFile.lengthSync();
+      if (fileSize == 0) {
+        throw Exception('Ses dosyası boş');
+      }
+
+      debugPrint('📁 Audio file size: $fileSize bytes');
+
+      // Upload to Firebase Storage
+      debugPrint('☁️ Uploading to Firebase Storage...');
+      final String downloadUrl = await _uploadAudioToStorage(audioFile);
+      debugPrint('✅ Upload successful: $downloadUrl');
+
+      // Create dream record
+      debugPrint('📝 Creating dream record...');
+      final Dream newDream = await createDreamRecord(downloadUrl, audioFile.path);
+      debugPrint('✅ Dream created: ${newDream.id}');
+
+      // Clean up the file if it's in temp directory
+      try {
+        if (audioFile.path.contains('temp') || audioFile.path.contains('cache')) {
+          await audioFile.delete();
+          debugPrint('🗑️ Temporary file deleted');
+        }
+      } catch (e) {
+        debugPrint('⚠️ Could not delete file: $e');
+      }
+
+      return newDream;
+    } catch (e) {
+      debugPrint('❌ uploadAudioFile error: $e');
+      _setError('Dosya yüklenirken hata oluştu: $e');
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   // Upload audio file to Firebase Storage
   Future<String> _uploadAudioToStorage(File audioFile) async {
     final user = _auth.currentUser;
@@ -460,10 +475,6 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // Legacy create dream document method
-  Future<Dream> _createDreamDocument(String audioUrl, String originalPath) async {
-    return await createDreamRecord(audioUrl, originalPath);
-  }
 
   // 🔥 YENİ: Trigger N8N workflow with previous dreams history
   // YENİ VERSİYON: N8N'den response al ve Firestore'a yaz
@@ -546,10 +557,13 @@ Future<void> _updateFirestoreWithAnalysis(
       updateData['symbols'] = analysisResult['symbols'];
     }
     
-    if (analysisResult['connection_to_past'] != null && 
-        analysisResult['connection_to_past'].toString().isNotEmpty) {
-      updateData['connection_to_past'] = analysisResult['connection_to_past'];
-      updateData['connectionToPast'] = analysisResult['connection_to_past'];
+    // CONNECTION TO PAST - N8N'den connectionToPast olarak geliyor
+    if (analysisResult['connectionToPast'] != null && 
+        analysisResult['connectionToPast'].toString().trim().isNotEmpty) {
+      final connectionValue = analysisResult['connectionToPast'].toString();
+      updateData['connectionToPast'] = connectionValue;
+      updateData['connection_to_past'] = connectionValue; // Snake case backup
+      debugPrint('✅ Adding connectionToPast to Firestore: ${connectionValue.substring(0, min(50, connectionValue.length))}...');
     }
     
     // Firestore'a yaz

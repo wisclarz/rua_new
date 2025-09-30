@@ -41,7 +41,7 @@ class GlassmorphicContainer extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(borderRadius),
         border: border ?? Border.all(
-          color: Colors.white.withOpacity(0.2),
+          color: Colors.white.withValues(alpha: 0.2),
           width: 1.0,
         ),
       ),
@@ -51,7 +51,7 @@ class GlassmorphicContainer extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: blurValue, sigmaY: blurValue),
           child: Container(
             decoration: BoxDecoration(
-              color: color ?? theme.colorScheme.surface.withOpacity(opacityValue),
+              color: color ?? theme.colorScheme.surface.withValues(alpha: opacityValue),
               borderRadius: BorderRadius.circular(borderRadius),
             ),
             padding: padding,

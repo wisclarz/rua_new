@@ -88,7 +88,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                           'Rüya yolculuğunuza başlayın',
                           style: GoogleFonts.poppins(
                             fontSize: 16,
-                            color: Colors.white.withOpacity(0.8),
+                            color: Colors.white.withValues(alpha: 0.8),
                           ),
                         ),
                       ],
@@ -152,7 +152,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                               _obscurePassword 
                                   ? Icons.visibility_off_outlined 
                                   : Icons.visibility_outlined,
-                              color: Colors.white.withOpacity(0.7),
+                              color: Colors.white.withValues(alpha: 0.7),
                             ),
                           ),
                           validator: (value) {
@@ -184,7 +184,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                               _obscureConfirmPassword 
                                   ? Icons.visibility_off_outlined 
                                   : Icons.visibility_outlined,
-                              color: Colors.white.withOpacity(0.7),
+                              color: Colors.white.withValues(alpha: 0.7),
                             ),
                           ),
                           validator: (value) {
@@ -218,7 +218,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                                 TextSpan(
                                   text: 'Kabul ediyorum ',
                                   style: GoogleFonts.poppins(
-                                    color: Colors.white.withOpacity(0.8),
+                                    color: Colors.white.withValues(alpha: 0.8),
                                     fontSize: 14,
                                   ),
                                   children: [
@@ -294,7 +294,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                             Text(
                               'Zaten hesabınız var mı? ',
                               style: GoogleFonts.poppins(
-                                color: Colors.white.withOpacity(0.8),
+                                color: Colors.white.withValues(alpha: 0.8),
                               ),
                             ),
                             GestureDetector(
@@ -339,12 +339,12 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
       decoration: InputDecoration(
         labelText: label,
         labelStyle: GoogleFonts.poppins(
-          color: Colors.white.withOpacity(0.8),
+          color: Colors.white.withValues(alpha: 0.8),
         ),
-        prefixIcon: Icon(icon, color: Colors.white.withOpacity(0.7)),
+        prefixIcon: Icon(icon, color: Colors.white.withValues(alpha: 0.7)),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: Colors.white.withOpacity(0.1),
+        fillColor: Colors.white.withValues(alpha: 0.1),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,

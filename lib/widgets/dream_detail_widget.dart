@@ -1,104 +1,151 @@
-// lib/widgets/dream_detail_widget.dart
-
 import 'package:flutter/material.dart';
 import '../models/dream_model.dart';
-import 'package:intl/intl.dart';
 
 class DreamDetailWidget extends StatelessWidget {
   final Dream dream;
 
   const DreamDetailWidget({
-    Key? key,
+    super.key,
     required this.dream,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+    final theme = Theme.of(context);
+    final size = MediaQuery.of(context).size;
+    
+    return Container(
+      height: size.height * 0.9,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Başlık - "Rüyanız: [title]"
-          Text(
-            dream.displayTitle,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
+          // Drag Handle
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.only(top: 12, bottom: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(2),
             ),
           ),
           
-          const SizedBox(height: 8),
-          
-          // Tarih
-          Text(
-            DateFormat('dd/MM/yyyy HH:mm').format(dream.createdAt),
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Colors.grey[600],
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        dream.title,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        dream.formattedDate,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: Icon(
+                    Icons.close,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
           ),
           
-          const SizedBox(height: 24),
+          Divider(
+            height: 1,
+            color: theme.colorScheme.outlineVariant,
+          ),
           
-          // Durum Badge
-          _buildStatusBadge(context),
-          
-          const SizedBox(height: 24),
-          
-          // Ruh Hali
-          if (dream.mood != 'Belirsiz') ...[
-            _buildSectionTitle(context, 'Ruh Hali'),
-            const SizedBox(height: 8),
-            _buildMoodChip(context),
-            const SizedBox(height: 24),
-          ],
-          
-          // Simgeler
-          if (dream.symbols != null && dream.symbols!.isNotEmpty) ...[
-            _buildSectionTitle(context, 'Simgeler'),
-            const SizedBox(height: 8),
-            _buildSymbolsChips(context),
-            const SizedBox(height: 24),
-          ],
-          
-          // Rüya Metni
-          if (dream.dreamText != null && dream.dreamText!.isNotEmpty) ...[
-            _buildSectionTitle(context, 'Rüya Metni'),
-            const SizedBox(height: 8),
-            _buildContentCard(context, dream.dreamText!),
-            const SizedBox(height: 24),
-          ],
-          
-          // Yorum
-          if (dream.interpretation != null && dream.interpretation!.isNotEmpty) ...[
-            _buildSectionTitle(context, 'Yorum'),
-            const SizedBox(height: 8),
-            _buildContentCard(context, dream.interpretation!),
-            const SizedBox(height: 24),
-          ],
-          
-          // Analiz
-          if (dream.analysis != null && 
-              dream.analysis!.isNotEmpty && 
-              dream.analysis != 'Analiz yapılıyor...') ...[
-            _buildSectionTitle(context, 'Psikolojik Analiz'),
-            const SizedBox(height: 8),
-            _buildContentCard(context, dream.analysis!),
-            const SizedBox(height: 24),
-          ],
-          
-          // Önceki Rüyalarla Bağlantı
-          if (dream.connectionToPast != null && dream.connectionToPast!.isNotEmpty) ...[
-            _buildSectionTitle(context, 'Önceki Rüyalarla Bağlantı'),
-            const SizedBox(height: 8),
-            _buildHighlightCard(context, dream.connectionToPast!),
-            const SizedBox(height: 24),
-          ],
+          // Content
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Status Badge
+                  _buildStatusBadge(context, theme),
+                  
+                  const SizedBox(height: 20),
+                  
+                  // Mood
+                  if (dream.mood != 'Belirsiz') ...[
+                    _buildSectionTitle(context, 'Ruh Hali', theme),
+                    const SizedBox(height: 12),
+                    _buildMoodChip(context, theme),
+                    const SizedBox(height: 20),
+                  ],
+                  
+                  // Symbols
+                  if (dream.symbols != null && dream.symbols!.isNotEmpty) ...[
+                    _buildSectionTitle(context, 'Simgeler', theme),
+                    const SizedBox(height: 12),
+                    _buildSymbolsChips(context, theme),
+                    const SizedBox(height: 20),
+                  ],
+                  
+                  // Dream Text
+                  if (dream.dreamText != null && dream.dreamText!.isNotEmpty) ...[
+                    _buildSectionTitle(context, 'Rüya Metni', theme),
+                    const SizedBox(height: 12),
+                    _buildContentCard(context, dream.dreamText!, theme),
+                    const SizedBox(height: 20),
+                  ],
+                  
+                  // Interpretation
+                  if (dream.interpretation != null && dream.interpretation!.isNotEmpty) ...[
+                    _buildSectionTitle(context, 'Yorum', theme),
+                    const SizedBox(height: 12),
+                    _buildContentCard(context, dream.interpretation!, theme),
+                    const SizedBox(height: 20),
+                  ],
+                  
+                  // Analysis
+                  if (dream.analysis != null && 
+                      dream.analysis!.isNotEmpty && 
+                      dream.analysis != 'Analiz yapılıyor...') ...[
+                    _buildSectionTitle(context, 'Psikolojik Analiz', theme),
+                    const SizedBox(height: 12),
+                    _buildContentCard(context, dream.analysis!, theme),
+                    const SizedBox(height: 20),
+                  ],
+                  
+                  // Connection to Past
+                  if (dream.connectionToPast != null && dream.connectionToPast!.isNotEmpty) ...[
+                    _buildSectionTitle(context, 'Önceki Rüyalarla Bağlantı', theme),
+                    const SizedBox(height: 12),
+                    _buildHighlightCard(context, dream.connectionToPast!, theme),
+                    const SizedBox(height: 20),
+                  ],
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildStatusBadge(BuildContext context) {
+  Widget _buildStatusBadge(BuildContext context, ThemeData theme) {
     Color badgeColor;
     String badgeText;
     IconData badgeIcon;
@@ -122,23 +169,23 @@ class DreamDetailWidget extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: badgeColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: badgeColor, width: 1),
+        color: badgeColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: badgeColor.withValues(alpha: 0.3), width: 1.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(badgeIcon, size: 16, color: badgeColor),
-          const SizedBox(width: 6),
+          Icon(badgeIcon, size: 18, color: badgeColor),
+          const SizedBox(width: 8),
           Text(
             badgeText,
             style: TextStyle(
               color: badgeColor,
               fontWeight: FontWeight.w600,
-              fontSize: 12,
+              fontSize: 14,
             ),
           ),
         ],
@@ -146,36 +193,52 @@ class DreamDetailWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionTitle(BuildContext context, String title) {
-    return Text(
-      title,
-      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-        fontWeight: FontWeight.bold,
-        color: Theme.of(context).primaryColor,
-      ),
+  Widget _buildSectionTitle(BuildContext context, String title, ThemeData theme) {
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 20,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          title,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: theme.colorScheme.onSurface,
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildMoodChip(BuildContext context) {
+  Widget _buildMoodChip(BuildContext context, ThemeData theme) {
+    final moodColor = _getMoodColor(dream.mood);
+    final moodEmoji = _getMoodEmoji(dream.mood);
+    
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: _getMoodColor(dream.mood).withOpacity(0.15),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _getMoodColor(dream.mood), width: 2),
+        color: moodColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: moodColor.withValues(alpha: 0.3), width: 1.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            _getMoodEmoji(dream.mood),
-            style: const TextStyle(fontSize: 24),
+            moodEmoji,
+            style: const TextStyle(fontSize: 28),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Text(
-            dream.mood,
+            _capitalizeFirst(dream.mood),
             style: TextStyle(
-              color: _getMoodColor(dream.mood),
+              color: moodColor,
               fontWeight: FontWeight.bold,
               fontSize: 16,
             ),
@@ -185,75 +248,98 @@ class DreamDetailWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildSymbolsChips(BuildContext context) {
+  Widget _buildSymbolsChips(BuildContext context, ThemeData theme) {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: dream.symbols!.map((symbol) {
         return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.purple.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.purple.withOpacity(0.3), width: 1),
-          ),
-          child: Text(
-            symbol,
-            style: const TextStyle(
-              color: Colors.purple,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
+            color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: theme.colorScheme.tertiary.withValues(alpha: 0.3),
+              width: 1,
             ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('✨', style: TextStyle(fontSize: 14)),
+              const SizedBox(width: 6),
+              Text(
+                _capitalizeFirst(symbol),
+                style: TextStyle(
+                  color: theme.colorScheme.onTertiaryContainer,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
         );
       }).toList(),
     );
   }
 
-  Widget _buildContentCard(BuildContext context, String content) {
+  Widget _buildContentCard(BuildContext context, String content, ThemeData theme) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[300]!, width: 1),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant,
+          width: 1,
+        ),
       ),
       child: Text(
         content,
-        style: const TextStyle(
-          fontSize: 15,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
           height: 1.6,
-          color: Colors.black87,
         ),
       ),
     );
   }
 
-  Widget _buildHighlightCard(BuildContext context, String content) {
+  Widget _buildHighlightCard(BuildContext context, String content, ThemeData theme) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: [
-            Colors.blue.withOpacity(0.05),
-            Colors.purple.withOpacity(0.05),
+            theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+            theme.colorScheme.secondaryContainer.withValues(alpha: 0.2),
           ],
         ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue.withOpacity(0.3), width: 1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.link, color: Colors.blue[700], size: 20),
+          Icon(
+            Icons.link,
+            size: 20,
+            color: theme.colorScheme.primary,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               content,
-              style: TextStyle(
-                fontSize: 15,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface,
                 height: 1.6,
-                color: Colors.blue[900],
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),
@@ -268,12 +354,13 @@ class DreamDetailWidget extends StatelessWidget {
       case 'heyecanlı':
         return Colors.green;
       case 'kaygılı':
+        return Colors.orange;
       case 'korkulu':
         return Colors.red;
       case 'huzurlu':
         return Colors.blue;
       case 'şaşkın':
-        return Colors.orange;
+        return Colors.amber;
       case 'huzursuz':
         return Colors.deepOrange;
       default:
@@ -300,5 +387,10 @@ class DreamDetailWidget extends StatelessWidget {
       default:
         return '😐';
     }
+  }
+
+  String _capitalizeFirst(String text) {
+    if (text.isEmpty) return text;
+    return text[0].toUpperCase() + text.substring(1);
   }
 }

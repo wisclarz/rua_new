@@ -42,7 +42,7 @@ class _LoginScreenState extends State<LoginScreen> {
             borderRadius: 16,
             blurValue: 20, // blur parametresi blurValue olarak değiştirildi
             opacityValue: 0.9,
-            color: color.withOpacity(0.8),
+            color: color.withValues(alpha: 0.8),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
@@ -50,7 +50,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(icon, color: Colors.white, size: 20),
@@ -91,10 +91,9 @@ class _LoginScreenState extends State<LoginScreen> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              theme.colorScheme.primary.withOpacity(0.8),
-              theme.colorScheme.secondary.withOpacity(0.6),
-              theme.colorScheme.tertiary?.withOpacity(0.4) ?? 
-                  theme.colorScheme.primary.withOpacity(0.4),
+              theme.colorScheme.primary.withValues(alpha: 0.8),
+              theme.colorScheme.secondary.withValues(alpha: 0.6),
+              theme.colorScheme.tertiary.withValues(alpha: 0.4),
             ],
           ),
         ),
@@ -275,7 +274,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             children: [
                               Expanded(
                                 child: Divider(
-                                  color: theme.colorScheme.onSurface.withOpacity(0.3),
+                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
                                 ),
                               ),
                               Padding(
@@ -283,13 +282,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                 child: Text(
                                   'veya',
                                   style: TextStyle(
-                                    color: theme.colorScheme.onSurface.withOpacity(0.6),
+                                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                                   ),
                                 ),
                               ),
                               Expanded(
                                 child: Divider(
-                                  color: theme.colorScheme.onSurface.withOpacity(0.3),
+                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
                                 ),
                               ),
                             ],
@@ -312,7 +311,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: theme.colorScheme.onSurface,
                                     side: BorderSide(
-                                      color: theme.colorScheme.outline.withOpacity(0.5),
+                                      color: theme.colorScheme.outline.withValues(alpha: 0.5),
                                     ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(12),
@@ -337,7 +336,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         'Kayıt olarak Kullanım Koşulları ve Gizlilik Politikası\'nı kabul etmiş olursunuz.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withValues(alpha: 0.8),
                           fontSize: 12,
                         ),
                       ),
@@ -360,7 +359,7 @@ class _LoginScreenState extends State<LoginScreen> {
           width: 100,
           height: 100,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
+            color: Colors.white.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(24),
           ),
           child: Icon(
@@ -381,7 +380,7 @@ class _LoginScreenState extends State<LoginScreen> {
         Text(
           'Rüyalarınızı keşfedin ve analiz edin',
           style: theme.textTheme.bodyLarge?.copyWith(
-            color: Colors.white.withOpacity(0.9),
+            color: Colors.white.withValues(alpha: 0.9),
           ),
           textAlign: TextAlign.center,
         ),
@@ -394,7 +393,7 @@ class _LoginScreenState extends State<LoginScreen> {
     
     return Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface.withOpacity(0.1),
+        color: theme.colorScheme.surface.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -406,7 +405,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
                   color: _isLoginMode
-                      ? theme.colorScheme.primary.withOpacity(0.8)
+                      ? theme.colorScheme.primary.withValues(alpha: 0.8)
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -416,7 +415,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(
                     color: _isLoginMode
                         ? Colors.white
-                        : theme.colorScheme.onSurface.withOpacity(0.7),
+                        : theme.colorScheme.onSurface.withValues(alpha: 0.7),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -430,7 +429,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
                   color: !_isLoginMode
-                      ? theme.colorScheme.primary.withOpacity(0.8)
+                      ? theme.colorScheme.primary.withValues(alpha: 0.8)
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -440,7 +439,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(
                     color: !_isLoginMode
                         ? Colors.white
-                        : theme.colorScheme.onSurface.withOpacity(0.7),
+                        : theme.colorScheme.onSurface.withValues(alpha: 0.7),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -474,18 +473,18 @@ class _LoginScreenState extends State<LoginScreen> {
         prefixIcon: Icon(prefixIcon, color: theme.colorScheme.primary),
         suffixIcon: suffixIcon,
         labelStyle: TextStyle(
-          color: theme.colorScheme.onSurface.withOpacity(0.7),
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(
-            color: theme.colorScheme.outline.withOpacity(0.5),
+            color: theme.colorScheme.outline.withValues(alpha: 0.5),
           ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(
-            color: theme.colorScheme.outline.withOpacity(0.3),
+            color: theme.colorScheme.outline.withValues(alpha: 0.3),
           ),
         ),
         focusedBorder: OutlineInputBorder(
@@ -502,7 +501,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         filled: true,
-        fillColor: theme.colorScheme.surface.withOpacity(0.1),
+        fillColor: theme.colorScheme.surface.withValues(alpha: 0.1),
       ),
     );
   }

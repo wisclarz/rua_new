@@ -57,9 +57,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
             height: 80,
             borderRadius: 16,
             blurValue: 20,
-            color: color.withOpacity(0.8),
+            color: color.withValues(alpha: 0.8),
             border: Border.all(
-              color: Colors.white.withOpacity(0.3),
+              color: Colors.white.withValues(alpha: 0.3),
               width: 2,
             ),
             child: Padding(
@@ -69,7 +69,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
@@ -112,7 +112,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final theme = Theme.of(context);
     
     return Scaffold(
-      backgroundColor: theme.colorScheme.background,
+      backgroundColor: theme.colorScheme.surface,
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
@@ -133,8 +133,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      theme.colorScheme.primary.withOpacity(0.1),
-                      theme.colorScheme.secondary.withOpacity(0.1),
+                      theme.colorScheme.primary.withValues(alpha: 0.1),
+                      theme.colorScheme.secondary.withValues(alpha: 0.1),
                     ],
                   ),
                 ),
@@ -142,7 +142,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   child: Icon(
                     Icons.explore,
                     size: 80,
-                    color: theme.colorScheme.primary.withOpacity(0.3),
+                    color: theme.colorScheme.primary.withValues(alpha: 0.3),
                   ),
                 ),
               ),
@@ -219,7 +219,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     
     return Card(
       elevation: 4,
-      shadowColor: category.color.withOpacity(0.2),
+      shadowColor: category.color.withValues(alpha: 0.2),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
@@ -236,8 +236,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                category.color.withOpacity(0.1),
-                category.color.withOpacity(0.05),
+                category.color.withValues(alpha: 0.1),
+                category.color.withValues(alpha: 0.05),
               ],
             ),
           ),
@@ -247,7 +247,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: category.color.withOpacity(0.2),
+                  color: category.color.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
@@ -269,7 +269,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               Text(
                 category.subtitle,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
@@ -334,7 +334,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
@@ -358,7 +358,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     Text(
                       subtitle,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.7),
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
                     ),
                   ],
@@ -366,7 +366,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               ),
               Icon(
                 Icons.chevron_right,
-                color: theme.colorScheme.onSurface.withOpacity(0.5),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
               ),
             ],
           ),
@@ -429,7 +429,7 @@ class CategoryDetailsBottomSheet extends StatelessWidget {
             height: 4,
             margin: const EdgeInsets.only(top: 16),
             decoration: BoxDecoration(
-              color: theme.colorScheme.onSurface.withOpacity(0.3),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -444,7 +444,7 @@ class CategoryDetailsBottomSheet extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: category.color.withOpacity(0.1),
+                    color: category.color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(
@@ -467,7 +467,7 @@ class CategoryDetailsBottomSheet extends StatelessWidget {
                       Text(
                         category.subtitle,
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(0.7),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                         ),
                       ),
                     ],
@@ -497,7 +497,7 @@ class CategoryDetailsBottomSheet extends StatelessWidget {
                     leading: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: category.color.withOpacity(0.1),
+                        color: category.color.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(

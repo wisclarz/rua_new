@@ -79,7 +79,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final availableHeight = screenHeight - statusBarHeight;
     
     return Scaffold(
-      backgroundColor: theme.colorScheme.background,
+      backgroundColor: theme.colorScheme.surface,
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
@@ -134,8 +134,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                theme.colorScheme.primary.withOpacity(0.8),
-                theme.colorScheme.secondary.withOpacity(0.6),
+                theme.colorScheme.primary.withValues(alpha: 0.8),
+                theme.colorScheme.secondary.withValues(alpha: 0.6),
               ],
             ),
           ),
@@ -174,7 +174,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.2),
+                                  color: Colors.black.withValues(alpha: 0.2),
                                   spreadRadius: 2,
                                   blurRadius: 10,
                                 ),
@@ -346,7 +346,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         leading: Container(
           padding: const EdgeInsets.all(8), // Reduced padding
           decoration: BoxDecoration(
-            color: item.color.withOpacity(0.15),
+            color: item.color.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
@@ -366,7 +366,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         subtitle: Text(
           item.subtitle,
           style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurface.withOpacity(0.7),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
             fontSize: 11, // Smaller subtitle
           ),
           maxLines: 1,
@@ -374,7 +374,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         trailing: Icon(
           Icons.chevron_right,
-          color: theme.colorScheme.onSurface.withOpacity(0.5),
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
           size: 18, // Smaller trailing icon
         ),
         onTap: () {
@@ -401,7 +401,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: Colors.red.withOpacity(0.3),
+          color: Colors.red.withValues(alpha: 0.3),
           width: 1,
         ),
       ),
@@ -410,7 +410,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.red.withOpacity(0.15),
+            color: Colors.red.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(10),
           ),
           child: const Icon(
@@ -429,7 +429,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         subtitle: Text(
           'Hesabından güvenli çıkış yap',
           style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurface.withOpacity(0.7),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
             fontSize: 11,
           ),
         ),

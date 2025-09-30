@@ -7,19 +7,20 @@ class MockAuthProvider extends AuthProviderInterface {
   bool _isLoading = true;
   String? _errorMessage;
   
-  // Mock users for testing
-  final List<Map<String, String>> _mockUsers = [
-    {'phone': '+905551234567', 'name': 'Test User'},
-    {'phone': '+905559876543', 'name': 'Admin User'},
-  ];
-  
   // Getters
+  @override
   app_models.User? get currentUser => _currentUser;
+  @override
   bool get isLoading => _isLoading;
+  @override
   String? get errorMessage => _errorMessage;
+  @override
   bool get isAuthenticated => _currentUser != null;
+  @override
   bool get isVerifyingPhone => false;
+  @override
   String? get verificationId => null;
+  @override
   bool get isInitialized => true;
   
   // Constructor
@@ -46,6 +47,7 @@ class MockAuthProvider extends AuthProviderInterface {
   }
   
   // Mock Google sign in
+  @override
   Future<bool> signInWithGoogle() async {
     try {
       _setLoading(true);
@@ -81,6 +83,7 @@ class MockAuthProvider extends AuthProviderInterface {
   }
   
   // Mock phone verification
+  @override
   Future<bool> sendPhoneVerificationCode(String phoneNumber) async {
     try {
       _setLoading(true);
@@ -99,6 +102,7 @@ class MockAuthProvider extends AuthProviderInterface {
   }
   
   // Mock phone code verification
+  @override
   Future<bool> verifyPhoneCode({
     required String smsCode,
     String? userName,
@@ -141,6 +145,7 @@ class MockAuthProvider extends AuthProviderInterface {
   }
   
   // Sign out
+  @override
   Future<void> signOut() async {
     try {
       _setLoading(true);
@@ -158,6 +163,7 @@ class MockAuthProvider extends AuthProviderInterface {
   }
   
   // Update user profile
+  @override
   Future<bool> updateUserProfile(app_models.User user) async {
     try {
       _setLoading(true);
@@ -177,6 +183,7 @@ class MockAuthProvider extends AuthProviderInterface {
   }
   
   // Update profile image
+  @override
   Future<bool> updateProfileImage(String imageUrl) async {
     try {
       _setLoading(true);
@@ -202,6 +209,7 @@ class MockAuthProvider extends AuthProviderInterface {
   }
   
   // Delete account
+  @override
   Future<bool> deleteAccount() async {
     try {
       _setLoading(true);
@@ -221,17 +229,20 @@ class MockAuthProvider extends AuthProviderInterface {
   }
   
   // Send email verification (not applicable for mock)
+  @override
   Future<void> sendEmailVerification() async {
     // Do nothing in mock
   }
   
   // Reset phone verification
+  @override
   void resetPhoneVerification() {
     _clearError();
     notifyListeners();
   }
   
   // Clear error message
+  @override
   void clearError() {
     _clearError();
   }

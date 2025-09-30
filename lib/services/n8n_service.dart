@@ -5,7 +5,6 @@ import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class N8nService {
-  static const String _baseUrl = 'https://wisclarz.app.n8n.cloud'; 
   static const String _webhookUrl = 'https://wisclarz.app.n8n.cloud/webhook/dream-analysis';
   
   static const Map<String, String> _headers = {
@@ -154,7 +153,7 @@ class N8nService {
         }
       }
 
-      if (snapshot == null || snapshot.docs.isEmpty) {
+      if (snapshot.docs.isEmpty) {
         debugPrint('📚 No completed dreams found, trying all statuses...');
         
         // Status filtresi olmadan dene - herhangi bir rüya
