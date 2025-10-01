@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
-import '../widgets/glassmorphic_container.dart';
+import 'package:flutter/services.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -9,121 +8,77 @@ class ExploreScreen extends StatefulWidget {
   State<ExploreScreen> createState() => _ExploreScreenState();
 }
 
-class _ExploreScreenState extends State<ExploreScreen> {
+class _ExploreScreenState extends State<ExploreScreen> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   final List<ExploreCategory> _categories = [
     ExploreCategory(
-      title: 'Rüya Analizleri',
-      subtitle: 'Popüler rüya yorumları',
-      icon: Icons.psychology_outlined,
+      title: 'Rüya Sembolleri',
+      subtitle: 'Yaygın rüya sembollerini keşfet',
+      icon: Icons.auto_awesome,
       color: const Color(0xFF6366F1),
-      items: ['Uçma rüyaları', 'Su ile ilgili rüyalar', 'Hayvan rüyaları'],
+      items: ['Su', 'Uçmak', 'Düşmek', 'Takip Edilmek', 'Sınav'],
     ),
     ExploreCategory(
-      title: 'Ruh Sağlığı',
-      subtitle: 'Uzman tavsiyeleri',
-      icon: Icons.favorite_outline,
-      color: const Color(0xFF10B981),
-      items: ['Meditasyon teknikleri', 'Uyku hijyeni', 'Stres yönetimi'],
-    ),
-    ExploreCategory(
-      title: 'Psikolog Bul',
-      subtitle: 'Uzmanlarla iletişim',
-      icon: Icons.person_search_outlined,
+      title: 'Ruh Halleri',
+      subtitle: 'Rüyalardaki duygu durumları',
+      icon: Icons.psychology,
       color: const Color(0xFF8B5CF6),
-      items: ['Online danışmanlık', 'Yakındaki uzmanlar', 'Randevu al'],
+      items: ['Mutlu', 'Kaygılı', 'Huzurlu', 'Korkulu', 'Heyecanlı'],
     ),
     ExploreCategory(
-      title: 'Rüya Günlüğü',
-      subtitle: 'İpuçları ve rehberlik',
-      icon: Icons.book_outlined,
+      title: 'Rüya Tipleri',
+      subtitle: 'Farklı rüya kategorileri',
+      icon: Icons.category,
+      color: const Color(0xFF10B981),
+      items: ['Kabus', 'Lucid Rüya', 'Tekrarlayan', 'Peygamber', 'Renkli'],
+    ),
+    ExploreCategory(
+      title: 'Kişiler',
+      subtitle: 'Rüyalarda görülen kişiler',
+      icon: Icons.people,
       color: const Color(0xFFF59E0B),
-      items: ['Günlük tutma teknikleri', 'Rüya hatırlama', 'Sembol analizi'],
+      items: ['Aile', 'Arkadaş', 'Yabancı', 'Ünlü', 'Tanıdık'],
+    ),
+    ExploreCategory(
+      title: 'Mekanlar',
+      subtitle: 'Rüya ortamları ve yerler',
+      icon: Icons.location_on,
+      color: const Color(0xFFEC4899),
+      items: ['Ev', 'Okul', 'İş Yeri', 'Doğa', 'Bilinmeyen'],
+    ),
+    ExploreCategory(
+      title: 'Hayvanlar',
+      subtitle: 'Rüyalarda görülen hayvanlar',
+      icon: Icons.pets,
+      color: const Color(0xFF06B6D4),
+      items: ['Köpek', 'Kedi', 'Kuş', 'Yılan', 'At'],
     ),
   ];
 
-  void _showModernSnackBar(BuildContext context, String message, Color color, IconData icon) {
-    final overlay = Overlay.of(context);
-    late OverlayEntry overlayEntry;
-
-    overlayEntry = OverlayEntry(
-      builder: (context) => Positioned(
-        top: MediaQuery.of(context).padding.top + 16,
-        left: 16,
-        right: 16,
-        child: Material(
-          color: Colors.transparent,
-          child: GlassmorphicContainer(
-            width: double.infinity,
-            height: 80,
-            borderRadius: 16,
-            blurValue: 20,
-            color: color.withValues(alpha: 0.8),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.3),
-              width: 2,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      icon,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      message,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ).animate()
-            .slideY(begin: -1.0, duration: const Duration(milliseconds: 500), curve: Curves.elasticOut)
-            .fadeIn(duration: const Duration(milliseconds: 300)),
-        ),
-      ),
-    );
-
-    overlay.insert(overlayEntry);
-
-    // Auto remove after 3 seconds
-    Future.delayed(const Duration(seconds: 3), () {
-      overlayEntry.remove();
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
     
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       body: CustomScrollView(
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
         slivers: [
+          // Simple AppBar
           SliverAppBar(
-            expandedHeight: 180,
+            expandedHeight: 120,
             floating: false,
             pinned: true,
             backgroundColor: theme.colorScheme.surface,
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
                 'Keşfet',
-                style: theme.textTheme.headlineMedium?.copyWith(
+                style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -133,79 +88,37 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      theme.colorScheme.primary.withValues(alpha: 0.1),
-                      theme.colorScheme.secondary.withValues(alpha: 0.1),
+                      theme.colorScheme.primary.withValues(alpha: 0.05),
+                      theme.colorScheme.secondary.withValues(alpha: 0.02),
                     ],
                   ),
                 ),
-                child: Center(
-                  child: Icon(
-                    Icons.explore,
-                    size: 80,
-                    color: theme.colorScheme.primary.withValues(alpha: 0.3),
-                  ),
-                ),
               ),
             ),
           ),
           
+          // Search Bar
+          SliverToBoxAdapter(
+            child: _buildSearchBar(theme),
+          ),
+          
+          // Categories Grid
           SliverPadding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
             sliver: SliverGrid(
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 0.85,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
+                childAspectRatio: 0.9,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
               ),
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
-                  final category = _categories[index];
-                  return _buildCategoryCard(context, category, index);
+                  return RepaintBoundary(
+                    child: _buildCategoryCard(_categories[index], theme),
+                  );
                 },
                 childCount: _categories.length,
-              ),
-            ),
-          ),
-          
-          // Featured Articles Section
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Öne Çıkan Makaleler',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildFeaturedArticle(
-                    context,
-                    'Rüyalarda Renklerin Anlamı',
-                    'Rüyalarınızdaki renkler ne anlama geliyor?',
-                    Icons.palette_outlined,
-                    const Color(0xFFEC4899),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildFeaturedArticle(
-                    context,
-                    'Kabuslara Karşı Teknikler',
-                    'Kötü rüyalarla başa çıkma yöntemleri',
-                    Icons.shield_outlined,
-                    const Color(0xFF3B82F6),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildFeaturedArticle(
-                    context,
-                    'Lüsid Rüya Nedir?',
-                    'Rüyanızda kontrolü elinize alın',
-                    Icons.lightbulb_outline,
-                    const Color(0xFFF59E0B),
-                  ),
-                ],
               ),
             ),
           ),
@@ -214,176 +127,143 @@ class _ExploreScreenState extends State<ExploreScreen> {
     );
   }
 
-  Widget _buildCategoryCard(BuildContext context, ExploreCategory category, int index) {
-    final theme = Theme.of(context);
-    
-    return Card(
-      elevation: 4,
-      shadowColor: category.color.withValues(alpha: 0.2),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
+  Widget _buildSearchBar(ThemeData theme) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant,
+            width: 1,
+          ),
+        ),
+        child: TextField(
+          decoration: InputDecoration(
+            hintText: 'Sembol veya kategori ara...',
+            prefixIcon: Icon(
+              Icons.search,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+            ),
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
+          onSubmitted: (value) {
+            if (value.isNotEmpty) {
+              _showSearchResults(value);
+            }
+          },
+        ),
       ),
-      child: InkWell(
-        onTap: () {
-          _showCategoryDetails(context, category);
-        },
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                category.color.withValues(alpha: 0.1),
-                category.color.withValues(alpha: 0.05),
+    );
+  }
+
+  Widget _buildCategoryCard(ExploreCategory category, ThemeData theme) {
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: category.color.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            HapticFeedback.lightImpact();
+            _showCategoryDetails(category);
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Icon Container
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: category.color.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    category.icon,
+                    color: category.color,
+                    size: 24,
+                  ),
+                ),
+                
+                const Spacer(),
+                
+                // Title
+                Text(
+                  category.title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    height: 1.2,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                
+                const SizedBox(height: 4),
+                
+                // Subtitle
+                Text(
+                  category.subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                
+                const SizedBox(height: 8),
+                
+                // Items count
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: category.color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${category.items.length} öğe',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: category.color,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: category.color.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  category.icon,
-                  color: category.color,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                category.title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                category.subtitle,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const Spacer(),
-              Row(
-                children: [
-                  Icon(
-                    Icons.arrow_forward_ios,
-                    size: 16,
-                    color: category.color,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Keşfet',
-                    style: TextStyle(
-                      color: category.color,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
         ),
       ),
-    ).animate(delay: Duration(milliseconds: index * 100))
-      .fadeIn(duration: const Duration(milliseconds: 600))
-      .slideX(begin: 0.3, duration: const Duration(milliseconds: 600));
+    );
   }
 
-  Widget _buildFeaturedArticle(
-    BuildContext context,
-    String title,
-    String subtitle,
-    IconData icon,
-    Color color,
-  ) {
-    final theme = Theme.of(context);
-    
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: InkWell(
-        onTap: () {
-          // Navigate to article
-          _showModernSnackBar(
-            context,
-            '$title makalesi yakında gelecek! 📖',
-            Theme.of(context).colorScheme.primary,
-            Icons.article,
-          );
-        },
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  color: color,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.chevron_right,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ).animate()
-      .fadeIn(duration: const Duration(milliseconds: 400))
-      .slideX(begin: 0.2, duration: const Duration(milliseconds: 400));
-  }
-
-  void _showCategoryDetails(BuildContext context, ExploreCategory category) {
+  void _showCategoryDetails(ExploreCategory category) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => CategoryDetailsBottomSheet(category: category),
+      builder: (context) => _CategoryDetailsSheet(category: category),
     );
+  }
+
+  void _showSearchResults(String query) {
+    final snackBar = SnackBar(
+      content: Text('Arama: "$query"'),
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    );
+    ScaffoldMessenger.of(context).showSnackBar(snackBar);
   }
 }
 
@@ -403,13 +283,10 @@ class ExploreCategory {
   });
 }
 
-class CategoryDetailsBottomSheet extends StatelessWidget {
+class _CategoryDetailsSheet extends StatelessWidget {
   final ExploreCategory category;
 
-  const CategoryDetailsBottomSheet({
-    super.key,
-    required this.category,
-  });
+  const _CategoryDetailsSheet({required this.category});
 
   @override
   Widget build(BuildContext context) {
@@ -419,7 +296,7 @@ class CategoryDetailsBottomSheet extends StatelessWidget {
       height: MediaQuery.of(context).size.height * 0.7,
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
         children: [
@@ -427,30 +304,29 @@ class CategoryDetailsBottomSheet extends StatelessWidget {
           Container(
             width: 40,
             height: 4,
-            margin: const EdgeInsets.only(top: 16),
+            margin: const EdgeInsets.only(top: 12),
             decoration: BoxDecoration(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
           
-          const SizedBox(height: 24),
-          
           // Header
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.all(20),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  width: 56,
+                  height: 56,
                   decoration: BoxDecoration(
-                    color: category.color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(16),
+                    color: category.color.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(
                     category.icon,
                     color: category.color,
-                    size: 32,
+                    size: 28,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -460,14 +336,14 @@ class CategoryDetailsBottomSheet extends StatelessWidget {
                     children: [
                       Text(
                         category.title,
-                        style: theme.textTheme.headlineSmall?.copyWith(
+                        style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       Text(
                         category.subtitle,
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                         ),
                       ),
                     ],
@@ -477,67 +353,56 @@ class CategoryDetailsBottomSheet extends StatelessWidget {
             ),
           ),
           
-          const SizedBox(height: 32),
+          const Divider(height: 1),
           
-          // Items
+          // Items List
           Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
               itemCount: category.items.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 16),
               itemBuilder: (context, index) {
-                final item = category.items[index];
-                return Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: theme.colorScheme.outlineVariant,
+                      width: 1,
+                    ),
                   ),
                   child: ListTile(
-                    contentPadding: const EdgeInsets.all(16),
                     leading: Container(
-                      padding: const EdgeInsets.all(8),
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
                         color: category.color.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Icon(
-                        Icons.article_outlined,
-                        color: category.color,
-                        size: 20,
-                      ),
-                    ),
-                    title: Text(
-                      item,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
+                      child: Center(
+                        child: Text(
+                          '${index + 1}',
+                          style: TextStyle(
+                            color: category.color,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ),
-                    subtitle: Text(
-                      'Daha fazla bilgi edinin',
-                      style: theme.textTheme.bodySmall,
-                    ),
+                    title: Text(category.items[index]),
                     trailing: Icon(
-                      Icons.chevron_right,
-                      color: category.color,
+                      Icons.arrow_forward_ios,
+                      size: 16,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                     ),
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('$item yakında gelecek! 🔮'),
-                          behavior: SnackBarBehavior.floating,
-                          backgroundColor: Theme.of(context).colorScheme.secondary,
-                        ),
-                      );
+                      // TODO: Show item details
                     },
                   ),
-                ).animate(delay: Duration(milliseconds: index * 100))
-                  .fadeIn(duration: const Duration(milliseconds: 400))
-                  .slideX(begin: 0.3, duration: const Duration(milliseconds: 400));
+                );
               },
             ),
           ),
-          
-          const SizedBox(height: 24),
         ],
       ),
     );

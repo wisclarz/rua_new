@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider_interface.dart';
 import '../models/user_model.dart';
+import 'dart:ui';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -51,58 +52,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ProfileMenuItem(
       icon: Icons.backup_outlined,
       title: 'Yedekleme',
-      subtitle: 'Verilerimi yedekle/geri yükle',
-      color: const Color(0xFF84CC16),
+      subtitle: 'Verilerini yedekle',
+      color: const Color(0xFFEC4899),
       route: '/backup',
     ),
     ProfileMenuItem(
       icon: Icons.help_outline,
       title: 'Yardım & Destek',
       subtitle: 'SSS ve iletişim',
-      color: const Color(0xFF06B6D4),
-      route: '/help-support',
-    ),
-    ProfileMenuItem(
-      icon: Icons.info_outline,
-      title: 'Hakkında',
-      subtitle: 'Uygulama bilgileri',
-      color: const Color(0xFFEC4899),
-      route: '/about',
+      color: const Color(0xFF14B8A6),
+      route: '/help',
     ),
   ];
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final screenHeight = MediaQuery.of(context).size.height;
-    final statusBarHeight = MediaQuery.of(context).padding.top;
-    final availableHeight = screenHeight - statusBarHeight;
     
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            expandedHeight: availableHeight * 0.32, // Slightly reduced height
-            floating: false,
+            expandedHeight: 240,
             pinned: true,
+            stretch: true,
             backgroundColor: Colors.transparent,
-            elevation: 0,
-            automaticallyImplyLeading: false,
             flexibleSpace: FlexibleSpaceBar(
-              background: _buildProfileHeader(context),
+              background: _buildModernProfileHeader(context),
+              stretchModes: const [
+                StretchMode.zoomBackground,
+                StretchMode.blurBackground,
+              ],
             ),
           ),
-          
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 100), // Added bottom padding for navigation
+            padding: const EdgeInsets.all(16),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
                   if (index < _menuItems.length) {
                     final item = _menuItems[index];
                     return Padding(
-                      padding: const EdgeInsets.only(bottom: 8), // Reduced spacing
+                      padding: const EdgeInsets.only(bottom: 8),
                       child: _buildMenuItem(context, item, index),
                     );
                   } else {
@@ -121,118 +112,292 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildProfileHeader(BuildContext context) {
+  Widget _buildModernProfileHeader(BuildContext context) {
     final theme = Theme.of(context);
     
     return Consumer<AuthProviderInterface>(
       builder: (context, authProvider, _) {
         final user = authProvider.currentUser;
         
-        return Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                theme.colorScheme.primary.withValues(alpha: 0.8),
-                theme.colorScheme.secondary.withValues(alpha: 0.6),
-              ],
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            // Animated Gradient Background
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    theme.colorScheme.primary,
+                    theme.colorScheme.secondary,
+                    theme.colorScheme.tertiary,
+                  ],
+                  stops: const [0.0, 0.5, 1.0],
+                ),
+              ),
             ),
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20), // Optimized padding
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title at the top
-                  Text(
-                    'Profil',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+            
+            // Glassmorphism Overlay
+            Positioned.fill(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.1),
+                        Colors.white.withValues(alpha: 0.05),
+                      ],
                     ),
-                  ).animate().fadeIn(delay: 100.ms, duration: 600.ms),
-                  
-                  const Spacer(), // Push content to bottom
-                  
-                  // Profile content centered
-                  Center(
-                    child: Column(
-                      children: [
-                        // Profile Image
-                        GestureDetector(
-                          onTap: () => _showImagePickerDialog(context),
-                          child: Container(
-                            width: 80, // Slightly smaller
-                            height: 80,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white,
-                                width: 3,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.2),
-                                  spreadRadius: 2,
-                                  blurRadius: 10,
-                                ),
-                              ],
-                            ),
-                            child: ClipOval(
-                              child: user?.profileImageUrl != null
-                                  ? Image.network(
-                                      user!.profileImageUrl!,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) =>
-                                          _buildDefaultAvatar(user.name),
-                                    )
-                                  : _buildDefaultAvatar(user?.name ?? 'User'),
-                            ),
+                  ),
+                ),
+              ),
+            ),
+            
+            // Content
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Title
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Profil',
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ).animate().fadeIn(delay: 100.ms, duration: 600.ms),
+                    ),
+                    
+                    const SizedBox(height: 20),
+                    
+                    // Profile Card with Glassmorphism
+                    Flexible(
+                      child: _buildGlassCard(context, user),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildGlassCard(BuildContext context, User? user) {
+    final theme = Theme.of(context);
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Avatar and Name Row
+              Row(
+                children: [
+                  // Profile Image
+                  GestureDetector(
+                    onTap: () => _showImagePickerDialog(context),
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 3,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.2),
+                            spreadRadius: 2,
+                            blurRadius: 8,
                           ),
-                        ).animate().scale(delay: 200.ms, duration: 600.ms),
-                        
-                        const SizedBox(height: 12), // Reduced spacing
-                        
-                        // User Name
+                        ],
+                      ),
+                      child: ClipOval(
+                        child: user?.profileImageUrl != null
+                            ? Image.network(
+                                user!.profileImageUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    _buildDefaultAvatar(user.name),
+                              )
+                            : _buildDefaultAvatar(user?.name ?? 'User'),
+                      ),
+                    ),
+                  ).animate().scale(delay: 200.ms, duration: 600.ms),
+                  
+                  const SizedBox(width: 16),
+                  
+                  // Name and Email
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                         Text(
                           user?.name ?? 'Kullanıcı',
-                          style: theme.textTheme.titleLarge?.copyWith( // Smaller text
+                          style: theme.textTheme.titleMedium?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                        ).animate().fadeIn(delay: 400.ms, duration: 600.ms),
+                        ).animate().fadeIn(delay: 300.ms, duration: 600.ms),
                         
-                        const SizedBox(height: 2), // Reduced spacing
+                        const SizedBox(height: 2),
                         
-                        // User Email
                         Text(
                           user?.email ?? '',
-                          style: theme.textTheme.bodySmall?.copyWith( // Smaller text
+                          style: theme.textTheme.bodySmall?.copyWith(
                             color: Colors.white70,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                        ).animate().fadeIn(delay: 600.ms, duration: 600.ms),
-                        
-                        const SizedBox(height: 12), // Reduced spacing
-                        
-                        // Stats Row
-                        if (user != null) _buildStatsRow(context, user),
+                        ).animate().fadeIn(delay: 400.ms, duration: 600.ms),
                       ],
                     ),
                   ),
                 ],
               ),
-            ),
+              
+              const SizedBox(height: 16),
+              
+              // Divider
+              Container(
+                height: 1,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.transparent,
+                      Colors.white.withValues(alpha: 0.3),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: 12),
+              
+              // Stats Row - More Compact
+              if (user != null) _buildCompactStatsRow(context, user),
+            ],
           ),
-        );
-      },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactStatsRow(BuildContext context, User user) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: [
+        _buildCompactStatItem(
+          context,
+          Icons.nightlight_round,
+          '${user.stats?.totalDreams ?? 0}',
+          'Rüya',
+        ),
+        _buildVerticalDivider(),
+        _buildCompactStatItem(
+          context,
+          Icons.auto_awesome,
+          '${user.stats?.totalAnalyses ?? 0}',
+          'Analiz',
+        ),
+        _buildVerticalDivider(),
+        _buildCompactStatItem(
+          context,
+          Icons.local_fire_department,
+          '${user.stats?.streakDays ?? 0}',
+          'Gün',
+        ),
+      ],
+    ).animate().slide(
+      begin: const Offset(0, 0.3),
+      delay: 500.ms,
+      duration: 600.ms,
+    );
+  }
+
+  Widget _buildCompactStatItem(BuildContext context, IconData icon, String value, String label) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: Colors.white,
+              size: 16,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 11,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVerticalDivider() {
+    return Container(
+      width: 1,
+      height: 32,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.transparent,
+            Colors.white.withValues(alpha: 0.3),
+            Colors.transparent,
+          ],
+        ),
+      ),
     );
   }
 
@@ -248,84 +413,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           name.isNotEmpty ? name[0].toUpperCase() : 'U',
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 28, // Adjusted for smaller avatar
+            fontSize: 24,
             fontWeight: FontWeight.bold,
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildStatsRow(BuildContext context, User user) {
-    return Container(
-      constraints: const BoxConstraints(maxHeight: 60), // Limit height
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          Expanded(
-            child: _buildStatItem(
-              context,
-              'Rüyalar',
-              '${user.stats?.totalDreams ?? 0}',
-              Icons.bedtime_outlined,
-            ),
-          ),
-          Expanded(
-            child: _buildStatItem(
-              context,
-              'Analizler',
-              '${user.stats?.totalAnalyses ?? 0}',
-              Icons.analytics_outlined,
-            ),
-          ),
-          Expanded(
-            child: _buildStatItem(
-              context,
-              'Gün',
-              '${user.stats?.streakDays ?? 0}',
-              Icons.local_fire_department_outlined,
-            ),
-          ),
-        ],
-      ),
-    ).animate().slide(
-      begin: const Offset(0, 0.5),
-      delay: 800.ms,
-      duration: 600.ms,
-    );
-  }
-
-  Widget _buildStatItem(BuildContext context, String label, String value, IconData icon) {
-    return Column(
-      mainAxisSize: MainAxisSize.min, // Important: prevent overflow
-      children: [
-        Icon(
-          icon,
-          color: Colors.white70,
-          size: 16, // Smaller icon
-        ),
-        const SizedBox(height: 2), // Reduced spacing
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14, // Smaller text
-            fontWeight: FontWeight.bold,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white70,
-            fontSize: 10, // Smaller text
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-        ),
-      ],
     );
   }
 
@@ -342,9 +434,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), // Reduced padding
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: Container(
-          padding: const EdgeInsets.all(8), // Reduced padding
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: item.color.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(10),
@@ -352,12 +444,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Icon(
             item.icon,
             color: item.color,
-            size: 20, // Smaller icon
+            size: 20,
           ),
         ),
         title: Text(
           item.title,
-          style: theme.textTheme.titleSmall?.copyWith( // Smaller text
+          style: theme.textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.w600,
           ),
           maxLines: 1,
@@ -367,7 +459,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           item.subtitle,
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-            fontSize: 11, // Smaller subtitle
+            fontSize: 11,
           ),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -375,29 +467,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
         trailing: Icon(
           Icons.chevron_right,
           color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-          size: 18, // Smaller trailing icon
+          size: 18,
         ),
         onTap: () {
-          // Navigate to respective screen
           if (item.route != null) {
             Navigator.pushNamed(context, item.route!);
           }
         },
       ),
     ).animate()
-        .slide(
-          begin: const Offset(1, 0),
-          delay: Duration(milliseconds: 100 * index),
-          duration: 400.ms,
-        )
-        .fadeIn();
+        .fadeIn(delay: (100 * index).ms, duration: 400.ms)
+        .slideX(begin: 0.2, duration: 400.ms);
   }
 
   Widget _buildLogoutButton(BuildContext context) {
-    final theme = Theme.of(context);
-    
     return Card(
       elevation: 0,
+      color: Colors.red.withValues(alpha: 0.1),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
@@ -419,53 +505,70 @@ class _ProfileScreenState extends State<ProfileScreen> {
             size: 20,
           ),
         ),
-        title: Text(
+        title: const Text(
           'Çıkış Yap',
-          style: theme.textTheme.titleSmall?.copyWith(
+          style: TextStyle(
             color: Colors.red,
             fontWeight: FontWeight.w600,
           ),
         ),
-        subtitle: Text(
-          'Hesabından güvenli çıkış yap',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-            fontSize: 11,
-          ),
+        trailing: const Icon(
+          Icons.chevron_right,
+          color: Colors.red,
+          size: 18,
         ),
-        onTap: () => _showLogoutConfirmDialog(context),
+        onTap: () => _showLogoutDialog(context),
       ),
-    ).animate()
-        .slide(
-          begin: const Offset(1, 0),
-          delay: Duration(milliseconds: 100 * _menuItems.length),
-          duration: 400.ms,
-        )
-        .fadeIn();
+    ).animate().fadeIn(delay: 700.ms, duration: 400.ms);
   }
 
   void _showImagePickerDialog(BuildContext context) {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Profil Resmi'),
-        content: const Text('Profil resmi değiştirme özelliği yakında eklenecek!'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Tamam'),
-          ),
-        ],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Galeriden Seç'),
+              onTap: () {
+                Navigator.pop(context);
+                // TODO: Implement gallery picker
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Fotoğraf Çek'),
+              onTap: () {
+                Navigator.pop(context);
+                // TODO: Implement camera
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text('Profil Fotoğrafını Kaldır', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(context);
+                // TODO: Implement remove photo
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  void _showLogoutConfirmDialog(BuildContext context) {
+  void _showLogoutDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Çıkış Yap'),
-        content: const Text('Hesabınızdan çıkış yapmak istediğinizden emin misiniz?'),
+        content: const Text('Çıkış yapmak istediğinizden emin misiniz?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -474,20 +577,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              try {
-                await context.read<AuthProviderInterface>().signOut();
-                if (context.mounted) {
-                  Navigator.pushReplacementNamed(context, '/login');
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Çıkış yapılırken hata oluştu: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
+              final authProvider = Provider.of<AuthProviderInterface>(context, listen: false);
+              await authProvider.signOut();
+              if (context.mounted) {
+                Navigator.of(context).pushReplacementNamed('/login');
               }
             },
             child: const Text('Çıkış Yap', style: TextStyle(color: Colors.red)),

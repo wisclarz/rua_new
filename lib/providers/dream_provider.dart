@@ -181,47 +181,6 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // Legacy fetch method (keeping for compatibility)
-  Future<void> fetchDreams() async {
-    debugPrint('📥 Fetching dreams (legacy method)...');
-    try {
-      _setLoading(true);
-      _clearError();
-
-      final user = _auth.currentUser;
-      if (user == null) {
-        debugPrint('❌ No authenticated user');
-        _setError('Kullanıcı oturumu bulunamadı');
-        return;
-      }
-
-      debugPrint('👤 Fetching dreams for user: ${user.uid}');
-
-      final QuerySnapshot querySnapshot = await _firestore
-          .collection('dreams')
-          .where('userId', isEqualTo: user.uid)
-          .orderBy('createdAt', descending: true)
-          .get();
-
-      debugPrint('📊 Found ${querySnapshot.docs.length} dreams in Firestore');
-
-      _dreams = querySnapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        data['id'] = doc.id;
-        return Dream.fromMap(data);
-      }).toList();
-
-      debugPrint('✅ Successfully loaded ${_dreams.length} dreams');
-      notifyListeners();
-      
-    } catch (e) {
-      debugPrint('❌ Error fetching dreams: $e');
-      _setError('Rüyalar yüklenirken hata oluştu: $e');
-    } finally {
-      _setLoading(false);
-    }
-  }
-
 
   // Start recording
   Future<bool> startRecording() async {

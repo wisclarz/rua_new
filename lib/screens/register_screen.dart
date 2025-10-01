@@ -39,14 +39,15 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    
+
+    final padding = MediaQuery.of(context).padding;
     return Scaffold(
       backgroundColor: const Color(0xFF1A1B2E),
       body: SafeArea(
         child: SingleChildScrollView(
-          child: Container(
+          child: ConstrainedBox(
             constraints: BoxConstraints(
-              minHeight: size.height - MediaQuery.of(context).padding.top,
+              minHeight: size.height - padding.top - padding.bottom,
             ),
             child: Padding(
               padding: const EdgeInsets.all(24.0),
@@ -55,47 +56,47 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                   const SizedBox(height: 40),
                   
                   // Header
-                  FadeTransition(
-                    opacity: _fadeAnimation,
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
-                            ),
-                            borderRadius: BorderRadius.circular(20),
+                 FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
                           ),
-                          child: const Icon(
-                            Icons.bedtime,
-                            size: 40,
-                            color: Colors.white,
-                          ),
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                        const SizedBox(height: 20),
-                        Text(
-                          'Hesap Oluştur',
-                          style: GoogleFonts.poppins(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
+                        child: const Icon(
+                          Icons.bedtime,
+                          size: 40,
+                          color: Colors.white,
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Rüya yolculuğunuza başlayın',
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            color: Colors.white.withValues(alpha: 0.8),
-                          ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Hesap Oluştur',
+                        style: GoogleFonts.poppins(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Rüya yolculuğunuza başlayın',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          color: Colors.white.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ],
                   ),
-                  
-                  const SizedBox(height: 40),
+                ),
+                
+                const SizedBox(height: 40),
                   
                   // Form
                   Form(

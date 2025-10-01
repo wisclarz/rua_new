@@ -14,11 +14,16 @@ import 'screens/splash_screen.dart';
 import 'screens/phone_auth_screen.dart';
 import 'screens/main_navigation.dart';
 import 'screens/profile_screen.dart';
+import 'utils/performance_utils.dart';
 
 bool _isFirebaseInitialized = false;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // 🚀 YENİ: Performance monitoring başlat
+  PerformanceManager().startMonitoring();
+  debugPrint('⚡ Performance monitoring started');
   
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
@@ -42,11 +47,11 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     _isFirebaseInitialized = true;
-    print('✅ Firebase initialized successfully');
+    debugPrint('✅ Firebase initialized successfully');
   } catch (e) {
     _isFirebaseInitialized = false;
-    print('❌ Firebase initialization error: $e');
-    print('📱 Using mock authentication provider');
+    debugPrint('❌ Firebase initialization error: $e');
+    debugPrint('📱 Using mock authentication provider');
   }
   
   runApp(const MyApp());
