@@ -1,4 +1,4 @@
-// lib/main.dart - Real-time listener ile güncellenmiş
+// lib/main.dart - Performance Optimized
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,16 +14,11 @@ import 'screens/splash_screen.dart';
 import 'screens/phone_auth_screen.dart';
 import 'screens/main_navigation.dart';
 import 'screens/profile_screen.dart';
-// import 'utils/performance_utils.dart';
 
 bool _isFirebaseInitialized = false;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // 🚀 YENİ: Performance monitoring başlat
-  // PerformanceManager().startMonitoring();
-  // debugPrint('⚡ Performance monitoring started');
   
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
@@ -64,27 +59,30 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        // ⚡ Auth provider - initialized early but async
         ChangeNotifierProvider<AuthProviderInterface>(
           create: (_) => _isFirebaseInitialized 
               ? FirebaseAuthProvider()
               : MockAuthProvider(),
+          lazy: false, // Start auth initialization immediately
         ),
+        // ⚡ Dream provider - lazy loaded
         ChangeNotifierProxyProvider<AuthProviderInterface, DreamProvider>(
           create: (_) => DreamProvider(),
+          lazy: true, // Only create when accessed
           update: (context, auth, dreamProvider) {
-            // When auth state changes, update DreamProvider
-            if (dreamProvider != null) {
-              // If user is authenticated and not already listening, start listening
-              if (auth.isAuthenticated) {
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  dreamProvider.startListeningToAuthenticatedUser();
-                });
-              } else {
-                // If user is not authenticated, stop listening
-                dreamProvider.stopListeningToDreams();
-              }
+            if (dreamProvider == null) return DreamProvider();
+            
+            // ⚡ Use Future.microtask to avoid blocking UI
+            if (auth.isAuthenticated && auth.isInitialized) {
+              Future.microtask(() {
+                dreamProvider.startListeningToAuthenticatedUser();
+              });
+            } else {
+              dreamProvider.stopListeningToDreams();
             }
-            return dreamProvider ?? DreamProvider();
+            
+            return dreamProvider;
           },
         ),
       ],
@@ -112,7 +110,7 @@ class AuthWrapper extends StatelessWidget {
     return Consumer<AuthProviderInterface>(
       builder: (context, authProvider, child) {
         // Show splash screen while loading
-        if (authProvider.isLoading) {
+        if (authProvider.isLoading || !authProvider.isInitialized) {
           return const SplashScreen();
         }
         

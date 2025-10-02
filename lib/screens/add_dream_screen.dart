@@ -214,8 +214,8 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
     try {
       final dreamProvider = Provider.of<DreamProvider>(context, listen: false);
       
-      // ✅ DÜZELTME: Upload'u arka planda başlat, bekleme
-      // Fire and forget - kullanıcıyı bekleme
+      // ✅ DÜZELTME: uploadAudioFile sadece File parametresi alıyor
+      // Title şimdilik kullanılmıyor, ileride ekleyebilirsiniz
       dreamProvider.uploadAudioFile(File(_recordedFilePath!)).then((_) {
         debugPrint('✅ Background upload completed');
       }).catchError((error) {
@@ -233,18 +233,20 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
               children: [
                 const Icon(Icons.cloud_upload, color: Colors.white),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      const Text(
                         'Rüya kaydediliyor...',
                         style: TextStyle(fontWeight: FontWeight.w600),
                       ),
                       Text(
-                        'Analiz tamamlanınca bildirim alacaksınız',
-                        style: TextStyle(fontSize: 12),
+                        _titleController.text.isNotEmpty 
+                          ? 'Başlık: ${_titleController.text}'
+                          : 'Analiz tamamlanınca bildirim alacaksınız',
+                        style: const TextStyle(fontSize: 12),
                       ),
                     ],
                   ),

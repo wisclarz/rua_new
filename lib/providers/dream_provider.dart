@@ -26,6 +26,7 @@ class DreamProvider extends ChangeNotifier {
   // Audio recording variables
   FlutterSoundRecorder? _recorder;
   String? _currentRecordingPath;
+  bool _isRecorderInitialized = false; // ⚡ Track initialization state
   
   // Firebase instances  
   final FirebaseStorage _storage = FirebaseStorage.instance;
@@ -37,17 +38,20 @@ class DreamProvider extends ChangeNotifier {
   StreamSubscription<QuerySnapshot>? _dreamsSubscription;
 
   DreamProvider() {
-    debugPrint('🏗️ DreamProvider initialized');
-    _initializeRecorder();
+    debugPrint('🏗️ DreamProvider created (lightweight)');
+    // ⚡ Don't initialize recorder here - do it lazily when needed
   }
 
-  // Initialize audio recorder
-  Future<void> _initializeRecorder() async {
+  // ⚡ Lazy initialization - only when recording is needed
+  Future<void> _ensureRecorderInitialized() async {
+    if (_isRecorderInitialized) return;
+    
     try {
-      debugPrint('🎤 Initializing recorder...');
+      debugPrint('🎤 Lazy initializing recorder...');
       _recorder = FlutterSoundRecorder();
       await _recorder!.openRecorder();
-      debugPrint('✅ Recorder initialized successfully');
+      _isRecorderInitialized = true;
+      debugPrint('✅ Recorder initialized');
     } catch (e) {
       debugPrint('❌ Recorder initialization failed: $e');
     }
@@ -57,7 +61,9 @@ class DreamProvider extends ChangeNotifier {
   void dispose() {
     debugPrint('🔄 Disposing DreamProvider...');
     stopListeningToDreams();
-    _recorder?.closeRecorder();
+    if (_isRecorderInitialized) {
+      _recorder?.closeRecorder();
+    }
     super.dispose();
   }
 
@@ -73,7 +79,16 @@ class DreamProvider extends ChangeNotifier {
   // Real-time listener for dreams
   void startListeningToDreams() {
     final user = _auth.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      debugPrint('⚠️ No user, cannot start listener');
+      return;
+    }
+
+    // Don't start if already listening
+    if (_dreamsSubscription != null) {
+      debugPrint('⚠️ Already listening to dreams');
+      return;
+    }
 
     debugPrint('🎧 Starting real-time listener for dreams...');
     
@@ -81,30 +96,12 @@ class DreamProvider extends ChangeNotifier {
         .collection('dreams')
         .where('userId', isEqualTo: user.uid)
         .orderBy('createdAt', descending: true)
+        .limit(50) // ⚡ Limit to prevent loading too many at once
         .snapshots()
         .listen(
       (snapshot) {
         debugPrint('🔄 Firestore snapshot received: ${snapshot.docs.length} dreams');
-        
-        _dreams.clear();
-        for (var doc in snapshot.docs) {
-          try {
-            final dreamData = doc.data();
-            dreamData['id'] = doc.id;
-            
-            final dream = Dream.fromMap(dreamData);
-            _dreams.add(dream);
-            
-            // Log analysis updates
-            if (dream.analysis != null && dream.analysis != 'Analiz yapılıyor...') {
-              debugPrint('✅ Dream analysis updated: ${dream.id} - ${dream.analysis?.substring(0, 50)}...');
-            }
-          } catch (e) {
-            debugPrint('❌ Error parsing dream document ${doc.id}: $e');
-          }
-        }
-        
-        notifyListeners();
+        _processDreamsSnapshot(snapshot);
       },
       onError: (error) {
         debugPrint('❌ Firestore listener error: $error');
@@ -112,11 +109,44 @@ class DreamProvider extends ChangeNotifier {
     );
   }
 
+  // ⚡ Process snapshot efficiently
+  void _processDreamsSnapshot(QuerySnapshot snapshot) {
+    try {
+      final newDreams = <Dream>[];
+      
+      for (var doc in snapshot.docs) {
+        try {
+          final dreamData = doc.data() as Map<String, dynamic>;
+          dreamData['id'] = doc.id;
+          
+          final dream = Dream.fromMap(dreamData);
+          newDreams.add(dream);
+          
+          // Log analysis updates
+          if (dream.analysis != null && dream.analysis != 'Analiz yapılıyor...') {
+            debugPrint('✅ Dream analysis updated: ${dream.id}');
+          }
+        } catch (e) {
+          debugPrint('❌ Error parsing dream document ${doc.id}: $e');
+        }
+      }
+      
+      // ⚡ Batch update
+      _dreams = newDreams;
+      _safeNotify();
+      
+    } catch (e) {
+      debugPrint('❌ Error processing snapshot: $e');
+    }
+  }
+
   // Stop listening when provider is disposed
   void stopListeningToDreams() {
-    debugPrint('🛑 Stopping dreams listener...');
-    _dreamsSubscription?.cancel();
-    _dreamsSubscription = null;
+    if (_dreamsSubscription != null) {
+      debugPrint('🛑 Stopping dreams listener...');
+      _dreamsSubscription?.cancel();
+      _dreamsSubscription = null;
+    }
   }
 
   // Auth-aware listener starter
@@ -124,9 +154,8 @@ class DreamProvider extends ChangeNotifier {
     final user = _auth.currentUser;
     if (user != null) {
       debugPrint('🔐 User authenticated, starting dream listener for: ${user.uid}');
-      
-      // Load dreams with real-time listener
-      loadDreams();
+      // ⚡ Use Future.microtask to avoid blocking
+      Future.microtask(() => loadDreams());
     } else {
       debugPrint('🔐 No authenticated user, stopping listener');
       stopListeningToDreams();
@@ -135,7 +164,10 @@ class DreamProvider extends ChangeNotifier {
 
   // Load dreams and start listener
   Future<void> loadDreams() async {
-    if (_isLoading) return;
+    if (_isLoading) {
+      debugPrint('⚠️ Already loading dreams');
+      return;
+    }
     
     _setLoading(true);
     _clearError();
@@ -181,13 +213,21 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-
-  // Start recording
+  // Start recording - with lazy initialization
   Future<bool> startRecording() async {
     debugPrint('🔴 START RECORDING CALLED');
     try {
       _setLoading(true);
       _clearError();
+
+      // ⚡ Ensure recorder is initialized (lazy)
+      await _ensureRecorderInitialized();
+      
+      if (!_isRecorderInitialized) {
+        debugPrint('❌ Recorder not initialized');
+        _setError('Ses kaydedici başlatılamadı');
+        return false;
+      }
 
       // Request microphone permission
       final hasPermission = await _requestMicrophonePermission();
@@ -214,7 +254,7 @@ class DreamProvider extends ChangeNotifier {
 
       _isRecording = true;
       debugPrint('🎤 Recording started successfully!');
-      notifyListeners();
+      _safeNotify();
       return true;
     } catch (e) {
       debugPrint('❌ Recording start error: $e');
@@ -288,7 +328,7 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-   Future<Dream> uploadAudioFile(File audioFile) async {
+  Future<Dream> uploadAudioFile(File audioFile) async {
     debugPrint('📤 uploadAudioFile called with: ${audioFile.path}');
     
     try {
@@ -389,7 +429,7 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // Create dream record (updated with real-time listener)
+  // Create dream record
   Future<Dream> createDreamRecord(String audioUrl, String originalPath) async {
     debugPrint('🔄 Creating dream record...');
     
@@ -414,7 +454,7 @@ class DreamProvider extends ChangeNotifier {
     );
 
     try {
-      // Save to Firestore with both field formats for compatibility
+      // Save to Firestore
       final dreamMap = newDream.toMap();
       await _firestore.collection('dreams').doc(dreamId).set(dreamMap);
       debugPrint('✅ Dream document created in Firestore: $dreamId');
@@ -424,7 +464,7 @@ class DreamProvider extends ChangeNotifier {
         startListeningToDreams();
       }
       
-      // 🔥 ÖNEMLİ: Yeni N8N workflow'unu tetikle (önceki rüyalarla birlikte)
+      // Trigger N8N workflow
       await _triggerN8NWorkflow(dreamId, audioUrl);
       
       return newDream;
@@ -434,115 +474,115 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-
-  // 🔥 YENİ: Trigger N8N workflow with previous dreams history
-  // YENİ VERSİYON: N8N'den response al ve Firestore'a yaz
-Future<void> _triggerN8NWorkflow(String dreamId, String audioUrl) async {
-  try {
-    debugPrint('🚀 Triggering N8N workflow with history for dream: $dreamId');
-    
-    final user = _auth.currentUser;
-    if (user == null) {
-      debugPrint('❌ No user available for N8N workflow');
-      return;
-    }
-    
-    debugPrint('👤 Triggering workflow for user: ${user.uid}');
-    
-    // N8N'e gönder ve RESPONSE AL
-    final analysisResult = await _n8nService.triggerDreamAnalysisWithHistory(
-      dreamId: dreamId, 
-      audioUrl: audioUrl, 
-      user: user,
-    );
-    
-    if (analysisResult != null) {
-      debugPrint('✅ N8N analysis completed successfully');
-      debugPrint('📊 Analysis result: ${analysisResult.keys.join(', ')}');
-      
-      // Firestore'a yaz (Flutter'dan)
-      await _updateFirestoreWithAnalysis(dreamId, analysisResult);
-      
-    } else {
-      debugPrint('❌ Failed to get analysis from N8N');
-      
-      // Hata durumunda dream'i failed olarak işaretle
-      await _firestore.collection('dreams').doc(dreamId).update({
-        'status': 'failed',
-        'analysis': 'Analiz başlatılamadı. Lütfen tekrar deneyin.',
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
-      });
-    }
-  } catch (e) {
-    debugPrint('💥 Error triggering N8N workflow: $e');
-    
-    // Hata durumunda dream'i failed olarak işaretle
+  // Trigger N8N workflow with previous dreams history
+  Future<void> _triggerN8NWorkflow(String dreamId, String audioUrl) async {
     try {
-      await _firestore.collection('dreams').doc(dreamId).update({
-        'status': 'failed',
-        'analysis': 'Analiz sırasında hata oluştu: $e',
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
-      });
-    } catch (updateError) {
-      debugPrint('❌ Failed to update dream status: $updateError');
+      debugPrint('🚀 Triggering N8N workflow with history for dream: $dreamId');
+      
+      final user = _auth.currentUser;
+      if (user == null) {
+        debugPrint('❌ No user available for N8N workflow');
+        return;
+      }
+      
+      debugPrint('👤 Triggering workflow for user: ${user.uid}');
+      
+      // Send to N8N and get response
+      final analysisResult = await _n8nService.triggerDreamAnalysisWithHistory(
+        dreamId: dreamId, 
+        audioUrl: audioUrl, 
+        user: user,
+      );
+      
+      if (analysisResult != null) {
+        debugPrint('✅ N8N analysis completed successfully');
+        debugPrint('📊 Analysis result: ${analysisResult.keys.join(', ')}');
+        
+        // Update Firestore with analysis
+        await _updateFirestoreWithAnalysis(dreamId, analysisResult);
+        
+      } else {
+        debugPrint('❌ Failed to get analysis from N8N');
+        
+        // Mark dream as failed
+        await _firestore.collection('dreams').doc(dreamId).update({
+          'status': 'failed',
+          'analysis': 'Analiz başlatılamadı. Lütfen tekrar deneyin.',
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        });
+      }
+    } catch (e) {
+      debugPrint('💥 Error triggering N8N workflow: $e');
+      
+      // Mark dream as failed
+      try {
+        await _firestore.collection('dreams').doc(dreamId).update({
+          'status': 'failed',
+          'analysis': 'Analiz sırasında hata oluştu: $e',
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        });
+      } catch (updateError) {
+        debugPrint('❌ Failed to update dream status: $updateError');
+      }
     }
   }
-}
 
-
-
-Future<void> _updateFirestoreWithAnalysis(
-  String dreamId, 
-  Map<String, dynamic> analysisResult
-) async {
-  try {
-    debugPrint('💾 Updating Firestore with analysis for dream: $dreamId');
-    
-    // Firestore'a yazılacak data
-    final Map<String, dynamic> updateData = {
-      'dreamText': analysisResult['dreamText'] ?? '',
-      'title': analysisResult['title'] ?? 'Başlıksız Rüya',
-      'mood': analysisResult['mood'] ?? 'Belirsiz',
-      'analysis': analysisResult['analysis'] ?? '',
-      'interpretation': analysisResult['interpretation'] ?? '',
-      'status': 'completed',
-      'updatedAt': Timestamp.fromDate(DateTime.now()),
-    };
-    
-    // Opsiyonel alanlar
-    if (analysisResult['symbols'] != null) {
-      updateData['symbols'] = analysisResult['symbols'];
-    }
-    
-    // CONNECTION TO PAST - N8N'den connectionToPast olarak geliyor
-    if (analysisResult['connectionToPast'] != null && 
-        analysisResult['connectionToPast'].toString().trim().isNotEmpty) {
-      final connectionValue = analysisResult['connectionToPast'].toString();
-      updateData['connectionToPast'] = connectionValue;
-      debugPrint('✅ Adding connectionToPast to Firestore: ${connectionValue.substring(0, min(50, connectionValue.length))}...');
-    }
-    
-    // Firestore'a yaz
-    await _firestore.collection('dreams').doc(dreamId).update(updateData);
-    
-    debugPrint('✅ Firestore updated successfully');
-    
-  } catch (e) {
-    debugPrint('❌ Error updating Firestore: $e');
-    
-    // En azından status'u completed yap
+  Future<void> _updateFirestoreWithAnalysis(
+    String dreamId, 
+    Map<String, dynamic> analysisResult
+  ) async {
     try {
-      await _firestore.collection('dreams').doc(dreamId).update({
-        'status': 'failed',
-        'analysis': 'Sonuç kaydedilemedi: $e',
+      debugPrint('💾 Updating Firestore with analysis for dream: $dreamId');
+      
+      // Prepare update data
+      final Map<String, dynamic> updateData = {
+        'dreamText': analysisResult['dreamText'] ?? '',
+        'dream_text': analysisResult['dreamText'] ?? '',
+        'title': analysisResult['title'] ?? 'Başlıksız Rüya',
+        'mood': analysisResult['mood'] ?? 'Belirsiz',
+        'analysis': analysisResult['analysis'] ?? '',
+        'interpretation': analysisResult['interpretation'] ?? '',
+        'status': 'completed',
         'updatedAt': Timestamp.fromDate(DateTime.now()),
-      });
-    } catch (updateError) {
-      debugPrint('❌ Failed to update status: $updateError');
+        'updated_at': Timestamp.fromDate(DateTime.now()),
+      };
+      
+      // Optional fields
+      if (analysisResult['symbols'] != null) {
+        updateData['symbols'] = analysisResult['symbols'];
+      }
+      
+      // Connection to past
+      if (analysisResult['connectionToPast'] != null && 
+          analysisResult['connectionToPast'].toString().trim().isNotEmpty) {
+        final connectionValue = analysisResult['connectionToPast'].toString();
+        updateData['connectionToPast'] = connectionValue;
+        updateData['connection_to_past'] = connectionValue;
+        debugPrint('✅ Adding connectionToPast to Firestore');
+      }
+      
+      // Update Firestore
+      await _firestore.collection('dreams').doc(dreamId).update(updateData);
+      
+      debugPrint('✅ Firestore updated successfully');
+      
+    } catch (e) {
+      debugPrint('❌ Error updating Firestore: $e');
+      
+      // Mark as failed
+      try {
+        await _firestore.collection('dreams').doc(dreamId).update({
+          'status': 'failed',
+          'analysis': 'Sonuç kaydedilemedi: $e',
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        });
+      } catch (updateError) {
+        debugPrint('❌ Failed to update status: $updateError');
+      }
     }
   }
-}
-  // Update dream with analysis results (Snake case compatible)
+
+  // Update dream with analysis results
   Future<void> updateDreamWithAnalysis({
     required String dreamId,
     required String dreamText,
@@ -556,17 +596,19 @@ Future<void> _updateFirestoreWithAnalysis(
     try {
       debugPrint('🔄 Updating dream $dreamId with analysis results');
       
-      // Update Firestore - Both camelCase and snake_case for compatibility
+      // Update Firestore
       final Map<String, dynamic> updateData = {
         'dreamText': dreamText,
+        'dream_text': dreamText,
+        'content': dreamText,
         'analysis': analysis,
         'mood': mood,
         'title': title ?? _generateTitleFromText(dreamText),
         'status': 'completed',
         'updatedAt': Timestamp.fromDate(DateTime.now()),
+        'updated_at': Timestamp.fromDate(DateTime.now()),
       };
       
-      // Opsiyonel alanlar
       if (symbols != null && symbols.isNotEmpty) {
         updateData['symbols'] = symbols;
       }
@@ -575,25 +617,24 @@ Future<void> _updateFirestoreWithAnalysis(
         updateData['interpretation'] = interpretation;
       }
       
-      // 🆕 Önceki rüyalarla bağlantı
       if (connectionToPast != null && connectionToPast.isNotEmpty) {
+        updateData['connection_to_past'] = connectionToPast;
         updateData['connectionToPast'] = connectionToPast;
       }
       
       await _firestore.collection('dreams').doc(dreamId).update(updateData);
 
-      // Real-time listener will handle local list updates automatically
       debugPrint('✅ Dream analysis updated successfully in Firestore');
       
     } catch (e) {
       debugPrint('❌ Error updating dream with analysis: $e');
       
-      // Mark dream as failed
       try {
         await _firestore.collection('dreams').doc(dreamId).update({
           'status': 'failed',
           'analysis': 'Analiz tamamlanamadı: $e',
           'updatedAt': Timestamp.fromDate(DateTime.now()),
+          'updated_at': Timestamp.fromDate(DateTime.now()),
         });
       } catch (updateError) {
         debugPrint('❌ Failed to mark dream as failed: $updateError');
@@ -601,7 +642,7 @@ Future<void> _updateFirestoreWithAnalysis(
     }
   }
 
-  // Force check for specific dream updates
+  // Check dream status
   Future<void> checkDreamStatus(String dreamId) async {
     try {
       debugPrint('🔍 Checking status for dream: $dreamId');
@@ -610,9 +651,11 @@ Future<void> _updateFirestoreWithAnalysis(
       if (doc.exists) {
         final data = doc.data() as Map<String, dynamic>;
         debugPrint('📊 Dream status: ${data['status']}');
-        debugPrint('📊 Analysis: ${data['analysis']?.toString().substring(0, min(50, data['analysis']?.toString().length ?? 0))}...');
         
-        
+        if (data['analysis'] != null) {
+          final analysisPreview = data['analysis'].toString();
+          debugPrint('📊 Analysis: ${analysisPreview.substring(0, min(50, analysisPreview.length))}...');
+        }
       }
     } catch (e) {
       debugPrint('❌ Error checking dream status: $e');
@@ -637,7 +680,7 @@ Future<void> _updateFirestoreWithAnalysis(
         }
         
         debugPrint('✅ Recording cancelled');
-        notifyListeners();
+        _safeNotify();
       }
     } catch (e) {
       debugPrint('❌ Cancel recording error: $e');
@@ -658,27 +701,28 @@ Future<void> _updateFirestoreWithAnalysis(
   void _setLoading(bool loading) {
     if (_isLoading != loading) {
       _isLoading = loading;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        notifyListeners();
-      });
+      _safeNotify();
     }
   }
 
   void _setError(String error) {
     if (_errorMessage != error) {
       _errorMessage = error;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        notifyListeners();
-      });
+      _safeNotify();
     }
   }
 
   void _clearError() {
     if (_errorMessage != null) {
       _errorMessage = null;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        notifyListeners();
-      });
+      _safeNotify();
     }
+  }
+
+  // ⚡ Safe notify - prevents "called during build" errors
+  void _safeNotify() {
+    scheduleMicrotask(() {
+      notifyListeners();
+    });
   }
 }
