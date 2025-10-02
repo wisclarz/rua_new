@@ -188,7 +188,7 @@ class N8nService {
         final data = doc.data() as Map<String, dynamic>;
         
         // Sadece dreamText olan rüyaları al (analizi tamamlanmış)
-        final dreamText = data['dreamText'] ?? data['dream_text'] ?? '';
+        final dreamText = data['dreamText'] ?? '';
         if (dreamText.isEmpty) {
           debugPrint('⏭️ Skipping dream without dreamText: ${doc.id}');
           continue;

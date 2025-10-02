@@ -14,7 +14,7 @@ import 'screens/splash_screen.dart';
 import 'screens/phone_auth_screen.dart';
 import 'screens/main_navigation.dart';
 import 'screens/profile_screen.dart';
-import 'utils/performance_utils.dart';
+// import 'utils/performance_utils.dart';
 
 bool _isFirebaseInitialized = false;
 
@@ -22,8 +22,8 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // 🚀 YENİ: Performance monitoring başlat
-  PerformanceManager().startMonitoring();
-  debugPrint('⚡ Performance monitoring started');
+  // PerformanceManager().startMonitoring();
+  // debugPrint('⚡ Performance monitoring started');
   
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(

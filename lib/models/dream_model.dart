@@ -50,7 +50,7 @@ class Dream {
       dreamText: map['dreamText'],
       analysis: map['analysis'],
       interpretation: map['interpretation'],
-      connectionToPast: map['connectionToPast'] ?? map['connection_to_past'],
+      connectionToPast: map['connectionToPast'],
       mood: map['mood'] ?? 'Belirsiz',
       symbols: (map['symbols'] as List<dynamic>?)?.map((e) => e.toString()).toList(),
       status: _parseStatus(map['status']),

@@ -501,14 +501,12 @@ Future<void> _updateFirestoreWithAnalysis(
     // Firestore'a yazılacak data
     final Map<String, dynamic> updateData = {
       'dreamText': analysisResult['dreamText'] ?? '',
-      'dream_text': analysisResult['dreamText'] ?? '',
       'title': analysisResult['title'] ?? 'Başlıksız Rüya',
       'mood': analysisResult['mood'] ?? 'Belirsiz',
       'analysis': analysisResult['analysis'] ?? '',
       'interpretation': analysisResult['interpretation'] ?? '',
       'status': 'completed',
       'updatedAt': Timestamp.fromDate(DateTime.now()),
-      'updated_at': Timestamp.fromDate(DateTime.now()),
     };
     
     // Opsiyonel alanlar
@@ -521,7 +519,6 @@ Future<void> _updateFirestoreWithAnalysis(
         analysisResult['connectionToPast'].toString().trim().isNotEmpty) {
       final connectionValue = analysisResult['connectionToPast'].toString();
       updateData['connectionToPast'] = connectionValue;
-      updateData['connection_to_past'] = connectionValue; // Snake case backup
       debugPrint('✅ Adding connectionToPast to Firestore: ${connectionValue.substring(0, min(50, connectionValue.length))}...');
     }
     
@@ -562,14 +559,11 @@ Future<void> _updateFirestoreWithAnalysis(
       // Update Firestore - Both camelCase and snake_case for compatibility
       final Map<String, dynamic> updateData = {
         'dreamText': dreamText,
-        'dream_text': dreamText, // N8N compatible
-        'content': dreamText,
         'analysis': analysis,
         'mood': mood,
         'title': title ?? _generateTitleFromText(dreamText),
         'status': 'completed',
         'updatedAt': Timestamp.fromDate(DateTime.now()),
-        'updated_at': Timestamp.fromDate(DateTime.now()), // N8N compatible
       };
       
       // Opsiyonel alanlar
@@ -583,7 +577,6 @@ Future<void> _updateFirestoreWithAnalysis(
       
       // 🆕 Önceki rüyalarla bağlantı
       if (connectionToPast != null && connectionToPast.isNotEmpty) {
-        updateData['connection_to_past'] = connectionToPast;
         updateData['connectionToPast'] = connectionToPast;
       }
       
@@ -601,7 +594,6 @@ Future<void> _updateFirestoreWithAnalysis(
           'status': 'failed',
           'analysis': 'Analiz tamamlanamadı: $e',
           'updatedAt': Timestamp.fromDate(DateTime.now()),
-          'updated_at': Timestamp.fromDate(DateTime.now()),
         });
       } catch (updateError) {
         debugPrint('❌ Failed to mark dream as failed: $updateError');
@@ -619,11 +611,8 @@ Future<void> _updateFirestoreWithAnalysis(
         final data = doc.data() as Map<String, dynamic>;
         debugPrint('📊 Dream status: ${data['status']}');
         debugPrint('📊 Analysis: ${data['analysis']?.toString().substring(0, min(50, data['analysis']?.toString().length ?? 0))}...');
-        debugPrint('📊 Dream text: ${data['dream_text']?.toString().substring(0, min(50, data['dream_text']?.toString().length ?? 0))}...');
         
-        if (data['connection_to_past'] != null) {
-          debugPrint('📊 Connection to past: ${data['connection_to_past'].toString().substring(0, min(50, data['connection_to_past'].toString().length))}...');
-        }
+        
       }
     } catch (e) {
       debugPrint('❌ Error checking dream status: $e');
