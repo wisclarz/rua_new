@@ -79,6 +79,94 @@ class FirebaseAuthService {
     }
   }
 
+  /// ✨ Sessiz Google Sign-In - Kullanıcı daha önce giriş yaptıysa otomatik giriş yapar
+  /// Onay ekranı göstermez, sadece cache'deki kullanıcıyı kontrol eder
+  Future<app_models.User?> signInSilently() async {
+    try {
+      print('🤫 Attempting silent Google Sign-In...');
+      
+      // Google Sign-In'den sessizce kullanıcı al (UI göstermez)
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signInSilently();
+      
+      if (googleUser == null) {
+        print('ℹ️ No cached Google user found');
+        return null;
+      }
+      
+      print('✅ Found cached Google user: ${googleUser.email}');
+      
+      // Firebase'de zaten giriş yapmış mı kontrol et
+      final currentFirebaseUser = _auth.currentUser;
+      if (currentFirebaseUser != null && currentFirebaseUser.email == googleUser.email) {
+        print('✅ Firebase user already signed in: ${currentFirebaseUser.uid}');
+        // Profili al ve döndür
+        return await getUserProfile(currentFirebaseUser.uid);
+      }
+      
+      // Google authentication tokenlarını al
+      GoogleSignInAuthentication? googleAuth;
+      try {
+        googleAuth = await googleUser.authentication;
+        
+        // Tokenları doğrula
+        if (!GoogleSignInHelper.validateGoogleAuthTokens(googleAuth)) {
+          print('⚠️ Invalid Google auth tokens in silent sign-in');
+          return null;
+        }
+      } catch (e) {
+        print('⚠️ Failed to get Google auth tokens: $e');
+        return null;
+      }
+      
+      // Firebase credential oluştur
+      final credential = firebase_auth.GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Firebase'e giriş yap
+      final userCredential = await _auth.signInWithCredential(credential);
+      
+      if (userCredential.user != null) {
+        final firebaseUser = userCredential.user!;
+        print('✅ Silent Firebase authentication successful: ${firebaseUser.uid}');
+        
+        // Kullanıcı profilini al veya oluştur
+        app_models.User? user = await getUserProfile(firebaseUser.uid);
+        
+        if (user == null) {
+          // Yeni kullanıcı profili oluştur
+          user = app_models.User(
+            id: firebaseUser.uid,
+            email: firebaseUser.email ?? googleUser.email,
+            name: firebaseUser.displayName ?? googleUser.displayName ?? 'Google User',
+            profileImageUrl: firebaseUser.photoURL ?? googleUser.photoUrl,
+            createdAt: DateTime.now(),
+            lastLoginAt: DateTime.now(),
+            preferences: app_models.UserPreferences.defaultPreferences(),
+            isEmailVerified: firebaseUser.emailVerified,
+          );
+          
+          await _createUserProfile(user);
+          print('✅ New user profile created for silent sign-in: ${user.name}');
+        } else {
+          // Mevcut kullanıcı, son giriş zamanını güncelle
+          await _updateLastLoginTime(firebaseUser.uid);
+          print('✅ Last login time updated for: ${user.name}');
+        }
+        
+        return user;
+      }
+      
+      return null;
+      
+    } catch (e) {
+      print('ℹ️ Silent sign-in failed (this is normal): $e');
+      // Sessiz giriş başarısız olması normaldir, hata fırlatmıyoruz
+      return null;
+    }
+  }
+
   // Sign in with Google
   Future<app_models.User?> signInWithGoogle() async {
     try {
@@ -283,17 +371,34 @@ class FirebaseAuthService {
     }
   }
 
-  // Sign out
+  /// ✨ Çıkış yap - Hem Firebase hem Google'dan tamamen çıkış yapar
   Future<void> signOut() async {
     try {
       print('🚪 Starting sign out process...');
       
-      // Use helper to safely clear Google Sign-In
-      await GoogleSignInHelper.safeClearGoogleSignIn(_googleSignIn);
+      // Google Sign-In'den çıkış yap (önemli: silent sign-in'i de temizler)
+      try {
+        await _googleSignIn.signOut();
+        print('✅ Google Sign-In signed out');
+      } catch (e) {
+        print('⚠️ Google sign out warning: $e');
+        // Google sign out hatası kritik değil, devam et
+      }
       
-      // Sign out from Firebase
+      // Google Sign-In disconnect (tüm izinleri iptal et)
+      try {
+        await _googleSignIn.disconnect();
+        print('✅ Google Sign-In disconnected');
+      } catch (e) {
+        print('⚠️ Google disconnect warning: $e');
+        // Disconnect hatası normaldir (zaten bağlantı kesilmişse)
+      }
+      
+      // Firebase'den çıkış yap
       await _auth.signOut();
       print('✅ Firebase sign out completed');
+      
+      print('✅ Sign out process completed successfully');
       
     } catch (e) {
       print('❌ Error during sign out: $e');

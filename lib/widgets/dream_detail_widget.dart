@@ -51,14 +51,12 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
       ),
     );
 
-    // Load ad if not loaded
     if (!provider.isAdLoaded) {
       await provider.loadRewardedAd();
     }
 
-    Navigator.pop(context); // Close loading dialog
+    Navigator.pop(context);
 
-    // Show ad
     final success = await provider.showRewardedAd();
     
     if (success) {
@@ -98,119 +96,177 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
 
         return Scaffold(
           backgroundColor: theme.scaffoldBackgroundColor,
+          appBar: AppBar(
+            title: const Text('Rüya Detayları'),
+            backgroundColor: theme.colorScheme.surface,
+            elevation: 0,
+            actions: [
+              if (!isPro && !_isUnlocked)
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SubscriptionScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.workspace_premium, size: 18),
+                  label: const Text('Pro'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.amber,
+                  ),
+                ),
+            ],
+          ),
           body: CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              // App Bar
-              SliverAppBar(
-                expandedHeight: 200,
-                floating: false,
-                pinned: true,
-                backgroundColor: theme.colorScheme.surface,
-                flexibleSpace: FlexibleSpaceBar(
-                  title: Text(
-                    'Rüya Analizi',
-                    style: TextStyle(
-                      color: theme.colorScheme.onSurface,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  background: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          const Color(0xFF6B4EFF).withValues(alpha: 0.2),
-                          const Color(0xFF9C27B0).withValues(alpha: 0.1),
-                        ],
-                      ),
-                    ),
-                    child: Center(
-                      child: Icon(
-                        Icons.auto_awesome,
-                        size: 60,
-                        color: theme.colorScheme.primary.withValues(alpha: 0.5),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              // Content
+              // Header Section
               SliverToBoxAdapter(
-                child: Padding(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        theme.colorScheme.primary.withOpacity(0.1),
+                        theme.colorScheme.secondary.withOpacity(0.05),
+                      ],
+                    ),
+                  ),
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Date and Status
-                      _buildMetadata(theme),
-                      
-                      const SizedBox(height: 24),
-                      
-                      // Dream Description
-                      _buildSection(
-                        theme: theme,
-                        title: '📝 Rüya Tasviri',
-                        content: widget.dream.analysis ?? '',
-                        shouldBlur: false,
+                      // Title
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              widget.dream.title,
+                              style: theme.textTheme.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+                          ),
+                          _buildStatusChip(theme),
+                        ],
                       ),
                       
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 12),
                       
-                      // Analysis Section
-                      _buildAnalysisSection(
-                        theme: theme,
-                        provider: provider,
-                        shouldBlur: shouldBlur,
+                      // Metadata Row
+                      Wrap(
+                        spacing: 16,
+                        runSpacing: 8,
+                        children: [
+                          _buildMetaItem(
+                            icon: Icons.calendar_today,
+                            text: widget.dream.formattedDate,
+                            theme: theme,
+                          ),
+                          if (widget.dream.mood != 'Belirsiz')
+                            _buildMetaItem(
+                              icon: Icons.mood,
+                              text: widget.dream.mood,
+                              theme: theme,
+                            ),
+                          if (widget.dream.symbols != null && 
+                              widget.dream.symbols!.isNotEmpty)
+                            _buildMetaItem(
+                              icon: Icons.auto_awesome,
+                              text: '${widget.dream.symbols!.length} Simge',
+                              theme: theme,
+                            ),
+                        ],
                       ),
-                      
-                      const SizedBox(height: 24),
-                      
-                      // Symbols (if available)
-                      if (widget.dream.symbols != null && 
-                          widget.dream.symbols!.isNotEmpty)
-                        _buildSymbolsSection(theme, shouldBlur),
-                      
-                      const SizedBox(height: 40),
                     ],
                   ),
+                ),
+              ),
+
+              // Content Sections
+              SliverPadding(
+                padding: const EdgeInsets.all(20),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    
+                    if (widget.dream.dreamText != null && 
+                        widget.dream.dreamText!.isNotEmpty) ...[
+                      _buildContentSection(
+                        theme: theme,
+                        title: '📝 Rüyanız',
+                        icon: Icons.description,
+                        content: widget.dream.dreamText!,
+                        shouldBlur: false, // User's own dream text is always visible
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+// Rüya Analizi (analysis)
+                    if (widget.dream.analysis != null && 
+                        widget.dream.analysis!.isNotEmpty) ...[
+                      _buildContentSection(
+                        theme: theme,
+                        title: '🌙 Rüya Analizi',
+                        icon: Icons.psychology,
+                        content: widget.dream.analysis!,
+                        shouldBlur: false, // Analysis is always visible
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
+                    // Psikolojik Analiz (interpretation) - with blur
+                    if (widget.dream.interpretation != null && 
+                        widget.dream.interpretation!.isNotEmpty) ...[
+                      _buildContentSection(
+                        theme: theme,
+                        title: '🧠 Psikolojik Analiz',
+                        icon: Icons.psychology,
+                        content: widget.dream.interpretation!,
+                        shouldBlur: shouldBlur,
+                        provider: provider,
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
+                    // Geçmişle Bağlantı (connectionToPast) - with blur
+                    if (widget.dream.connectionToPast != null && 
+                        widget.dream.connectionToPast!.trim().isNotEmpty) ...[
+                      _buildContentSection(
+                        theme: theme,
+                        title: '🔗 Geçmiş Rüyalarınızla Bağlantı',
+                        icon: Icons.timeline,
+                        content: widget.dream.connectionToPast!,
+                        shouldBlur: shouldBlur,
+                        provider: provider,
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
+                    // Symbols Section
+                    if (widget.dream.symbols != null && 
+                        widget.dream.symbols!.isNotEmpty) ...[
+                      _buildSymbolsSection(theme),
+                      const SizedBox(height: 20),
+                    ],
+
+                    // Unlock Button (if needed)
+                    if (shouldBlur) ...[
+                      const SizedBox(height: 20),
+                      _buildUnlockButton(provider, theme),
+                      const SizedBox(height: 40),
+                    ] else ...[
+                      const SizedBox(height: 40),
+                    ],
+                  ]),
                 ),
               ),
             ],
           ),
         );
       },
-    );
-  }
-
-  Widget _buildMetadata(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.calendar_today,
-            size: 20,
-            color: theme.colorScheme.primary,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            _formatDate(widget.dream.createdAt),
-            style: theme.textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const Spacer(),
-          _buildStatusChip(theme),
-        ],
-      ),
     );
   }
 
@@ -240,8 +296,9 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -253,7 +310,7 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
             style: TextStyle(
               color: color,
               fontSize: 12,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -261,183 +318,142 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
     );
   }
 
-  Widget _buildSection({
+  Widget _buildMetaItem({
+    required IconData icon,
+    required String text,
     required ThemeData theme,
-    required String title,
-    required String content,
-    required bool shouldBlur,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          title,
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+        Icon(
+          icon,
+          size: 16,
+          color: theme.colorScheme.onSurface.withOpacity(0.6),
         ),
-        const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: theme.dividerColor),
-          ),
-          child: Text(
-            content,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              height: 1.6,
-            ),
+        const SizedBox(width: 6),
+        Text(
+          text,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurface.withOpacity(0.7),
+            fontWeight: FontWeight.w500,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildAnalysisSection({
+  Widget _buildContentSection({
     required ThemeData theme,
-    required SubscriptionProvider provider,
+    required String title,
+    required IconData icon,
+    required String content,
     required bool shouldBlur,
+    SubscriptionProvider? provider,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Section Header
         Row(
           children: [
-            Text(
-              '🔮 Analiz Sonucu',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                icon,
+                size: 20,
+                color: theme.colorScheme.primary,
               ),
             ),
-            const Spacer(),
-            if (!provider.isPro)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.lock_outline,
-                      size: 14,
-                      color: Colors.orange,
-                    ),
-                    const SizedBox(width: 4),
-                    const Text(
-                      'Ücretsiz Plan',
-                      style: TextStyle(
-                        color: Colors.orange,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
                 ),
               ),
+            ),
           ],
         ),
-        const SizedBox(height: 12),
         
+        const SizedBox(height: 16),
+        
+        // Content
         Stack(
           children: [
-            // Content
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surface,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: theme.dividerColor),
+                border: Border.all(
+                  color: theme.dividerColor.withOpacity(0.5),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Text(
-                widget.dream.analysis ?? 'Analiz henüz tamamlanmadı...',
+                content,
                 style: theme.textTheme.bodyLarge?.copyWith(
-                  height: 1.6,
+                  height: 1.7,
+                  color: theme.colorScheme.onSurface,
+                  fontSize: 15,
                 ),
               ),
             ),
             
             // Blur Overlay
             if (shouldBlur)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.lock_outline,
-                          size: 48,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Analizi görmek için',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        
-                        // Watch Ad Button
-                        ElevatedButton.icon(
-                          onPressed: () => _watchAdToUnlock(provider),
-                          icon: const Icon(Icons.play_circle_outline),
-                          label: const Text('Reklam İzle (60 saniye)'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Colors.black,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 14,
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.lock,
+                              size: 48,
+                              color: theme.colorScheme.primary.withOpacity(0.5),
                             ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                        
-                        const SizedBox(height: 12),
-                        
-                        // Upgrade Button
-                        TextButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const SubscriptionScreen(),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Pro Özellik',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.onSurface,
                               ),
-                            );
-                          },
-                          child: const Text(
-                            'veya Premium\'a Geç →',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                              decoration: TextDecoration.underline,
                             ),
-                          ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Bu içeriği görmek için Pro\'ya geçin\nveya reklam izleyin',
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurface.withOpacity(0.6),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -448,64 +464,169 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
     );
   }
 
-  Widget _buildSymbolsSection(ThemeData theme, bool shouldBlur) {
+  Widget _buildSymbolsSection(ThemeData theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '✨ Rüya Sembolleri',
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.purple.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.auto_awesome,
+                size: 20,
+                color: Colors.purple,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              '✨ Rüya Simgeleri',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 12),
         
-        Opacity(
-          opacity: shouldBlur ? 0.3 : 1.0,
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: widget.dream.symbols!.map((symbol) {
-              return Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
+        const SizedBox(height: 16),
+        
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: widget.dream.symbols!.map((symbol) {
+            return Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 10,
+              ),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.purple.withOpacity(0.1),
+                    Colors.deepPurple.withOpacity(0.05),
+                  ],
                 ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF6B4EFF).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: const Color(0xFF6B4EFF).withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.purple.withOpacity(0.2),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.star,
+                    size: 16,
+                    color: Colors.purple,
                   ),
-                ),
-                child: Text(
-                  symbol,
-                  style: const TextStyle(
-                    color: Color(0xFF6B4EFF),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
+                  const SizedBox(width: 6),
+                  Text(
+                    symbol,
+                    style: const TextStyle(
+                      color: Colors.purple,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
                   ),
-                ),
-              );
-            }).toList(),
-          ),
+                ],
+              ),
+            );
+          }).toList(),
         ),
       ],
     );
   }
 
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
-
-    if (difference.inDays == 0) {
-      return 'Bugün ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-    } else if (difference.inDays == 1) {
-      return 'Dün ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays} gün önce';
-    } else {
-      return '${date.day}/${date.month}/${date.year}';
-    }
+  Widget _buildUnlockButton(SubscriptionProvider provider, ThemeData theme) {
+    return Column(
+      children: [
+        // Pro Button
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () {
+              HapticFeedback.mediumImpact();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SubscriptionScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.workspace_premium),
+            label: const Text(
+              'Pro\'ya Geç - Sınırsız Erişim',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber,
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 4,
+            ),
+          ),
+        ),
+        
+        const SizedBox(height: 12),
+        
+        // Divider
+        Row(
+          children: [
+            Expanded(child: Divider(color: theme.dividerColor)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'veya',
+                style: TextStyle(
+                  color: theme.colorScheme.onSurface.withOpacity(0.5),
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            Expanded(child: Divider(color: theme.dividerColor)),
+          ],
+        ),
+        
+        const SizedBox(height: 12),
+        
+        // Ad Button
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => _watchAdToUnlock(provider),
+            icon: const Icon(Icons.play_circle_outline),
+            label: const Text(
+              'Reklam İzle - Bu Rüyayı Aç',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: theme.colorScheme.primary,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              side: BorderSide(
+                color: theme.colorScheme.primary.withOpacity(0.5),
+                width: 2,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

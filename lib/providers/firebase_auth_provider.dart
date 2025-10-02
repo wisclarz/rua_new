@@ -55,10 +55,45 @@ class FirebaseAuthProvider extends ChangeNotifier implements AuthProviderInterfa
       // Setup auth listener
       _setupAuthListener();
       
+      // ✨ AUTO SILENT SIGN-IN CHECK
+      await _attemptSilentSignIn();
+      
     } catch (e) {
       debugPrint('❌ Initialization error: $e');
       _setError('Başlatma hatası: $e');
       _isInitialized = true;
+      _setLoading(false);
+    }
+  }
+  
+  /// ✨ Otomatik sessiz giriş kontrolü
+  Future<void> _attemptSilentSignIn() async {
+    try {
+      debugPrint('🔍 Checking for existing Google Sign-In session...');
+      
+      // Firebase'de zaten giriş yapmış kullanıcı var mı kontrol et
+      final firebaseUser = _authService!.currentUser;
+      if (firebaseUser != null) {
+        debugPrint('✅ Firebase user already signed in: ${firebaseUser.uid}');
+        // Auth listener zaten handle edecek
+        return;
+      }
+      
+      // Google Sign-In'den sessizce giriş dene
+      final user = await _authService!.signInSilently();
+      
+      if (user != null) {
+        debugPrint('✅ Silent sign-in successful: ${user.name}');
+        _currentUser = user;
+        _setLoading(false);
+        _safeNotify();
+      } else {
+        debugPrint('ℹ️ No existing Google session found');
+        _setLoading(false);
+      }
+      
+    } catch (e) {
+      debugPrint('ℹ️ Silent sign-in not available: $e');
       _setLoading(false);
     }
   }
@@ -154,7 +189,7 @@ class FirebaseAuthProvider extends ChangeNotifier implements AuthProviderInterfa
     }
   }
   
-  // Sign in with Google
+  /// ✨ Google ile giriş - Önce sessiz, sonra normal
   @override
   Future<bool> signInWithGoogle() async {
     if (_authService == null) {
@@ -166,14 +201,29 @@ class FirebaseAuthProvider extends ChangeNotifier implements AuthProviderInterfa
       _setLoading(true);
       _clearError();
       
-      final user = await _authService!.signInWithGoogle();
+      debugPrint('🔐 Attempting Google Sign-In...');
+      
+      // 1. Önce sessiz giriş dene (kullanıcı daha önce giriş yaptıysa)
+      debugPrint('🤫 Trying silent sign-in first...');
+      var user = await _authService!.signInSilently();
+      
       if (user != null) {
         _currentUser = user;
-        debugPrint('✅ Google Sign-In successful in provider: ${user.name}');
+        debugPrint('✅ Silent sign-in successful: ${user.name}');
         return true;
       }
       
-      // If sign-in returns null but Firebase user exists, try recovery
+      // 2. Sessiz giriş başarısız, normal giriş yap
+      debugPrint('📱 Silent sign-in failed, showing sign-in UI...');
+      user = await _authService!.signInWithGoogle();
+      
+      if (user != null) {
+        _currentUser = user;
+        debugPrint('✅ Google Sign-In successful: ${user.name}');
+        return true;
+      }
+      
+      // 3. If sign-in returns null but Firebase user exists, try recovery
       final firebaseUser = _authService!.currentUser;
       if (firebaseUser != null) {
         debugPrint('🔄 Sign-in returned null but Firebase user exists, attempting recovery...');
@@ -181,17 +231,19 @@ class FirebaseAuthProvider extends ChangeNotifier implements AuthProviderInterfa
           final recoveredUser = await _authService!.getUserProfile(firebaseUser.uid);
           if (recoveredUser != null) {
             _currentUser = recoveredUser;
-            debugPrint('✅ Successfully recovered user in provider: ${recoveredUser.name}');
+            debugPrint('✅ Successfully recovered user: ${recoveredUser.name}');
             return true;
           }
         } catch (e) {
-          debugPrint('❌ Recovery failed in provider: $e');
+          debugPrint('❌ Recovery failed: $e');
         }
       }
       
+      debugPrint('❌ Google Sign-In returned no user');
       return false;
+      
     } catch (e) {
-      debugPrint('🔴 Google Sign-In error in provider: $e');
+      debugPrint('🔴 Google Sign-In error: $e');
       
       // Try recovery if PigeonUserDetails error and Firebase user exists
       if (GoogleSignInHelper.isPigeonUserDetailsError(e)) {
@@ -302,7 +354,7 @@ class FirebaseAuthProvider extends ChangeNotifier implements AuthProviderInterfa
     }
   }
   
-  // Sign out
+  /// ✨ Çıkış yap - Google oturumunu da sonlandır
   @override
   Future<void> signOut() async {
     if (_authService == null) {
@@ -314,11 +366,18 @@ class FirebaseAuthProvider extends ChangeNotifier implements AuthProviderInterfa
       _setLoading(true);
       _clearError();
       
+      debugPrint('🚪 Signing out user...');
+      
+      // Firebase ve Google'dan çıkış yap
       await _authService!.signOut();
+      
       _currentUser = null;
       _verificationId = null;
       _isVerifyingPhone = false;
+      
+      debugPrint('✅ Sign out successful');
     } catch (e) {
+      debugPrint('❌ Sign out error: $e');
       _setError('Çıkış yapılırken hata: $e');
     } finally {
       _setLoading(false);

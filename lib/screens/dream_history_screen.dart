@@ -486,19 +486,14 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen> {
     );
   }
 
-  void _openDreamDetail(Dream dream) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(
-            title: const Text('Rüya Detayları'),
-          ),
-          body: DreamDetailWidget(dream: dream),
-        ),
-      ),
-    );
-  }
+ void _openDreamDetail(Dream dream) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => DreamDetailWidget(dream: dream),
+    ),
+  );
+}
 
   Color _getMoodColor(String mood) {
     switch (mood.toLowerCase()) {
