@@ -48,8 +48,9 @@ class _MainNavigationState extends State<MainNavigation> {
     
     _pageController.animateToPage(
       index,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.decelerate,
+      
     );
   }
 

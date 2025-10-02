@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/firebase_auth_provider.dart';
 import '../widgets/glassmorphic_container.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -225,7 +226,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 const SizedBox(height: 24),
                                 
                                 // Submit Button
-                                Consumer<AuthProvider>(
+                                Consumer<FirebaseAuthProvider>(
                                   builder: (context, authProvider, child) {
                                     return SizedBox(
                                       width: double.infinity,
@@ -233,7 +234,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       child: ElevatedButton(
                                         onPressed: authProvider.isLoading
                                             ? null
-                                            : () => _handleSubmit(context, authProvider),
+                                            : () => (context, authProvider),
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: theme.colorScheme.primary,
                                           foregroundColor: theme.colorScheme.onPrimary,
@@ -297,7 +298,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 24),
                           
                           // Google Sign In
-                          Consumer<AuthProvider>(
+                          Consumer<FirebaseAuthProvider>(
                             builder: (context, authProvider, child) {
                               return SizedBox(
                                 width: double.infinity,
@@ -506,50 +507,9 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Future<void> _handleSubmit(BuildContext context, AuthProvider authProvider) async {
-    if (!_formKey.currentState!.validate()) return;
 
-    final email = _emailController.text.trim();
-    final password = _passwordController.text;
-
-    bool success;
-    if (_isLoginMode) {
-      success = await authProvider.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-    } else {
-      success = await authProvider.signUpWithEmailAndPassword(
-        email: email,
-        password: password,
-        name: 'Yeni Kullanıcı', // In real app, get from form
-      );
-    }
-
-    if (mounted) {
-      if (success) {
-        _showModernSnackBar(
-          context,
-          _isLoginMode ? 'Giriş başarılı! 🎉' : 'Kayıt başarılı! 🎉',
-          Colors.green,
-          Icons.check_circle_outline,
-        );
-        
-        // Navigate to main navigation
-        Navigator.pushReplacementNamed(context, '/home');
-      } else {
-        _showModernSnackBar(
-          context,
-          '${authProvider.errorMessage ?? 'Bir hata oluştu'} ❌',
-          Colors.red,
-          Icons.error_outline,
-        );
-      }
-    }
-  }
-
-  Future<void> _handleGoogleSignIn(BuildContext context, AuthProvider authProvider) async {
-    final success = await authProvider.signInWithGoogle();
+  Future<void> _handleGoogleSignIn(BuildContext context, FirebaseAuthProvider authProvider) async {
+    final success = await FirebaseAuthProvider().signInWithGoogle();
     
     if (mounted) {
       if (success) {
@@ -602,29 +562,29 @@ class _LoginScreenState extends State<LoginScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('İptal'),
           ),
-          ElevatedButton(
-            onPressed: () async {
-              final authProvider = Provider.of<AuthProvider>(context, listen: false);
-              final success = await authProvider.resetPassword(emailController.text.trim());
+          // ElevatedButton(
+          //   onPressed: () async {
+          //     final authProvider = Provider.of<FirebaseAuthProvider>(context, listen: false);
+          //     final success = await FirebaseAuthProvider().resetPhoneVerification().resetPassword(emailController.text.trim());
               
-              if (mounted) {
-                Navigator.pop(context);
-                _showModernSnackBar(
-                  context,
-                  success 
-                      ? 'Şifre sıfırlama bağlantısı gönderildi! 📧'
-                      : '${authProvider.errorMessage ?? 'Hata oluştu'} ❌',
-                  success 
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.error,
-                  success 
-                      ? Icons.email_outlined
-                      : Icons.error_outline,
-                );
-              }
-            },
-            child: const Text('Gönder'),
-          ),
+          //     if (mounted) {
+          //       Navigator.pop(context);
+          //       _showModernSnackBar(
+          //         context,
+          //         success 
+          //             ? 'Şifre sıfırlama bağlantısı gönderildi! 📧'
+          //             : '${authProvider.errorMessage ?? 'Hata oluştu'} ❌',
+          //         success 
+          //             ? Theme.of(context).colorScheme.primary
+          //             : Theme.of(context).colorScheme.error,
+          //         success 
+          //             ? Icons.email_outlined
+          //             : Icons.error_outline,
+          //       );
+          //     }
+          //   },
+          //   child: const Text('Gönder'),
+          // ),
         ],
       ),
     );

@@ -1,11 +1,16 @@
+// lib/screens/home_screen.dart
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'dart:math' as math;
 import '../config/app_theme.dart';
 import '../models/dream_model.dart';
 import '../providers/auth_provider_interface.dart';
 import '../providers/dream_provider.dart';
+import '../providers/subscription_provider.dart';
 import '../widgets/dream_detail_widget.dart';
+import '../screens/subscription_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -39,8 +44,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      body: Consumer2<AuthProviderInterface, DreamProvider>(
-        builder: (context, authProvider, dreamProvider, _) {
+      body: Consumer3<AuthProviderInterface, DreamProvider, SubscriptionProvider>(
+        builder: (context, authProvider, dreamProvider, subscriptionProvider, _) {
           final user = authProvider.currentUser;
           final recentDreams = dreamProvider.dreams;
           
@@ -51,6 +56,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               SliverToBoxAdapter(
                 child: _buildCleanHeader(context, user, theme),
               ),
+              
+              // Premium Banner (if not pro)
+              if (!subscriptionProvider.isPro)
+                SliverToBoxAdapter(
+                  child: _buildPremiumBanner(subscriptionProvider, theme),
+                ),
               
               // Minimal Stats
               SliverToBoxAdapter(
@@ -83,29 +94,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                           ),
                         ],
                       ),
-                      if (recentDreams.length > 5)
-                        TextButton(
-                          onPressed: () {},
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          ),
-                          child: Text(
-                            'Tümünü Gör',
-                            style: TextStyle(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                 ),
               ),
               
-              // Dreams List
+              // Recent Dreams List
               if (recentDreams.isEmpty)
                 SliverFillRemaining(
-                  child: _buildEmptyState(context, theme),
+                  hasScrollBody: false,
+                  child: _buildEmptyState(theme),
                 )
               else
                 SliverPadding(
@@ -114,9 +112,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
                         final dream = recentDreams[index];
-                        return _buildCleanDreamCard(context, dream, theme);
+                        return _buildDreamCard(dream, theme, subscriptionProvider);
                       },
-                      childCount: recentDreams.length > 5 ? 5 : recentDreams.length,
+                      childCount: math.min(recentDreams.length, 5),
                     ),
                   ),
                 ),
@@ -129,305 +127,147 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   Widget _buildCleanHeader(BuildContext context, dynamic user, ThemeData theme) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 60, 20, 32),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: theme.brightness == Brightness.light
-              ? [
-                  AppTheme.deepPurple.withValues(alpha: 0.05),
-                  AppTheme.lightBackground,
-                ]
-              : [
-                  AppTheme.darkBackground,
-                  AppTheme.darkBackground,
-                ],
-        ),
-      ),
+      padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Greeting with Profile
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  _getGreeting(),
-                  style: theme.textTheme.headlineLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                    fontSize: 32,
-                  ),
-                ),
-              ),
-              Text(
-                _getGreetingIcon(),
-                style: const TextStyle(fontSize: 48),
-              ),
-            ],
-          ),
-          
-          const SizedBox(height: 8),
-          
-          Text(
-            user?.name ?? 'Rüya Yolcusu',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMinimalStats(BuildContext context, DreamProvider dreamProvider, ThemeData theme) {
-    final totalDreams = dreamProvider.dreams.length;
-    final completedDreams = dreamProvider.dreams.where((d) => d.isCompleted).length;
-    final thisWeekDreams = dreamProvider.dreams.where((d) {
-      final now = DateTime.now();
-      final weekAgo = now.subtract(const Duration(days: 7));
-      return d.createdAt.isAfter(weekAgo);
-    }).length;
-    
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-      child: Column(
-        children: [
-          // First Row - 2 cards
           Row(
             children: [
               Expanded(
-                child: _buildStatCard(
-                  icon: Icons.calendar_today_rounded,
-                  label: 'Bu Hafta',
-                  value: '$thisWeekDreams Rüya',
-                  color: AppTheme.deepPurple,
-                  theme: theme,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  icon: Icons.nightlight_round,
-                  label: 'Toplam',
-                  value: '$totalDreams Rüya',
-                  color: AppTheme.richPurple,
-                  theme: theme,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatCard({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-    required ThemeData theme,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.brightness == Brightness.light
-            ? Colors.white
-            : AppTheme.darkSurface.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: theme.brightness == Brightness.light
-              ? AppTheme.lightOutline
-              : const Color(0xFF3D2A5C),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.brightness == Brightness.light
-                  ? theme.colorScheme.onSurface.withValues(alpha: 0.6)
-                  : const Color(0xFF9CA3AF),
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-              fontSize: 28,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCleanDreamCard(BuildContext context, Dream dream, ThemeData theme) {
-    final moodColor = AppTheme.getMoodColor(dream.mood);
-    
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: () => _openDreamDetail(dream),
-        borderRadius: BorderRadius.circular(24),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: theme.brightness == Brightness.light
-                ? Colors.white
-                : AppTheme.darkSurface.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: theme.brightness == Brightness.light
-                  ? AppTheme.lightOutline
-                  : const Color(0xFF3D2A5C),
-              width: 1,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: dream.isCompleted 
-                          ? AppTheme.successGreen 
-                          : theme.colorScheme.primary,
-                      shape: BoxShape.circle,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Merhaba 👋',
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      dream.title,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                    const SizedBox(height: 4),
+                    Text(
+                      user?.name.split(' ').first ?? 'Kullanıcı',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  Icon(
-                    Icons.chevron_right,
-                    color: const Color(0xFF6B7280),
-                    size: 18,
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 12),
-              
-              // Date
-              Text(
-                _formatDate(dream.createdAt),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: const Color(0xFF9CA3AF),
-                  fontSize: 12,
+                  ],
                 ),
               ),
-              
-              // Mood Badge
-              if (dream.mood != 'Belirsiz') ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: moodColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _getMoodEmoji(dream.mood),
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        dream.mood,
-                        style: TextStyle(
-                          color: moodColor,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 12,
-                        ),
-                      ),
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFF6B4EFF),
+                      const Color(0xFF9C27B0),
                     ],
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF6B4EFF).withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-              ],
-              
-              // Preview
-              if (dream.isCompleted && dream.interpretation != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  dream.interpretation!.length > 80
-                      ? '${dream.interpretation!.substring(0, 80)}...'
-                      : dream.interpretation!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: const Color(0xFF9CA3AF),
-                    height: 1.5,
-                    fontSize: 12,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                child: user?.profileImageUrl != null
+                    ? ClipOval(
+                        child: Image.network(
+                          user!.profileImageUrl!,
+                          fit: BoxFit.cover,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.person,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+              ),
             ],
           ),
-        ),
+        ],
       ),
     );
   }
 
-  Widget _buildEmptyState(BuildContext context, ThemeData theme) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(40),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildPremiumBanner(SubscriptionProvider provider, ThemeData theme) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.mediumImpact();
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const SubscriptionScreen(),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFF6B4EFF),
+              const Color(0xFF9C27B0),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF6B4EFF).withValues(alpha: 0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(32),
+              width: 50,
+              height: 50,
               decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                color: Colors.white.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                Icons.nightlight_round,
-                size: 64,
-                color: theme.colorScheme.primary,
+              child: const Icon(
+                Icons.workspace_premium,
+                color: Colors.white,
+                size: 28,
               ),
             ),
-            const SizedBox(height: 24),
-            Text(
-              'Henüz Rüya Kaydın Yok',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: theme.colorScheme.onSurface,
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '✨ Premium\'a Geç',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Reklamsız deneyim ve tüm özellikler',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            Text(
-              'İlk rüyanı kaydetmek için + butonuna tıkla',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-              textAlign: TextAlign.center,
+            const Icon(
+              Icons.arrow_forward_ios,
+              color: Colors.white,
+              size: 20,
             ),
           ],
         ),
@@ -435,54 +275,252 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-  void _openDreamDetail(Dream dream) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(
-            title: const Text('Rüya Detayları'),
+  Widget _buildMinimalStats(BuildContext context, DreamProvider dreamProvider, ThemeData theme) {
+    final totalDreams = dreamProvider.dreams.length;
+    final completedDreams = dreamProvider.dreams
+        .where((d) => d.status == DreamStatus.completed)
+        .length;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildStatItem(
+              theme: theme,
+              icon: Icons.nights_stay,
+              label: 'Toplam',
+              value: totalDreams.toString(),
+              color: const Color(0xFF6B4EFF),
+            ),
           ),
-          body: DreamDetailWidget(dream: dream),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _buildStatItem(
+              theme: theme,
+              icon: Icons.check_circle,
+              label: 'Analiz',
+              value: completedDreams.toString(),
+              color: Colors.green,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem({
+    required ThemeData theme,
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.dividerColor),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDreamCard(Dream dream, ThemeData theme, SubscriptionProvider provider) {
+    final isPro = provider.isPro;
+    
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DreamDetailWidget(dream: dream),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: theme.dividerColor),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    dream.title.length > 80
+                        ? '${dream.title.substring(0, 80)}...'
+                        : dream.title,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _buildStatusIcon(dream.status),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(
+                  Icons.calendar_today,
+                  size: 14,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _formatDate(dream.createdAt),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                ),
+                const Spacer(),
+                if (!isPro && dream.status == DreamStatus.completed)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.lock_outline, size: 12, color: Colors.orange),
+                        SizedBox(width: 4),
+                        Text(
+                          'Reklam İzle',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.orange,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
 
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'Günaydın';
-    if (hour < 18) return 'İyi Günler';
-    return 'İyi Akşamlar';
+  Widget _buildStatusIcon(DreamStatus status) {
+    Color color;
+    IconData icon;
+
+    switch (status) {
+      case DreamStatus.completed:
+        color = Colors.green;
+        icon = Icons.check_circle;
+        break;
+      case DreamStatus.processing:
+        color = Colors.orange;
+        icon = Icons.hourglass_empty;
+        break;
+      case DreamStatus.failed:
+        color = Colors.red;
+        icon = Icons.error;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(icon, size: 16, color: color),
+    );
   }
 
-  String _getGreetingIcon() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return '🌅';
-    if (hour < 18) return '☀️';
-    return '🌙';
+  Widget _buildEmptyState(ThemeData theme) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.nights_stay_outlined,
+            size: 80,
+            color: theme.colorScheme.primary.withValues(alpha: 0.3),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Henüz Rüya Kaydın Yok',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'İlk rüyanı kaydetmek için\naşağıdaki + butonuna tıkla',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
   }
 
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
-    
-    if (difference.inDays == 0) return 'Bugün';
-    if (difference.inDays == 1) return 'Dün';
-    if (difference.inDays < 7) return '${difference.inDays} gün önce';
-    return '${date.day}/${date.month}/${date.year}';
-  }
 
-  String _getMoodEmoji(String mood) {
-    switch (mood.toLowerCase()) {
-      case 'mutlu': return '😊';
-      case 'kaygılı': return '😰';
-      case 'huzurlu': return '😌';
-      case 'korkulu': return '😨';
-      case 'heyecanlı': return '🤩';
-      case 'şaşkın': return '😲';
-      case 'huzursuz': return '😟';
-      default: return '😐';
+    if (difference.inDays == 0) {
+      return 'Bugün ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+    } else if (difference.inDays == 1) {
+      return 'Dün';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} gün önce';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
     }
   }
 }

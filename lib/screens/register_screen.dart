@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/auth_provider.dart'; // Import düzeltildi
 import 'home_screen.dart';
+import '../providers/firebase_auth_provider.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -248,43 +249,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                         const SizedBox(height: 32),
                         
                         // Register Button
-                        Consumer<AuthProvider>(
-                          builder: (context, authProvider, child) {
-                            return SizedBox(
-                              width: double.infinity,
-                              height: 50,
-                              child: ElevatedButton(
-                                onPressed: authProvider.isLoading || !_acceptTerms
-                                    ? null
-                                    : () => _register(context, authProvider),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF667EEA),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  elevation: 0,
-                                ),
-                                child: authProvider.isLoading
-                                    ? const SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                        ),
-                                      )
-                                    : Text(
-                                        'Hesap Oluştur',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                              ),
-                            );
-                          },
-                        ),
+                       
                         
                         const SizedBox(height: 24),
                         
@@ -367,33 +332,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
     );
   }
 
-  void _register(BuildContext context, AuthProvider authProvider) async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
 
-    final success = await authProvider.signUpWithEmailAndPassword(
-      email: _emailController.text.trim(),
-      password: _passwordController.text,
-      name: _nameController.text.trim(),
-    );
-
-    if (mounted) {
-      if (success) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(authProvider.errorMessage ?? 'Kayıt başarısız'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
 
   @override
   void dispose() {

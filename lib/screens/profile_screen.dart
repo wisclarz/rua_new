@@ -1,9 +1,13 @@
+// lib/screens/profile_screen.dart
+
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../models/dream_model.dart';
 import '../providers/auth_provider_interface.dart';
-import '../models/user_model.dart';
-import 'dart:ui';
+import '../providers/dream_provider.dart';
+import '../providers/subscription_provider.dart';
+import '../screens/subscription_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -12,99 +16,126 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
-  final List<ProfileMenuItem> _menuItems = [
-    ProfileMenuItem(
-      icon: Icons.person_outline,
-      title: 'Profil Bilgilerim',
-      subtitle: 'Kişisel bilgilerimi düzenle',
-      color: const Color(0xFF6366F1),
-      route: '/profile-edit',
-    ),
-    ProfileMenuItem(
-      icon: Icons.notifications_outlined,
-      title: 'Bildirimler',
-      subtitle: 'Bildirim ayarlarını yönet',
-      color: const Color(0xFF10B981),
-      route: '/notifications',
-    ),
-    ProfileMenuItem(
-      icon: Icons.security_outlined,
-      title: 'Gizlilik & Güvenlik',
-      subtitle: 'Hesap güvenliği ayarları',
-      color: const Color(0xFF8B5CF6),
-      route: '/privacy-security',
-    ),
-    ProfileMenuItem(
-      icon: Icons.palette_outlined,
-      title: 'Tema',
-      subtitle: 'Aydınlık/Karanlık mod',
-      color: const Color(0xFFF59E0B),
-      route: '/theme-settings',
-    ),
-    ProfileMenuItem(
-      icon: Icons.analytics_outlined,
-      title: 'İstatistikler',
-      subtitle: 'Analiz sonuçlarını görüntüle',
-      color: const Color(0xFF06B6D4),
-      route: '/statistics',
-    ),
-    ProfileMenuItem(
-      icon: Icons.backup_outlined,
-      title: 'Yedekleme',
-      subtitle: 'Verilerini yedekle',
-      color: const Color(0xFFEC4899),
-      route: '/backup',
-    ),
-    ProfileMenuItem(
-      icon: Icons.help_outline,
-      title: 'Yardım & Destek',
-      subtitle: 'SSS ve iletişim',
-      color: const Color(0xFF14B8A6),
-      route: '/help',
-    ),
-  ];
+class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 240,
-            pinned: true,
-            stretch: true,
-            backgroundColor: Colors.transparent,
-            flexibleSpace: FlexibleSpaceBar(
-              background: _buildModernProfileHeader(context),
-              stretchModes: const [
-                StretchMode.zoomBackground,
-                StretchMode.blurBackground,
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: Consumer3<AuthProviderInterface, DreamProvider, SubscriptionProvider>(
+        builder: (context, authProvider, dreamProvider, subscriptionProvider, _) {
+          final user = authProvider.currentUser;
+          
+          return CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              // Header
+              SliverToBoxAdapter(
+                child: _buildHeader(context, user, theme),
+              ),
+              
+              // Subscription Card
+              SliverToBoxAdapter(
+                child: _buildSubscriptionCard(subscriptionProvider, theme),
+              ),
+              
+              // Statistics
+              SliverToBoxAdapter(
+                child: _buildStatistics(dreamProvider, theme),
+              ),
+              
+              // Menu Items
+              SliverToBoxAdapter(
+                child: _buildMenuItems(context, authProvider, subscriptionProvider, theme),
+              ),
+              
+              const SliverToBoxAdapter(
+                child: SizedBox(height: 100),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, dynamic user, ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 60, 20, 24),
+      child: Column(
+        children: [
+          // Avatar
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFF6B4EFF),
+                  const Color(0xFF9C27B0),
+                ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF6B4EFF).withValues(alpha: 0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
               ],
             ),
+            child: user?.profileImageUrl != null
+                ? ClipOval(
+                    child: Image.network(
+                      user!.profileImageUrl!,
+                      fit: BoxFit.cover,
+                    ),
+                  )
+                : const Icon(
+                    Icons.person,
+                    size: 50,
+                    color: Colors.white,
+                  ),
           ),
-          SliverPadding(
-            padding: const EdgeInsets.all(16),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  if (index < _menuItems.length) {
-                    final item = _menuItems[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _buildMenuItem(context, item, index),
-                    );
-                  } else {
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 16),
-                      child: _buildLogoutButton(context),
-                    );
-                  }
-                },
-                childCount: _menuItems.length + 1,
-              ),
+          const SizedBox(height: 16),
+          
+          // Name
+          Text(
+            user?.name ?? user?.phoneNumber ?? 'Kullanıcı',
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+          
+          const SizedBox(height: 4),
+          
+          // Email or Phone
+          Text(
+            user?.email ?? user?.phoneNumber ?? 'Kullanıcı',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
             ),
           ),
         ],
@@ -112,477 +143,402 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildModernProfileHeader(BuildContext context) {
-    final theme = Theme.of(context);
+  Widget _buildSubscriptionCard(SubscriptionProvider provider, ThemeData theme) {
+    final isPro = provider.isPro;
+    final currentPlan = provider.currentPlan;
     
-    return Consumer<AuthProviderInterface>(
-      builder: (context, authProvider, _) {
-        final user = authProvider.currentUser;
-        
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            // Animated Gradient Background
-            Container(
-             color: theme.scaffoldBackgroundColor,
-            ),
-            
-            // Glassmorphism Overlay
-            Positioned.fill(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 0, sigmaY: 0),
-                child: Container(
-                  color: theme.scaffoldBackgroundColor,
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: isPro
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFF6B4EFF),
+                  const Color(0xFF9C27B0),
+                ],
+              )
+            : null,
+        color: isPro ? null : theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: isPro
+            ? [
+                BoxShadow(
+                  color: const Color(0xFF6B4EFF).withValues(alpha: 0.3),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ]
+            : null,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isPro ? Icons.star_rounded : Icons.info_outline_rounded,
+                color: isPro ? Colors.white : theme.colorScheme.primary,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Abonelik Planı',
+                      style: TextStyle(
+                        color: isPro 
+                            ? Colors.white.withValues(alpha: 0.8)
+                            : theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      currentPlan.name,
+                      style: TextStyle(
+                        color: isPro ? Colors.white : theme.colorScheme.onSurface,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            
-            // Content
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Title
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Profil',
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ).animate().fadeIn(delay: 100.ms, duration: 600.ms),
+              if (isPro)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'PRO',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
                     ),
-                    
-                    const SizedBox(height: 20),
-                    
-                    // Profile Card with Glassmorphism
-                    Flexible(
-                      child: _buildGlassCard(context, user),
+                  ),
+                ),
+            ],
+          ),
+          
+          if (!isPro) ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  HapticFeedback.mediumImpact();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SubscriptionScreen(),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6B4EFF),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Icon(Icons.workspace_premium, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'Premium\'a Geç',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
           ],
-        );
-      },
+          
+          if (isPro && provider.currentSubscription?.endDate != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(
+                  Icons.schedule,
+                  size: 14,
+                  color: Colors.white.withValues(alpha: 0.8),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Bitiş: ${_formatDate(provider.currentSubscription!.endDate!)}',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 
-  Widget _buildGlassCard(BuildContext context, User? user) {
-    final theme = Theme.of(context);
-    
+  Widget _buildStatistics(DreamProvider dreamProvider, ThemeData theme) {
+    final totalDreams = dreamProvider.dreams.length;
+    final completedDreams = dreamProvider.dreams
+        .where((d) => d.status == DreamStatus.completed)
+        .length;
+    final processingDreams = dreamProvider.dreams
+        .where((d) => d.status == DreamStatus.processing)
+        .length;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildStatCard(
+              theme: theme,
+              title: 'Toplam Rüya',
+              value: totalDreams.toString(),
+              icon: Icons.nights_stay,
+              color: const Color(0xFF6B4EFF),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _buildStatCard(
+              theme: theme,
+              title: 'Tamamlanan',
+              value: completedDreams.toString(),
+              icon: Icons.check_circle,
+              color: Colors.green,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _buildStatCard(
+              theme: theme,
+              title: 'İşleniyor',
+              value: processingDreams.toString(),
+              icon: Icons.hourglass_empty,
+              color: Colors.orange,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard({
+    required ThemeData theme,
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.2),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.dividerColor),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 28),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Avatar and Name Row
-              Row(
-                children: [
-                  // Profile Image
-                  GestureDetector(
-                    onTap: () => _showImagePickerDialog(context),
-                    child: Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white,
-                          width: 3,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.2),
-                            spreadRadius: 2,
-                            blurRadius: 8,
-                          ),
-                        ],
-                      ),
-                      child: ClipOval(
-                        child: user?.profileImageUrl != null
-                            ? Image.network(
-                                user!.profileImageUrl!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    _buildDefaultAvatar(user.name),
-                              )
-                            : _buildDefaultAvatar(user?.name ?? 'User'),
-                      ),
-                    ),
-                  ).animate().scale(delay: 200.ms, duration: 600.ms),
-                  
-                  const SizedBox(width: 16),
-                  
-                  // Name and Email
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          user?.name ?? 'Kullanıcı',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ).animate().fadeIn(delay: 300.ms, duration: 600.ms),
-                        
-                        const SizedBox(height: 2),
-                        
-                        Text(
-                          user?.email ?? '',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: Colors.white70,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ).animate().fadeIn(delay: 400.ms, duration: 600.ms),
-                      ],
-                    ),
+    );
+  }
+
+  Widget _buildMenuItems(
+    BuildContext context,
+    AuthProviderInterface authProvider,
+    SubscriptionProvider subscriptionProvider,
+    ThemeData theme,
+  ) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      child: Column(
+        children: [
+          // Subscription Management (if Pro)
+          if (subscriptionProvider.isPro)
+            _buildMenuItem(
+              theme: theme,
+              icon: Icons.card_membership,
+              title: 'Abonelik Yönetimi',
+              subtitle: 'Planını yönet ve değiştir',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SubscriptionScreen(),
                   ),
-                ],
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Divider
-              Container(
-                height: 1,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.transparent,
-                      Colors.white.withValues(alpha: 0.3),
-                      Colors.transparent,
-                    ],
-                  ),
+                );
+              },
+            ),
+          
+          // Settings
+          _buildMenuItem(
+            theme: theme,
+            icon: Icons.settings,
+            title: 'Ayarlar',
+            subtitle: 'Uygulama ayarlarını düzenle',
+            onTap: () {
+              // TODO: Navigate to settings
+            },
+          ),
+          
+          // Help & Support
+          _buildMenuItem(
+            theme: theme,
+            icon: Icons.help_outline,
+            title: 'Yardım & Destek',
+            subtitle: 'SSS ve iletişim',
+            onTap: () {
+              // TODO: Navigate to help
+            },
+          ),
+          
+          // Privacy Policy
+          _buildMenuItem(
+            theme: theme,
+            icon: Icons.privacy_tip_outlined,
+            title: 'Gizlilik Politikası',
+            subtitle: 'Verilerinizin korunması',
+            onTap: () {
+              // TODO: Show privacy policy
+            },
+          ),
+          
+          const SizedBox(height: 20),
+          
+          // Logout
+          _buildMenuItem(
+            theme: theme,
+            icon: Icons.logout,
+            title: 'Çıkış Yap',
+            subtitle: 'Hesaptan çıkış yap',
+            onTap: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Çıkış Yap'),
+                  content: const Text('Çıkış yapmak istediğinize emin misiniz?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('İptal'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Çıkış Yap'),
+                    ),
+                  ],
                 ),
-              ),
-              
-              const SizedBox(height: 12),
-              
-              // Stats Row - More Compact
-              if (user != null) _buildCompactStatsRow(context, user),
-            ],
+              );
+
+              if (confirm == true && context.mounted) {
+                await authProvider.signOut();
+              }
+            },
+            isDestructive: true,
           ),
-        ),
+        ],
       ),
     );
   }
 
-  Widget _buildCompactStatsRow(BuildContext context, User user) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: [
-        _buildCompactStatItem(
-          context,
-          Icons.nightlight_round,
-          '${user.stats?.totalDreams ?? 0}',
-          'Rüya',
-        ),
-        _buildVerticalDivider(),
-        _buildCompactStatItem(
-          context,
-          Icons.auto_awesome,
-          '${user.stats?.totalAnalyses ?? 0}',
-          'Analiz',
-        ),
-        _buildVerticalDivider(),
-        _buildCompactStatItem(
-          context,
-          Icons.local_fire_department,
-          '${user.stats?.streakDays ?? 0}',
-          'Gün',
-        ),
-      ],
-    ).animate().slide(
-      begin: const Offset(0, 0.3),
-      delay: 500.ms,
-      duration: 600.ms,
-    );
-  }
-
-  Widget _buildCompactStatItem(BuildContext context, IconData icon, String value, String label) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: Colors.white,
-              size: 16,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white70,
-            fontSize: 11,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildVerticalDivider() {
+  Widget _buildMenuItem({
+    required ThemeData theme,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    bool isDestructive = false,
+  }) {
     return Container(
-      width: 1,
-      height: 32,
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.transparent,
-            Colors.white.withValues(alpha: 0.3),
-            Colors.transparent,
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDefaultAvatar(String name) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
-        ),
-      ),
-      child: Center(
-        child: Text(
-          name.isNotEmpty ? name[0].toUpperCase() : 'U',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMenuItem(BuildContext context, ProfileMenuItem item, int index) {
-    final theme = Theme.of(context);
-    
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: theme.colorScheme.outlineVariant,
-          width: 1,
-        ),
+        border: Border.all(color: theme.dividerColor),
       ),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
         leading: Container(
-          padding: const EdgeInsets.all(8),
+          width: 44,
+          height: 44,
           decoration: BoxDecoration(
-            color: item.color.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(10),
+            color: isDestructive 
+                ? Colors.red.withValues(alpha: 0.1)
+                : theme.colorScheme.primaryContainer,
+            borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(
-            item.icon,
-            color: item.color,
-            size: 20,
+            icon,
+            color: isDestructive ? Colors.red : theme.colorScheme.primary,
+            size: 22,
           ),
         ),
         title: Text(
-          item.title,
+          title,
           style: theme.textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.w600,
+            color: isDestructive 
+                ? Colors.red 
+                : theme.colorScheme.onSurface,
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
         ),
         subtitle: Text(
-          item.subtitle,
+          subtitle,
           style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-            fontSize: 11,
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
         ),
         trailing: Icon(
           Icons.chevron_right,
-          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-          size: 18,
-        ),
-        onTap: () {
-          if (item.route != null) {
-            Navigator.pushNamed(context, item.route!);
-          }
-        },
-      ),
-    ).animate()
-        .fadeIn(delay: (100 * index).ms, duration: 400.ms)
-        .slideX(begin: 0.2, duration: 400.ms);
-  }
-
-  Widget _buildLogoutButton(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: Colors.red.withValues(alpha: 0.1),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: Colors.red.withValues(alpha: 0.3),
-          width: 1,
-        ),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.red.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Icon(
-            Icons.logout,
-            color: Colors.red,
-            size: 20,
-          ),
-        ),
-        title: const Text(
-          'Çıkış Yap',
-          style: TextStyle(
-            color: Colors.red,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        trailing: const Icon(
-          Icons.chevron_right,
-          color: Colors.red,
-          size: 18,
-        ),
-        onTap: () => _showLogoutDialog(context),
-      ),
-    ).animate().fadeIn(delay: 700.ms, duration: 400.ms);
-  }
-
-  void _showImagePickerDialog(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('Galeriden Seç'),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Implement gallery picker
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('Fotoğraf Çek'),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Implement camera
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline, color: Colors.red),
-              title: const Text('Profil Fotoğrafını Kaldır', style: TextStyle(color: Colors.red)),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Implement remove photo
-              },
-            ),
-          ],
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
         ),
       ),
     );
   }
 
-  void _showLogoutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Çıkış Yap'),
-        content: const Text('Çıkış yapmak istediğinizden emin misiniz?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('İptal'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final authProvider = Provider.of<AuthProviderInterface>(context, listen: false);
-              await authProvider.signOut();
-              if (context.mounted) {
-                Navigator.of(context).pushReplacementNamed('/login');
-              }
-            },
-            child: const Text('Çıkış Yap', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
   }
-}
-
-class ProfileMenuItem {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color color;
-  final String? route;
-
-  ProfileMenuItem({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.color,
-    this.route,
-  });
 }

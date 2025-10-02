@@ -24,21 +24,16 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.dreamy.app"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        multiDexEnabled = true  // Bu satırı ekleyin
+        multiDexEnabled = true
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
         }
     }
@@ -48,7 +43,33 @@ flutter {
     source = "../.."
 }
 
-// Dependencies bölümünü ekleyin
+// ==================== DEPENDENCIES - ABONELIK SISTEMI ====================
 dependencies {
+    // Core Library Desugaring (mevcut)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    
+    // Firebase BOM (Bill of Materials) - Tüm Firebase kütüphanelerini uyumlu tutar
+    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
+    
+    // Firebase Services (BOM sayesinde versiyon belirtmeye gerek yok)
+    implementation("com.google.firebase:firebase-analytics-ktx")
+    implementation("com.google.firebase:firebase-auth-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("com.google.firebase:firebase-storage-ktx")
+    
+    // Google Play Services
+    implementation("com.google.android.gms:play-services-auth:20.7.0")
+    
+    // ==================== ABONELIK SISTEMI ====================
+    // Google Mobile Ads (AdMob) - Rewarded Ads için
+    implementation("com.google.android.gms:play-services-ads:23.0.0")
+    
+    // In-App Purchase (Billing Library) - Subscription için
+    implementation("com.android.billingclient:billing:6.1.0")
+    implementation("com.android.billingclient:billing-ktx:6.1.0")
+    // ========================================================
+    
+    // Android Support Libraries
+    implementation("androidx.multidex:multidex:2.0.1")
+    implementation("androidx.core:core-ktx:1.12.0")
 }

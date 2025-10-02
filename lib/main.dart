@@ -1,4 +1,4 @@
-// lib/main.dart - Performance Optimized
+// lib/main.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +10,7 @@ import 'providers/auth_provider_interface.dart';
 import 'providers/firebase_auth_provider.dart';
 import 'providers/mock_auth_provider.dart';
 import 'providers/dream_provider.dart';
+import 'providers/subscription_provider.dart';
 import 'screens/splash_screen.dart';
 import 'screens/phone_auth_screen.dart';
 import 'screens/main_navigation.dart';
@@ -64,12 +65,19 @@ class MyApp extends StatelessWidget {
           create: (_) => _isFirebaseInitialized 
               ? FirebaseAuthProvider()
               : MockAuthProvider(),
-          lazy: false, // Start auth initialization immediately
+          lazy: false,
         ),
+        
+        // ⚡ Subscription provider - initialized early for all screens
+        ChangeNotifierProvider<SubscriptionProvider>(
+          create: (_) => SubscriptionProvider(),
+          lazy: false,
+        ),
+        
         // ⚡ Dream provider - lazy loaded
         ChangeNotifierProxyProvider<AuthProviderInterface, DreamProvider>(
           create: (_) => DreamProvider(),
-          lazy: true, // Only create when accessed
+          lazy: true,
           update: (context, auth, dreamProvider) {
             if (dreamProvider == null) return DreamProvider();
             
@@ -107,15 +115,24 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<AuthProviderInterface>(
-      builder: (context, authProvider, child) {
+    return Consumer2<AuthProviderInterface, SubscriptionProvider>(
+      builder: (context, authProvider, subscriptionProvider, child) {
         // Show splash screen while loading
-        if (authProvider.isLoading || !authProvider.isInitialized) {
+        if (authProvider.isLoading || 
+            !authProvider.isInitialized ||
+            subscriptionProvider.isLoading) {
           return const SplashScreen();
         }
         
         // Show main navigation if authenticated
         if (authProvider.isAuthenticated) {
+          // Load user subscription
+          Future.microtask(() {
+            if (subscriptionProvider.currentSubscription == null) {
+              subscriptionProvider.loadUserSubscription();
+            }
+          });
+          
           return const MainNavigation();
         }
         
