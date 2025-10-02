@@ -124,18 +124,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             // Animated Gradient Background
             Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    theme.colorScheme.primary,
-                    theme.colorScheme.secondary,
-                    theme.colorScheme.tertiary,
-                  ],
-                  stops: const [0.0, 0.5, 1.0],
-                ),
-              ),
+             color: theme.scaffoldBackgroundColor,
             ),
             
             // Glassmorphism Overlay
@@ -143,16 +132,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 0, sigmaY: 0),
                 child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.white.withValues(alpha: 0.1),
-                        Colors.white.withValues(alpha: 0.05),
-                      ],
-                    ),
-                  ),
+                  color: theme.scaffoldBackgroundColor,
                 ),
               ),
             ),

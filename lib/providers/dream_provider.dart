@@ -464,9 +464,16 @@ class DreamProvider extends ChangeNotifier {
         startListeningToDreams();
       }
       
-      // Trigger N8N workflow
-      await _triggerN8NWorkflow(dreamId, audioUrl);
+      // 🔥 BURADA DEĞİŞİKLİK: await KALDIRDIK!
+      // N8N workflow'unu arka planda tetikle (beklemeden)
+      // Firestore listener analiz tamamlandığında otomatik güncelleyecek
+      _triggerN8NWorkflow(dreamId, audioUrl).then((_) {
+        debugPrint('✅ Background N8N workflow completed for: $dreamId');
+      }).catchError((error) {
+        debugPrint('❌ Background N8N workflow error: $error');
+      });
       
+      // Hemen return et, kullanıcı geçmiş sayfasına gidebilir
       return newDream;
     } catch (e) {
       debugPrint('❌ Failed to create dream document: $e');
