@@ -125,7 +125,7 @@ class _MainNavigationState extends State<MainNavigation> with SingleTickerProvid
       bottomNavigationBar: BottomAppBar(
         color: const Color(0xFF1F152E),
         elevation: 8,
-        height: 48,
+        height: 56,
         padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
         notchMargin: 8,
         shape: const CircularNotchedRectangle(),
@@ -251,7 +251,7 @@ class _MainNavigationState extends State<MainNavigation> with SingleTickerProvid
                     color: isActive 
                         ? const Color(0xFF7f13ec)
                         : const Color(0xFF9CA3AF),
-                    height: 1.2,
+                    height: 2,
                   ),
                   child: Text(
                     label,

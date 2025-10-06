@@ -26,7 +26,7 @@ class DreamProvider extends ChangeNotifier {
   // Audio recording variables
   FlutterSoundRecorder? _recorder;
   String? _currentRecordingPath;
-  bool _isRecorderInitialized = false; // ⚡ Track initialization state
+  bool _isRecorderInitialized = false;
   
   // Firebase instances  
   final FirebaseStorage _storage = FirebaseStorage.instance;
@@ -39,10 +39,9 @@ class DreamProvider extends ChangeNotifier {
 
   DreamProvider() {
     debugPrint('🏗️ DreamProvider created (lightweight)');
-    // ⚡ Don't initialize recorder here - do it lazily when needed
   }
 
-  // ⚡ Lazy initialization - only when recording is needed
+  // ⚡ Lazy initialization
   Future<void> _ensureRecorderInitialized() async {
     if (_isRecorderInitialized) return;
     
@@ -67,7 +66,6 @@ class DreamProvider extends ChangeNotifier {
     super.dispose();
   }
 
-  // Request microphone permission
   Future<bool> _requestMicrophonePermission() async {
     debugPrint('🔒 Requesting microphone permission...');
     final status = await Permission.microphone.request();
@@ -76,7 +74,6 @@ class DreamProvider extends ChangeNotifier {
     return granted;
   }
 
-  // Real-time listener for dreams
   void startListeningToDreams() {
     final user = _auth.currentUser;
     if (user == null) {
@@ -84,7 +81,6 @@ class DreamProvider extends ChangeNotifier {
       return;
     }
 
-    // Don't start if already listening
     if (_dreamsSubscription != null) {
       debugPrint('⚠️ Already listening to dreams');
       return;
@@ -96,7 +92,7 @@ class DreamProvider extends ChangeNotifier {
         .collection('dreams')
         .where('userId', isEqualTo: user.uid)
         .orderBy('createdAt', descending: true)
-        .limit(50) // ⚡ Limit to prevent loading too many at once
+        .limit(50)
         .snapshots()
         .listen(
       (snapshot) {
@@ -109,7 +105,6 @@ class DreamProvider extends ChangeNotifier {
     );
   }
 
-  // ⚡ Process snapshot efficiently
   void _processDreamsSnapshot(QuerySnapshot snapshot) {
     try {
       final newDreams = <Dream>[];
@@ -122,7 +117,6 @@ class DreamProvider extends ChangeNotifier {
           final dream = Dream.fromMap(dreamData);
           newDreams.add(dream);
           
-          // Log analysis updates
           if (dream.analysis != null && dream.analysis != 'Analiz yapılıyor...') {
             debugPrint('✅ Dream analysis updated: ${dream.id}');
           }
@@ -131,7 +125,6 @@ class DreamProvider extends ChangeNotifier {
         }
       }
       
-      // ⚡ Batch update
       _dreams = newDreams;
       _safeNotify();
       
@@ -140,7 +133,6 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // Stop listening when provider is disposed
   void stopListeningToDreams() {
     if (_dreamsSubscription != null) {
       debugPrint('🛑 Stopping dreams listener...');
@@ -149,12 +141,10 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // Auth-aware listener starter
   void startListeningToAuthenticatedUser() {
     final user = _auth.currentUser;
     if (user != null) {
       debugPrint('🔐 User authenticated, starting dream listener for: ${user.uid}');
-      // ⚡ Use Future.microtask to avoid blocking
       Future.microtask(() => loadDreams());
     } else {
       debugPrint('🔐 No authenticated user, stopping listener');
@@ -162,7 +152,6 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // Load dreams and start listener
   Future<void> loadDreams() async {
     if (_isLoading) {
       debugPrint('⚠️ Already loading dreams');
@@ -180,10 +169,7 @@ class DreamProvider extends ChangeNotifier {
       }
 
       debugPrint('📱 Loading dreams for user: ${user.uid}');
-      
-      // Start real-time listener instead of one-time fetch
       startListeningToDreams();
-      
       debugPrint('✅ Dreams loaded successfully with real-time listener');
       
     } catch (e) {
@@ -194,7 +180,6 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // Manual refresh method for pull-to-refresh
   Future<void> refreshDreams() async {
     debugPrint('🔄 Refreshing dreams...');
     
@@ -202,7 +187,6 @@ class DreamProvider extends ChangeNotifier {
       final user = _auth.currentUser;
       if (user == null) return;
 
-      // Force refresh by stopping and starting listener
       stopListeningToDreams();
       await Future.delayed(Duration(milliseconds: 500));
       startListeningToDreams();
@@ -213,14 +197,12 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // Start recording - with lazy initialization
   Future<bool> startRecording() async {
     debugPrint('🔴 START RECORDING CALLED');
     try {
       _setLoading(true);
       _clearError();
 
-      // ⚡ Ensure recorder is initialized (lazy)
       await _ensureRecorderInitialized();
       
       if (!_isRecorderInitialized) {
@@ -229,7 +211,6 @@ class DreamProvider extends ChangeNotifier {
         return false;
       }
 
-      // Request microphone permission
       final hasPermission = await _requestMicrophonePermission();
       if (!hasPermission) {
         debugPrint('❌ No microphone permission');
@@ -237,17 +218,15 @@ class DreamProvider extends ChangeNotifier {
         return false;
       }
 
-      // Create temporary file path
-      final String fileName = 'dream_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      final String fileName = 'dream_${DateTime.now().millisecondsSinceEpoch}.wav';
       final Directory tempDir = Directory.systemTemp;
       _currentRecordingPath = '${tempDir.path}/$fileName';
       
       debugPrint('📁 Recording path: $_currentRecordingPath');
 
-      // Start recording
       await _recorder!.startRecorder(
         toFile: _currentRecordingPath,
-        codec: Codec.aacMP4,
+        codec: Codec.pcm16,
         bitRate: 128000,
         sampleRate: 44100,
       );
@@ -265,7 +244,6 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // Stop recording and save dream
   Future<bool> stopRecordingAndSave() async {
     debugPrint('🛑 STOP RECORDING CALLED');
     try {
@@ -278,12 +256,10 @@ class DreamProvider extends ChangeNotifier {
         return false;
       }
 
-      // Stop recording
       debugPrint('⏹️ Stopping recorder...');
       await _recorder!.stopRecorder();
       _isRecording = false;
 
-      // Check if file exists and has content
       final File audioFile = File(_currentRecordingPath!);
       if (!audioFile.existsSync()) {
         debugPrint('❌ Audio file does not exist');
@@ -300,17 +276,14 @@ class DreamProvider extends ChangeNotifier {
         return false;
       }
 
-      // Upload to Firebase Storage
       debugPrint('☁️ Uploading audio file to Firebase Storage...');
       final String downloadUrl = await _uploadAudioToStorage(audioFile);
       debugPrint('✅ Audio uploaded successfully: $downloadUrl');
       
-      // Create dream document in Firestore
       debugPrint('📝 Creating dream document in Firestore...');
       final Dream newDream = await createDreamRecord(downloadUrl, audioFile.path);
       debugPrint('✅ Dream document created: ${newDream.id}');
 
-      // Clean up temporary file
       try {
         await audioFile.delete();
         debugPrint('🗑️ Temporary file cleaned up');
@@ -335,7 +308,6 @@ class DreamProvider extends ChangeNotifier {
       _setLoading(true);
       _clearError();
 
-      // Validate file
       if (!audioFile.existsSync()) {
         throw Exception('Ses dosyası bulunamadı');
       }
@@ -347,17 +319,14 @@ class DreamProvider extends ChangeNotifier {
 
       debugPrint('📁 Audio file size: $fileSize bytes');
 
-      // Upload to Firebase Storage
       debugPrint('☁️ Uploading to Firebase Storage...');
       final String downloadUrl = await _uploadAudioToStorage(audioFile);
       debugPrint('✅ Upload successful: $downloadUrl');
 
-      // Create dream record
       debugPrint('📝 Creating dream record...');
       final Dream newDream = await createDreamRecord(downloadUrl, audioFile.path);
       debugPrint('✅ Dream created: ${newDream.id}');
 
-      // Clean up the file if it's in temp directory
       try {
         if (audioFile.path.contains('temp') || audioFile.path.contains('cache')) {
           await audioFile.delete();
@@ -377,7 +346,6 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // Upload audio file to Firebase Storage
   Future<String> _uploadAudioToStorage(File audioFile) async {
     final user = _auth.currentUser;
     if (user == null) {
@@ -386,7 +354,7 @@ class DreamProvider extends ChangeNotifier {
 
     debugPrint('📤 Starting Firebase Storage upload for user: ${user.uid}');
 
-    final String fileName = 'dream_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    final String fileName = 'dream_${DateTime.now().millisecondsSinceEpoch}.aac';
     final Reference storageRef = _storage
         .ref()
         .child('users')
@@ -396,9 +364,8 @@ class DreamProvider extends ChangeNotifier {
 
     debugPrint('📂 Storage path: users/${user.uid}/dreams/$fileName');
 
-    // Upload file with metadata
     final SettableMetadata metadata = SettableMetadata(
-      contentType: 'audio/mp4',
+      contentType: 'audio/aac',
       customMetadata: {
         'uploadedBy': user.uid,
         'uploadedAt': DateTime.now().toIso8601String(),
@@ -410,7 +377,6 @@ class DreamProvider extends ChangeNotifier {
       debugPrint('⬆️ Starting upload...');
       final UploadTask uploadTask = storageRef.putFile(audioFile, metadata);
       
-      // Show upload progress
       uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
         final progress = snapshot.bytesTransferred / snapshot.totalBytes;
         debugPrint('📊 Upload progress: ${(progress * 100).toStringAsFixed(1)}%');
@@ -429,7 +395,6 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // Create dream record
   Future<Dream> createDreamRecord(String audioUrl, String originalPath) async {
     debugPrint('🔄 Creating dream record...');
     
@@ -454,26 +419,21 @@ class DreamProvider extends ChangeNotifier {
     );
 
     try {
-      // Save to Firestore
       final dreamMap = newDream.toMap();
       await _firestore.collection('dreams').doc(dreamId).set(dreamMap);
       debugPrint('✅ Dream document created in Firestore: $dreamId');
       
-      // Start listening if not already listening
       if (_dreamsSubscription == null) {
         startListeningToDreams();
       }
       
-      // 🔥 BURADA DEĞİŞİKLİK: await KALDIRDIK!
-      // N8N workflow'unu arka planda tetikle (beklemeden)
-      // Firestore listener analiz tamamlandığında otomatik güncelleyecek
+      // Background workflow trigger
       _triggerN8NWorkflow(dreamId, audioUrl).then((_) {
         debugPrint('✅ Background N8N workflow completed for: $dreamId');
       }).catchError((error) {
         debugPrint('❌ Background N8N workflow error: $error');
       });
       
-      // Hemen return et, kullanıcı geçmiş sayfasına gidebilir
       return newDream;
     } catch (e) {
       debugPrint('❌ Failed to create dream document: $e');
@@ -481,10 +441,9 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // Trigger N8N workflow with previous dreams history
   Future<void> _triggerN8NWorkflow(String dreamId, String audioUrl) async {
     try {
-      debugPrint('🚀 Triggering N8N workflow with history for dream: $dreamId');
+      debugPrint('🚀 Triggering N8N workflow for dream: $dreamId');
       
       final user = _auth.currentUser;
       if (user == null) {
@@ -494,7 +453,6 @@ class DreamProvider extends ChangeNotifier {
       
       debugPrint('👤 Triggering workflow for user: ${user.uid}');
       
-      // Send to N8N and get response
       final analysisResult = await _n8nService.triggerDreamAnalysisWithHistory(
         dreamId: dreamId, 
         audioUrl: audioUrl, 
@@ -505,13 +463,11 @@ class DreamProvider extends ChangeNotifier {
         debugPrint('✅ N8N analysis completed successfully');
         debugPrint('📊 Analysis result: ${analysisResult.keys.join(', ')}');
         
-        // Update Firestore with analysis
         await _updateFirestoreWithAnalysis(dreamId, analysisResult);
         
       } else {
         debugPrint('❌ Failed to get analysis from N8N');
         
-        // Mark dream as failed
         await _firestore.collection('dreams').doc(dreamId).update({
           'status': 'failed',
           'analysis': 'Analiz başlatılamadı. Lütfen tekrar deneyin.',
@@ -521,7 +477,6 @@ class DreamProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('💥 Error triggering N8N workflow: $e');
       
-      // Mark dream as failed
       try {
         await _firestore.collection('dreams').doc(dreamId).update({
           'status': 'failed',
@@ -534,103 +489,113 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
+  // 🔥 YENİ FORMAT: baslik, duygular, semboller, analiz, ruhSagligi
   Future<void> _updateFirestoreWithAnalysis(
-    String dreamId, 
-    Map<String, dynamic> analysisResult
-  ) async {
+  String dreamId, 
+  Map<String, dynamic> analysisResult
+) async {
+  try {
+    debugPrint('💾 Updating Firestore with NEW FORMAT analysis for dream: $dreamId');
+    
+    // DÜZELTME: ruhSagligi hem camelCase hem snake_case kontrol et
+    final ruhSagligiValue = analysisResult['ruhSagligi'] ?? 
+                           analysisResult['ruh_sagligi'] ?? '';
+    
+    final Map<String, dynamic> updateData = {
+      'dreamText': analysisResult['dreamText'] ?? '',
+      'dream_text': analysisResult['dreamText'] ?? '',
+      
+      'title': analysisResult['baslik'] ?? 'Başlıksız Rüya',
+      'baslik': analysisResult['baslik'] ?? 'Başlıksız Rüya',
+      
+      // Duygular
+      'mood': analysisResult['duygular']?['anaDuygu'] ?? 
+              analysisResult['duygular']?['ana_duygu'] ?? 'Belirsiz',
+      'duygular': analysisResult['duygular'] ?? {
+        'anaDuygu': 'Belirsiz',
+        'altDuygular': []
+      },
+      
+      // Semboller
+      'symbols': analysisResult['semboller'] ?? [],
+      'semboller': analysisResult['semboller'] ?? [],
+      
+      // Analiz
+      'analysis': analysisResult['analiz'] ?? '',
+      'analiz': analysisResult['analiz'] ?? '',
+      'interpretation': analysisResult['analiz'] ?? '',
+      
+      // DÜZELTME: Ruh Sağlığı - her iki format da
+      'ruhSagligi': ruhSagligiValue,
+      'ruh_sagligi': ruhSagligiValue,
+      
+      'status': 'completed',
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+      'updated_at': Timestamp.fromDate(DateTime.now()),
+    };
+    
+    await _firestore.collection('dreams').doc(dreamId).update(updateData);
+    
+    debugPrint('✅ Firestore updated successfully with new format');
+    debugPrint('📝 Title: ${analysisResult['baslik']}');
+    debugPrint('😊 Ana Duygu: ${analysisResult['duygular']?['anaDuygu']}');
+    debugPrint('🔮 Semboller: ${analysisResult['semboller']}');
+    debugPrint('❤️ Ruh Sağlığı: ${ruhSagligiValue.substring(0, min<int>(50, ruhSagligiValue.length))}...');
+    
+  } catch (e) {
+    debugPrint('❌ Error updating Firestore: $e');
+    
     try {
-      debugPrint('💾 Updating Firestore with analysis for dream: $dreamId');
-      
-      // Prepare update data
-      final Map<String, dynamic> updateData = {
-        'dreamText': analysisResult['dreamText'] ?? '',
-        'dream_text': analysisResult['dreamText'] ?? '',
-        'title': analysisResult['title'] ?? 'Başlıksız Rüya',
-        'mood': analysisResult['mood'] ?? 'Belirsiz',
-        'analysis': analysisResult['analysis'] ?? '',
-        'interpretation': analysisResult['interpretation'] ?? '',
-        'status': 'completed',
+      await _firestore.collection('dreams').doc(dreamId).update({
+        'status': 'failed',
+        'analysis': 'Sonuç kaydedilemedi: $e',
         'updatedAt': Timestamp.fromDate(DateTime.now()),
-        'updated_at': Timestamp.fromDate(DateTime.now()),
-      };
-      
-      // Optional fields
-      if (analysisResult['symbols'] != null) {
-        updateData['symbols'] = analysisResult['symbols'];
-      }
-      
-      // Connection to past
-      if (analysisResult['connectionToPast'] != null && 
-          analysisResult['connectionToPast'].toString().trim().isNotEmpty) {
-        final connectionValue = analysisResult['connectionToPast'].toString();
-        updateData['connectionToPast'] = connectionValue;
-        updateData['connection_to_past'] = connectionValue;
-        debugPrint('✅ Adding connectionToPast to Firestore');
-      }
-      
-      // Update Firestore
-      await _firestore.collection('dreams').doc(dreamId).update(updateData);
-      
-      debugPrint('✅ Firestore updated successfully');
-      
-    } catch (e) {
-      debugPrint('❌ Error updating Firestore: $e');
-      
-      // Mark as failed
-      try {
-        await _firestore.collection('dreams').doc(dreamId).update({
-          'status': 'failed',
-          'analysis': 'Sonuç kaydedilemedi: $e',
-          'updatedAt': Timestamp.fromDate(DateTime.now()),
-        });
-      } catch (updateError) {
-        debugPrint('❌ Failed to update status: $updateError');
-      }
+      });
+    } catch (updateError) {
+      debugPrint('❌ Failed to update status: $updateError');
     }
   }
+}
 
-  // Update dream with analysis results
+  // 🔥 YENİ FORMAT için güncellendi
   Future<void> updateDreamWithAnalysis({
     required String dreamId,
     required String dreamText,
-    required String analysis,
-    required String mood,
-    String? title,
-    List<String>? symbols,
-    String? interpretation,
-    String? connectionToPast,
+    required String baslik,
+    required Map<String, dynamic> duygular,
+    required List<String> semboller,
+    required String analiz,
+    required String ruhSagligi,
   }) async {
     try {
-      debugPrint('🔄 Updating dream $dreamId with analysis results');
+      debugPrint('🔄 Updating dream $dreamId with NEW FORMAT analysis');
       
-      // Update Firestore
       final Map<String, dynamic> updateData = {
         'dreamText': dreamText,
         'dream_text': dreamText,
-        'content': dreamText,
-        'analysis': analysis,
-        'mood': mood,
-        'title': title ?? _generateTitleFromText(dreamText),
+        
+        'title': baslik,
+        'baslik': baslik,
+        
+        'mood': duygular['ana_duygu'] ?? 'Belirsiz',
+        'duygular': duygular,
+        
+        'symbols': semboller,
+        'semboller': semboller,
+        
+        'analysis': analiz,
+        'analiz': analiz,
+        'interpretation': analiz,
+        
+        'ruhSagligi': ruhSagligi,
+        'ruh_sagligi': ruhSagligi,
+        
         'status': 'completed',
         'updatedAt': Timestamp.fromDate(DateTime.now()),
         'updated_at': Timestamp.fromDate(DateTime.now()),
       };
       
-      if (symbols != null && symbols.isNotEmpty) {
-        updateData['symbols'] = symbols;
-      }
-      
-      if (interpretation != null && interpretation.isNotEmpty) {
-        updateData['interpretation'] = interpretation;
-      }
-      
-      if (connectionToPast != null && connectionToPast.isNotEmpty) {
-        updateData['connection_to_past'] = connectionToPast;
-        updateData['connectionToPast'] = connectionToPast;
-      }
-      
       await _firestore.collection('dreams').doc(dreamId).update(updateData);
-
       debugPrint('✅ Dream analysis updated successfully in Firestore');
       
     } catch (e) {
@@ -649,7 +614,6 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // Check dream status
   Future<void> checkDreamStatus(String dreamId) async {
     try {
       debugPrint('🔍 Checking status for dream: $dreamId');
@@ -661,7 +625,7 @@ class DreamProvider extends ChangeNotifier {
         
         if (data['analysis'] != null) {
           final analysisPreview = data['analysis'].toString();
-          debugPrint('📊 Analysis: ${analysisPreview.substring(0, min(50, analysisPreview.length))}...');
+          debugPrint('📊 Analysis: ${analysisPreview.substring(0, min<int>(50, analysisPreview.length))}...');
         }
       }
     } catch (e) {
@@ -669,7 +633,6 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // Cancel recording
   Future<void> cancelRecording() async {
     debugPrint('❌ CANCEL RECORDING CALLED');
     try {
@@ -677,7 +640,6 @@ class DreamProvider extends ChangeNotifier {
         await _recorder!.stopRecorder();
         _isRecording = false;
         
-        // Delete temporary file if exists
         if (_currentRecordingPath != null) {
           final File file = File(_currentRecordingPath!);
           if (file.existsSync()) {
@@ -694,7 +656,6 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // Helper methods
   String _generateDreamId() {
     return 'dream_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}';
   }
@@ -726,7 +687,6 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // ⚡ Safe notify - prevents "called during build" errors
   void _safeNotify() {
     scheduleMicrotask(() {
       notifyListeners();

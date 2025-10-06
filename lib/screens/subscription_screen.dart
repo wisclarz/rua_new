@@ -105,7 +105,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
           ),
           const SizedBox(height: 20),
           Text(
-            '✨ Premium\'a Geç',
+            'Premium\'a Geç',
             style: theme.textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.bold,
               color: theme.colorScheme.onSurface,

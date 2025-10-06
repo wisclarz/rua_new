@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'dart:math' as math;
 import '../config/app_theme.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:shimmer/shimmer.dart';
 import '../models/dream_model.dart';
 import '../providers/auth_provider_interface.dart';
 import '../providers/dream_provider.dart';
@@ -21,7 +23,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
-
+  
   @override
   void initState() {
     super.initState();
@@ -87,398 +89,464 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildCleanHeader(BuildContext context, dynamic user, ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Merhaba',
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      user?.name.split(' ').first ?? 'Kullanıcı',
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.onSurface,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: 50,
-                height: 50,
+  return Container(
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.fromLTRB(20, 60, 20, 24),
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          theme.colorScheme.surface.withOpacity(0.08),
+          theme.colorScheme.secondary.withOpacity(0.05),
+        ],
+      ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            // Profile Avatar with Ripple Effect
+            Hero(
+              tag: 'profile_avatar',
+              child: Container(
+                width: 56,
+                height: 56,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: [
-                      const Color(0xFF6B4EFF).withValues(alpha: 0.8),
-                      const Color(0xFF9C27B0).withValues(alpha: 0.8),
-                    ],
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
                   ),
+                  shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF6B4EFF).withValues(alpha: 0.2),
+                      color: theme.colorScheme.primary.withOpacity(0.3),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-                child: user?.profileImageUrl != null
-                    ? ClipOval(
-                        child: Image.network(
-                          user!.profileImageUrl!,
-                          fit: BoxFit.cover,
-                        ),
-                      )
-                    : const Icon(
-                        Icons.person,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPremiumBanner(SubscriptionProvider provider, ThemeData theme) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.mediumImpact();
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const SubscriptionScreen(),
-          ),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              const Color(0xFF6B4EFF).withValues(alpha: 0.15),
-              const Color(0xFF9C27B0).withValues(alpha: 0.15),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: const Color(0xFF6B4EFF).withValues(alpha: 0.3),
-            width: 1.5,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    const Color(0xFF6B4EFF).withValues(alpha: 0.8),
-                    const Color(0xFF9C27B0).withValues(alpha: 0.8),
-                  ],
-                ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF6B4EFF).withValues(alpha: 0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+                child: Center(
+                  child: Text(
+                    user?.name?.substring(0, 1).toUpperCase() ?? 'U',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ],
+                ),
               ),
-              child: const Icon(
-                Icons.auto_awesome,
-                color: Colors.white,
-                size: 28,
+            )
+              .animate()
+              .scale(
+                duration: 600.ms,
+                curve: Curves.elasticOut,
+              )
+              .shimmer(
+                delay: 600.ms,
+                duration: 1500.ms,
               ),
-            ),
+            
             const SizedBox(width: 16),
+            
+            // Welcome Text
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Premium\'a Geç',
-                    style: TextStyle(
-                      color: theme.colorScheme.onSurface,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                    _getGreeting(),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.7),
+                      fontWeight: FontWeight.w400,
                     ),
-                  ),
+                  )
+                    .animate()
+                    .fadeIn(delay: 200.ms, duration: 400.ms)
+                    .slideX(begin: -0.2, end: 0),
+                  
                   const SizedBox(height: 4),
+                  
                   Text(
-                    'Reklamsız, sınırsız rüya analizi',
-                    style: TextStyle(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                      fontSize: 13,
+                    user?.name ?? 'Kullanıcı',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSurface,
                     ),
-                  ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  )
+                    .animate()
+                    .fadeIn(delay: 300.ms, duration: 400.ms)
+                    .slideX(begin: -0.2, end: 0),
                 ],
               ),
             ),
+            
+            // Notification Bell with Pulse
             Container(
-              padding: const EdgeInsets.all(8),
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
-                color: const Color(0xFF6B4EFF).withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
+                color: theme.colorScheme.surface,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              child: Icon(
-                Icons.arrow_forward,
-                color: const Color(0xFF6B4EFF),
-                size: 20,
+              child: IconButton(
+                icon: const Icon(Icons.notifications_outlined, size: 22),
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  // TODO: Navigate to notifications
+                },
               ),
-            ),
+            )
+              .animate(onPlay: (controller) => controller.repeat())
+              .fadeIn(delay: 400.ms, duration: 400.ms)
+              .scale(duration: 400.ms, curve: Curves.elasticOut)
+              .then(delay: 3000.ms)
+              .shake(duration: 400.ms, hz: 2),
           ],
         ),
-      ),
-    );
-  }
+      ],
+    ),
+  );
+}
+String _getGreeting() {
+  final hour = DateTime.now().hour;
+  if (hour < 12) return 'Günaydın';
+  if (hour < 18) return 'İyi günler';
+  return 'İyi akşamlar';
+}
 
-  Widget _buildWeeklyStreakCard(
-    BuildContext context,
-    DreamProvider dreamProvider,
-    bool todayLogged,
-    int currentStreak,
-    ThemeData theme,
-  ) {
-    final last7Days = _getLast7Days();
-    final dreamsMap = _getDreamsMapForWeek(dreamProvider);
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: todayLogged
-              ? [
-                  const Color(0xFF6B4EFF).withValues(alpha: 0.15),
-                  const Color(0xFF9C27B0).withValues(alpha: 0.15),
-                ]
-              : [
-                  theme.colorScheme.surface,
-                  theme.colorScheme.surface,
-                ],
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: todayLogged
-              ? const Color(0xFF6B4EFF).withValues(alpha: 0.3)
-              : theme.dividerColor,
-          width: 1.5,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+  Widget _buildPremiumBanner(dynamic subscriptionProvider, ThemeData theme) {
+  return Container(
+    margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+    child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.mediumImpact();
+          // Navigate to subscription
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF6366F1),
+                Color(0xFF8B5CF6),
+                Color(0xFF9333EA),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF8B5CF6).withOpacity(0.4),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      const Color(0xFF6B4EFF).withValues(alpha: 0.2),
-                      const Color(0xFF9C27B0).withValues(alpha: 0.2),
-                    ],
-                  ),
+                  color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  todayLogged ? Icons.check_circle : Icons.nights_stay,
-                  color: const Color(0xFF6B4EFF),
-                  size: 24,
+                child: const Icon(
+                  Icons.workspace_premium,
+                  color: Colors.white,
+                  size: 28,
                 ),
-              ),
-              const SizedBox(width: 12),
+              )
+                .animate(onPlay: (controller) => controller.repeat(reverse: true))
+                .rotate(duration: 2000.ms, begin: -0.02, end: 0.02)
+                .scale(
+                  duration: 2000.ms,
+                  begin: const Offset(0.95, 0.95),
+                  end: const Offset(1.05, 1.05),
+                ),
+              
+              const SizedBox(width: 16),
+              
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      todayLogged ? 'Bugün Tamamlandı!' : 'Bugün Rüya Gördün mü?',
-                      style: theme.textTheme.titleMedium?.copyWith(
+                    const Text(
+                      'Pro\'ya Geç',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.onSurface,
                       ),
+                      
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Text(
-                      todayLogged ? 'Serini sürdürüyorsun' : 'Serini devam ettir',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      'Sınırsız analiz & reklamsız deneyim',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 13,
                       ),
                     ),
                   ],
                 ),
               ),
-              if (currentStreak > 0)
+              
+              const Icon(
+                Icons.arrow_forward_ios,
+                color: Colors.white,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  )
+    .animate()
+    .fadeIn(delay: 400.ms, duration: 600.ms)
+    .slideY(begin: 0.2, end: 0, curve: Curves.easeOutCubic)
+    .shimmer(
+      delay: 1000.ms,
+      duration: 2000.ms,
+      color: Colors.white.withOpacity(0.3),
+    );
+}
+
+
+ Widget _buildWeeklyStreakCard(
+  BuildContext context,
+  dynamic dreamProvider,
+  bool todayLogged,
+  int currentStreak,
+  ThemeData theme,
+) {
+  final now = DateTime.now();
+  final weekDays = List.generate(7, (index) {
+    return now.subtract(Duration(days: 6 - index));
+  });
+
+  return Container(
+    margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+    child: Material(
+      elevation: 0,
+      borderRadius: BorderRadius.circular(20),
+      color: theme.colorScheme.surface,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: theme.dividerColor.withOpacity(0.5),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.all(22),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        Colors.orange.withValues(alpha: 0.2),
-                        Colors.deepOrange.withValues(alpha: 0.2),
+                        theme.colorScheme.primary.withOpacity(0.2),
+                        theme.colorScheme.secondary.withOpacity(0.1),
                       ],
                     ),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                  child: Icon(
+                    Icons.local_fire_department,
+                    color: theme.colorScheme.primary,
+                    size: 24,
+                  ),
+                )
+                  .animate(onPlay: (controller) => controller.repeat())
+                  .shimmer(duration: 2000.ms, color: Colors.orange.withOpacity(0.3)),
+                
+                const SizedBox(width: 12),
+                
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        Icons.local_fire_department,
-                        size: 18,
-                        color: Colors.orange.withValues(alpha: 0.9),
-                      ),
-                      const SizedBox(width: 4),
                       Text(
-                        '$currentStreak',
-                        style: TextStyle(
-                          fontSize: 16,
+                        'Seriniz',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$currentStreak gün üst üste! 🔥',
+                        style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: Colors.orange.withValues(alpha: 0.9),
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
                     ],
                   ),
                 ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          // Weekly Calendar
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: last7Days.map((date) {
-              final hasDream = dreamsMap.containsKey(_dateKey(date));
-              final dreams = dreamsMap[_dateKey(date)] ?? [];
-              final isToday = _isToday(date);
-              
-              return _buildDayCircle(
-                context,
-                date,
-                hasDream,
-                isToday,
-                dreams,
-                theme,
-              );
-            }).toList(),
-          ),
-        ],
+              ],
+            ),
+            
+            const SizedBox(height: 20),
+            
+            // Week Days Display with Animations
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: List.generate(7, (index) {
+                final day = weekDays[index];
+                final isToday = _isSameDay(day, now);
+                final hasLog = _hasDreamOnDate(dreamProvider, day);
+                
+                return Expanded(
+                  child: _buildDayIndicator(
+                    day: day,
+                    isToday: isToday,
+                    hasLog: hasLog,
+                    theme: theme,
+                    index: index,
+                  ),
+                );
+              }),
+            ),
+          ],
+        ),
       ),
-    );
-  }
+    ),
+  )
+    .animate()
+    .fadeIn(delay: 500.ms, duration: 600.ms)
+    .slideY(begin: 0.2, end: 0, curve: Curves.easeOutCubic);
+}
+Widget _buildShimmerCard(ThemeData theme) {
+  return Container(
+    margin: const EdgeInsets.only(bottom: 16),
+    child: Shimmer.fromColors(
+      baseColor: theme.colorScheme.surfaceContainerHighest,
+      highlightColor: theme.colorScheme.surface,
+      child: Container(
+        height: 200,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+        ),
+      ),
+    ),
+  );
+}
 
-  Widget _buildDayCircle(
-    BuildContext context,
-    DateTime date,
-    bool hasDream,
-    bool isToday,
-    List<Dream> dreams,
-    ThemeData theme,
-  ) {
-    final dayNames = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
-    final dayName = dayNames[date.weekday - 1];
-
-    return GestureDetector(
-      onTap: hasDream && dreams.isNotEmpty
-          ? () {
-              HapticFeedback.lightImpact();
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => DreamDetailWidget(dream: dreams.first),
+  Widget _buildDayIndicator({
+  required DateTime day,
+  required bool isToday,
+  required bool hasLog,
+  required ThemeData theme,
+  required int index,
+}) {
+  final dayName = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'][day.weekday - 1];
+  
+  return Column(
+    children: [
+      Text(
+        dayName,
+        style: TextStyle(
+          fontSize: 11,
+          color: theme.colorScheme.onSurface.withOpacity(0.5),
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      const SizedBox(height: 8),
+      AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: hasLog
+              ? theme.colorScheme.primary
+              : isToday
+                  ? theme.colorScheme.primary.withOpacity(0.1)
+                  : theme.colorScheme.surfaceContainerHighest,
+          shape: BoxShape.circle,
+          border: isToday
+              ? Border.all(
+                  color: theme.colorScheme.primary,
+                  width: 2,
+                )
+              : null,
+          boxShadow: hasLog
+              ? [
+                  BoxShadow(
+                    color: theme.colorScheme.primary.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Center(
+          child: hasLog
+              ? const Icon(
+                  Icons.check,
+                  size: 18,
+                  color: Colors.white,
+                )
+              : Text(
+                  '${day.day}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isToday
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurface.withOpacity(0.4),
+                  ),
                 ),
-              );
-            }
-          : null,
-      child: Column(
-        children: [
-          Text(
-            dayName,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              gradient: hasDream
-                  ? LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        const Color(0xFF6B4EFF).withValues(alpha: 0.8),
-                        const Color(0xFF9C27B0).withValues(alpha: 0.8),
-                      ],
-                    )
-                  : null,
-              color: hasDream ? null : theme.colorScheme.surface.withValues(alpha: 0.5),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: isToday
-                    ? const Color(0xFF6B4EFF).withValues(alpha: 0.5)
-                    : theme.dividerColor.withValues(alpha: 0.3),
-                width: isToday ? 2 : 1,
-              ),
-              boxShadow: hasDream
-                  ? [
-                      BoxShadow(
-                        color: const Color(0xFF6B4EFF).withValues(alpha: 0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Center(
-              child: hasDream
-                  ? const Icon(
-                      Icons.check,
-                      color: Colors.white,
-                      size: 20,
-                    )
-                  : Text(
-                      '${date.day}',
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+        ),
+      )
+        .animate()
+        .fadeIn(delay: (600 + index * 50).ms, duration: 400.ms)
+        .scale(
+          delay: (600 + index * 50).ms,
+          duration: 400.ms,
+          curve: Curves.elasticOut,
+        ),
+    ],
+  );
+}
+bool _isSameDay(DateTime date1, DateTime date2) {
+  return date1.year == date2.year &&
+      date1.month == date2.month &&
+      date1.day == date2.day;
+}
 
+bool _hasDreamOnDate(dynamic dreamProvider, DateTime date) {
+  return dreamProvider.dreams.any((dream) => _isSameDay(dream.createdAt, date));
+}
   Widget _buildEnhancedStats(
     BuildContext context,
     DreamProvider dreamProvider,

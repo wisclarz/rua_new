@@ -200,7 +200,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      currentPlan.name,
+                      // Baş harfi büyük yap
+                      currentPlan.name.substring(0, 1).toUpperCase() + currentPlan.name.substring(1),
                       style: TextStyle(
                         color: isPro ? Colors.white : theme.colorScheme.onSurface,
                         fontSize: 18,

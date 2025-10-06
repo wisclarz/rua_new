@@ -5,6 +5,7 @@ import 'package:flutter_sound/flutter_sound.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/dream_provider.dart';
 
 class AddDreamScreen extends StatefulWidget {
@@ -83,6 +84,8 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
       await _recorder.startRecorder(
         toFile: filePath,
         codec: Codec.aacADTS,
+        bitRate: 128000,
+        sampleRate: 44100,
       );
 
       setState(() {
@@ -214,8 +217,8 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
     try {
       final dreamProvider = Provider.of<DreamProvider>(context, listen: false);
       
-      // ✅ DÜZELTME: uploadAudioFile sadece File parametresi alıyor
-      // Title şimdilik kullanılmıyor, ileride ekleyebilirsiniz
+      // ✅ DÜZELTME: Upload'u arka planda başlat, bekleme
+      // Fire and forget - kullanıcıyı bekleme
       dreamProvider.uploadAudioFile(File(_recordedFilePath!)).then((_) {
         debugPrint('✅ Background upload completed');
       }).catchError((error) {
@@ -233,20 +236,18 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
               children: [
                 const Icon(Icons.cloud_upload, color: Colors.white),
                 const SizedBox(width: 12),
-                Expanded(
+                const Expanded(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Rüya kaydediliyor...',
                         style: TextStyle(fontWeight: FontWeight.w600),
                       ),
                       Text(
-                        _titleController.text.isNotEmpty 
-                          ? 'Başlık: ${_titleController.text}'
-                          : 'Analiz tamamlanınca bildirim alacaksınız',
-                        style: const TextStyle(fontSize: 12),
+                        'Analiz tamamlanınca bildirim alacaksınız',
+                        style: TextStyle(fontSize: 12),
                       ),
                     ],
                   ),
@@ -411,99 +412,307 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
   }
 
   Widget _buildRecordingVisualization(ThemeData theme) {
-    return AnimatedBuilder(
-      animation: _pulseAnimation,
-      builder: (context, child) {
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            // Outer pulse ring
-            if (_isRecording && !_isPaused)
-              Container(
-                width: 280 * _pulseAnimation.value,
-                height: 280 * _pulseAnimation.value,
+  return Stack(
+    alignment: Alignment.center,
+    children: [
+      // Outer Pulsing Circles
+      ...List.generate(3, (index) {
+        return AnimatedContainer(
+          duration: Duration(milliseconds: 1000 + (index * 200)),
+          width: 200 + (index * 40.0),
+          height: 200 + (index * 40.0),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: _isRecording 
+                  ? theme.colorScheme.primary.withOpacity(0.2 - (index * 0.05))
+                  : Colors.transparent,
+              width: 2,
+            ),
+          ),
+        )
+          .animate(onPlay: (controller) {
+            if (_isRecording) {
+              controller.repeat();
+            }
+          })
+          .fadeIn(duration: 400.ms)
+          .scale(
+            duration: Duration(milliseconds: 1500 + (index * 200)),
+            begin: const Offset(0.8, 0.8),
+            end: const Offset(1.0, 1.0),
+          )
+          .then()
+          .scale(
+            duration: Duration(milliseconds: 1500 + (index * 200)),
+            begin: const Offset(1.0, 1.0),
+            end: const Offset(0.8, 0.8),
+          );
+      }),
+      
+      // Wave Bars Visualization
+      if (_isRecording && !_isPaused)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: List.generate(5, (index) {
+            return Container(
+              width: 4,
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            )
+              .animate(onPlay: (controller) => controller.repeat(reverse: true))
+              .custom(
+                duration: Duration(milliseconds: 300 + (index * 100)),
+                begin: 20,
+                end: 60 + (index * 10.0),
+                curve: Curves.easeInOut,
+                builder: (context, value, child) {
+                  return SizedBox(
+                    height: value,
+                    child: child,
+                  );
+                },
+              );
+          }),
+        ),
+      
+      // Central Microphone Icon
+      Container(
+        width: 100,
+        height: 100,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: _isRecording
+                ? [
+                    theme.colorScheme.primary,
+                    theme.colorScheme.secondary,
+                  ]
+                : [
+                    theme.colorScheme.surfaceContainerHighest,
+                    theme.colorScheme.surfaceContainerHigh,
+                  ],
+          ),
+          shape: BoxShape.circle,
+          boxShadow: [
+            if (_isRecording)
+              BoxShadow(
+                color: theme.colorScheme.primary.withOpacity(0.4),
+                blurRadius: 30,
+                spreadRadius: 5,
+              ),
+          ],
+        ),
+        child: Icon(
+          _isRecording ? Icons.mic : Icons.mic_none,
+          size: 48,
+          color: _isRecording ? Colors.white : theme.colorScheme.onSurface,
+        ),
+      )
+        .animate(target: _isRecording ? 1 : 0)
+        .scale(
+          duration: 400.ms,
+          curve: Curves.elasticOut,
+          begin: const Offset(1.0, 1.0),
+          end: const Offset(1.15, 1.15),
+        )
+        
+        .scale(
+          duration: 1000.ms,
+          begin: const Offset(1.0, 1.0),
+          end: const Offset(1.05, 1.05),
+        ),
+    ],
+  );
+}
+
+// Duraklat/Devam Et butonu için animasyonlu tasarım
+Widget _buildRecordingControls(ThemeData theme) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 24),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Pause/Resume Button
+        if (_isRecording)
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _isPaused ? _resumeRecording : _pauseRecording,
+              borderRadius: BorderRadius.circular(30),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
+                  color: _isPaused
+                      ? Colors.green.withOpacity(0.15)
+                      : Colors.orange.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(30),
                   border: Border.all(
-                    color: theme.colorScheme.primary.withValues(alpha: 
-                      0.2 * (1 - (_pulseAnimation.value - 1) / 0.15)
-                    ),
+                    color: _isPaused
+                        ? Colors.green.withOpacity(0.5)
+                        : Colors.orange.withOpacity(0.5),
                     width: 2,
                   ),
                 ),
-              ),
-            
-            // Middle pulse ring
-            if (_isRecording && !_isPaused)
-              Container(
-                width: 240,
-                height: 240,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      theme.colorScheme.primary.withValues(alpha: 0.1),
-                      theme.colorScheme.primary.withValues(alpha: 0.05),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-            
-            // Main recording circle
-            Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: _isRecording
-                      ? [
-                          theme.colorScheme.primary.withValues(alpha: 0.3),
-                          theme.colorScheme.primary.withValues(alpha: 0.1),
-                          Colors.transparent,
-                        ]
-                      : [
-                          theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                          theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.1),
-                          Colors.transparent,
-                        ],
-                ),
-              ),
-              child: Center(
-                child: Container(
-                  width: 140,
-                  height: 140,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _isRecording 
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.surfaceContainerHighest,
-                    boxShadow: [
-                      BoxShadow(
-                        color: (_isRecording 
-                            ? theme.colorScheme.primary 
-                            : theme.colorScheme.surfaceContainerHighest).withValues(alpha: 0.4),
-                        blurRadius: 20,
-                        spreadRadius: 5,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _isPaused ? Icons.play_arrow : Icons.pause,
+                      color: _isPaused ? Colors.green : Colors.orange,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _isPaused ? 'Devam Et' : 'Duraklat',
+                      style: TextStyle(
+                        color: _isPaused ? Colors.green : Colors.orange,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
                       ),
-                    ],
-                  ),
-                  child: Icon(
-                    _isRecording 
-                        ? (_isPaused ? Icons.pause_rounded : Icons.mic_rounded)
-                        : Icons.mic_none_rounded,
-                    size: 70,
-                    color: Colors.white,
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
+          )
+            .animate()
+            .fadeIn(duration: 400.ms)
+            .scale(duration: 400.ms, curve: Curves.elasticOut),
+        
+        const SizedBox(width: 16),
+        
+        // Stop Button
+        if (_isRecording)
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _stopRecording,
+              borderRadius: BorderRadius.circular(30),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Colors.red, Colors.redAccent],
+                  ),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.red.withOpacity(0.4),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.stop,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Bitir',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
+            .animate()
+            .fadeIn(delay: 200.ms, duration: 400.ms)
+            .scale(delay: 200.ms, duration: 400.ms, curve: Curves.elasticOut)
+            .shimmer(
+              delay: 1000.ms,
+              duration: 2000.ms,
+              color: Colors.white.withOpacity(0.3),
+            ),
+      ],
+    ),
+  );
+}
+
+// Başlat butonu için geliştirilmiş animasyon
+Widget _buildStartButton(ThemeData theme) {
+  return GestureDetector(
+    onTap: _startRecording,
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      width: 180,
+      height: 180,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            theme.colorScheme.primary,
+            theme.colorScheme.secondary,
           ],
-        );
-      },
+        ),
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.primary.withOpacity(0.4),
+            blurRadius: 30,
+            spreadRadius: 5,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: const Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.mic,
+            size: 60,
+            color: Colors.white,
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Başlat',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    ),
+  )
+    .animate(onPlay: (controller) => controller.repeat(reverse: true))
+    .scale(
+      duration: 2000.ms,
+      begin: const Offset(1.0, 1.0),
+      end: const Offset(1.08, 1.08),
+      curve: Curves.easeInOut,
+    )
+    .shimmer(
+      delay: 500.ms,
+      duration: 2000.ms,
+      color: Colors.white.withOpacity(0.3),
     );
-  }
+}
+
 
   Widget _buildControlButtons(ThemeData theme) {
     return Row(

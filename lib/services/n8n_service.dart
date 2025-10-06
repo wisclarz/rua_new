@@ -5,7 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class N8nService {
-  static const String _webhookUrl = 'https://wisclarz.app.n8n.cloud/webhook/dream-analysis';
+  static const String _webhookUrl = 'https://dreamdemoo.app.n8n.cloud/webhook/dream-analysis';
   
   static const Map<String, String> _headers = {
     'Content-Type': 'application/json',
@@ -58,7 +58,7 @@ class N8nService {
         'openai_config': {
           'model': 'whisper-1',
           'language': 'tr',
-          'gpt_model': 'gpt-4o-mini',
+          'gpt_model': 'gpt-5-mini',
           'max_tokens': 2000,
           'temperature': 0.7,
         },

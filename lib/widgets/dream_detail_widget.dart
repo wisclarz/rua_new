@@ -1,8 +1,9 @@
-// lib/widgets/dream_detail_widget.dart
+// lib/widgets/dream_detail_widget.dart - Yeni Format ile Güncellenmiş
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'dart:ui';
 import '../models/dream_model.dart';
 import '../providers/subscription_provider.dart';
@@ -21,22 +22,29 @@ class DreamDetailWidget extends StatefulWidget {
 }
 
 class _DreamDetailWidgetState extends State<DreamDetailWidget> 
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+    with TickerProviderStateMixin {
+  late AnimationController _unlockController;
+  late AnimationController _shimmerController;
   bool _isUnlocked = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 600),
+    _unlockController = AnimationController(
+      duration: const Duration(milliseconds: 800),
       vsync: this,
     );
+    
+    _shimmerController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    )..repeat();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _unlockController.dispose();
+    _shimmerController.dispose();
     super.dispose();
   }
 
@@ -46,8 +54,34 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
+      builder: (context) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 50,
+                height: 50,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Reklam yükleniyor...',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
       ),
     );
 
@@ -55,30 +89,52 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
       await provider.loadRewardedAd();
     }
 
-    Navigator.pop(context);
+    if (mounted) Navigator.pop(context);
 
     final success = await provider.showRewardedAd();
     
     if (success) {
+      _unlockController.forward();
       setState(() {
         _isUnlocked = true;
       });
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✨ Rüya analizi açıldı!'),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 12),
+                Text('✨ Rüya analizi açıldı!'),
+              ],
+            ),
             backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            margin: const EdgeInsets.all(16),
           ),
         );
       }
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Reklam yüklenemedi. Lütfen tekrar deneyin.'),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.white),
+                SizedBox(width: 12),
+                Text('Reklam yüklenemedi'),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            margin: const EdgeInsets.all(16),
           ),
         );
       }
@@ -97,164 +153,132 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
         return Scaffold(
           backgroundColor: theme.scaffoldBackgroundColor,
           appBar: AppBar(
-            title: const Text('Rüya Detayları'),
+            title: const Text('Rüya Detayları')
+              .animate()
+              .fadeIn(duration: 400.ms)
+              .slideX(begin: -0.2, end: 0),
             backgroundColor: theme.colorScheme.surface,
             elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                Navigator.pop(context);
+              },
+            ),
             actions: [
               if (!isPro && !_isUnlocked)
-                TextButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const SubscriptionScreen(),
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  child: TextButton.icon(
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SubscriptionScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.workspace_premium, size: 18),
+                    label: const Text('Pro'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.amber,
+                      backgroundColor: Colors.amber.withOpacity(0.1),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.workspace_premium, size: 18),
-                  label: const Text('Pro'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.amber,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
                   ),
-                ),
+                )
+                  .animate(onPlay: (controller) => controller.repeat())
+                  .shimmer(
+                    delay: 1000.ms,
+                    duration: 2000.ms,
+                    color: Colors.amber.withOpacity(0.3),
+                  ),
             ],
           ),
           body: CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              // Header Section
+              // Animated Header Section
               SliverToBoxAdapter(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        theme.colorScheme.primary.withOpacity(0.1),
-                        theme.colorScheme.secondary.withOpacity(0.05),
-                      ],
-                    ),
-                  ),
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Title
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              widget.dream.title,
-                              style: theme.textTheme.headlineMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.onSurface,
-                              ),
-                            ),
-                          ),
-                          _buildStatusChip(theme),
-                        ],
-                      ),
-                      
-                      const SizedBox(height: 12),
-                      
-                      // Metadata Row
-                      Wrap(
-                        spacing: 16,
-                        runSpacing: 8,
-                        children: [
-                          _buildMetaItem(
-                            icon: Icons.calendar_today,
-                            text: widget.dream.formattedDate,
-                            theme: theme,
-                          ),
-                          if (widget.dream.mood != 'Belirsiz')
-                            _buildMetaItem(
-                              icon: Icons.mood,
-                              text: widget.dream.mood,
-                              theme: theme,
-                            ),
-                          if (widget.dream.symbols != null && 
-                              widget.dream.symbols!.isNotEmpty)
-                            _buildMetaItem(
-                              icon: Icons.auto_awesome,
-                              text: '${widget.dream.symbols!.length} Simge',
-                              theme: theme,
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+                child: _buildHeader(theme)
+                  .animate()
+                  .fadeIn(duration: 600.ms)
+                  .slideY(begin: 0.2, end: 0, curve: Curves.easeOutCubic),
               ),
 
-              // Content Sections
+              // Content Sections with Staggered Animation
               SliverPadding(
                 padding: const EdgeInsets.all(20),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     
+                    // 1. Rüya Metni
                     if (widget.dream.dreamText != null && 
                         widget.dream.dreamText!.isNotEmpty) ...[
                       _buildContentSection(
                         theme: theme,
-                        title: '📝 Rüyanız',
+                        title: 'Rüyanız',
                         icon: Icons.description,
                         content: widget.dream.dreamText!,
-                        shouldBlur: false, // User's own dream text is always visible
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-// Rüya Analizi (analysis)
-                    if (widget.dream.analysis != null && 
-                        widget.dream.analysis!.isNotEmpty) ...[
-                      _buildContentSection(
-                        theme: theme,
-                        title: '🌙 Rüya Analizi',
-                        icon: Icons.psychology,
-                        content: widget.dream.analysis!,
-                        shouldBlur: false, // Analysis is always visible
+                        shouldBlur: false,
+                        index: 0,
                       ),
                       const SizedBox(height: 20),
                     ],
 
-                    // Psikolojik Analiz (interpretation) - with blur
-                    if (widget.dream.interpretation != null && 
-                        widget.dream.interpretation!.isNotEmpty) ...[
+                    // 2. Duygular Bölümü (YENİ FORMAT)
+                    if (widget.dream.duygular != null || widget.dream.mood.isNotEmpty) ...[
+                      _buildEmotionsSection(theme, index: 1),
+                      const SizedBox(height: 20),
+                    ],
+
+                    // 3. Semboller
+                    if (widget.dream.allSymbols.isNotEmpty) ...[
+                      _buildSymbolsSection(theme, index: 2),
+                      const SizedBox(height: 20),
+                    ],
+
+                    // 4. Rüya Analizi (YENİ FORMAT - Birleşik)
+                    if (widget.dream.fullAnalysis.isNotEmpty && 
+                        widget.dream.fullAnalysis != 'Analiz yapılıyor...' &&
+                        widget.dream.fullAnalysis != 'Analiz bekleniyor...') ...[
                       _buildContentSection(
                         theme: theme,
-                        title: '🧠 Psikolojik Analiz',
+                        title: 'Rüya Analizi',
                         icon: Icons.psychology,
-                        content: widget.dream.interpretation!,
+                        content: widget.dream.fullAnalysis,
                         shouldBlur: shouldBlur,
                         provider: provider,
+                        index: 3,
                       ),
                       const SizedBox(height: 20),
                     ],
 
-                    // Geçmişle Bağlantı (connectionToPast) - with blur
-                    if (widget.dream.connectionToPast != null && 
-                        widget.dream.connectionToPast!.trim().isNotEmpty) ...[
+                    // 5. Ruh Sağlığı Değerlendirmesi (YENİ)
+                    if (widget.dream.ruhSagligi != null && 
+                        widget.dream.ruhSagligi!.isNotEmpty) ...[
                       _buildContentSection(
                         theme: theme,
-                        title: '🔗 Geçmiş Rüyalarınızla Bağlantı',
-                        icon: Icons.timeline,
-                        content: widget.dream.connectionToPast!,
+                        title: 'Ruh Sağlığı Değerlendirmesi',
+                        icon: Icons.favorite,
+                        content: widget.dream.ruhSagligi!,
                         shouldBlur: shouldBlur,
                         provider: provider,
+                        index: 4,
+                        gradient: [Colors.pink.withOpacity(0.2), Colors.red.withOpacity(0.1)],
                       ),
                       const SizedBox(height: 20),
                     ],
 
-                    // Symbols Section
-                    if (widget.dream.symbols != null && 
-                        widget.dream.symbols!.isNotEmpty) ...[
-                      _buildSymbolsSection(theme),
-                      const SizedBox(height: 20),
-                    ],
-
-                    // Unlock Button (if needed)
                     if (shouldBlur) ...[
-                      const SizedBox(height: 20),
                       _buildUnlockButton(provider, theme),
                       const SizedBox(height: 40),
                     ] else ...[
@@ -267,6 +291,86 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
           ),
         );
       },
+    );
+  }
+
+  Widget _buildHeader(ThemeData theme) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            theme.colorScheme.primary.withOpacity(0.1),
+            theme.colorScheme.secondary.withOpacity(0.05),
+          ],
+        ),
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      theme.colorScheme.primary.withOpacity(0.2),
+                      theme.colorScheme.secondary.withOpacity(0.1),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  Icons.bedtime,
+                  size: 32,
+                  color: theme.colorScheme.primary,
+                ),
+              )
+                .animate(onPlay: (controller) => controller.repeat(reverse: true))
+                .rotate(duration: 3000.ms, begin: -0.05, end: 0.05),
+              
+              const SizedBox(width: 16),
+              
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.dream.baslik ?? widget.dream.title,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _buildStatusChip(theme),
+                        const SizedBox(width: 12),
+                        Icon(
+                          Icons.calendar_today,
+                          size: 14,
+                          color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          widget.dream.formattedDate,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface.withOpacity(0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -296,9 +400,9 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withOpacity(0.15),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withOpacity(0.4)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -315,32 +419,150 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
           ),
         ],
       ),
-    );
+    )
+      .animate()
+      .fadeIn(duration: 400.ms)
+      .scale(duration: 400.ms, curve: Curves.elasticOut);
   }
 
-  Widget _buildMetaItem({
-    required IconData icon,
-    required String text,
-    required ThemeData theme,
-  }) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+  // YENİ: Duygular Bölümü
+  Widget _buildEmotionsSection(ThemeData theme, {required int index}) {
+    final anaDuygu = widget.dream.anaDuygu;
+    final altDuygular = widget.dream.altDuygular;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: theme.colorScheme.onSurface.withOpacity(0.6),
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.blue.withOpacity(0.2),
+                    Colors.lightBlue.withOpacity(0.1),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.mood, size: 20, color: Colors.blue),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Rüyadaki Duygular',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 6),
-        Text(
-          text,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurface.withOpacity(0.7),
-            fontWeight: FontWeight.w500,
+        
+        const SizedBox(height: 16),
+        
+        // Ana Duygu
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.blue.withOpacity(0.1),
+                Colors.lightBlue.withOpacity(0.05),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Colors.blue.withOpacity(0.3),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    _getEmotionEmoji(anaDuygu),
+                    style: const TextStyle(fontSize: 32),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Ana Duygu',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        ),
+                      ),
+                      Text(
+                        anaDuygu,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              
+              if (altDuygular.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 12),
+                Text(
+                  'Alt Duygular',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withOpacity(0.6),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: altDuygular.map((duygu) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.blue.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Text(
+                        duygu,
+                        style: TextStyle(
+                          color: Colors.blue[700],
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ],
           ),
         ),
       ],
-    );
+    )
+      .animate()
+      .fadeIn(delay: (200 + index * 100).ms, duration: 600.ms)
+      .slideY(begin: 0.2, end: 0, delay: (200 + index * 100).ms);
+  }
+
+  String _getEmotionEmoji(String emotion) {
+    final emotionLower = emotion.toLowerCase();
+    if (emotionLower.contains('öfke') || emotionLower.contains('kızgın')) return '😠';
+    if (emotionLower.contains('korku')) return '😰';
+    if (emotionLower.contains('üzgün') || emotionLower.contains('üzün')) return '😔';
+    if (emotionLower.contains('huzur')) return '😌';
+    if (emotionLower.contains('güçlü')) return '💪';
+    if (emotionLower.contains('neşeli') || emotionLower.contains('mutlu')) return '😊';
+    return '😐';
   }
 
   Widget _buildContentSection({
@@ -349,33 +571,34 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
     required IconData icon,
     required String content,
     required bool shouldBlur,
+    required int index,
     SubscriptionProvider? provider,
+    List<Color>? gradient,
   }) {
+    final gradientColors = gradient ?? [
+      theme.colorScheme.primary.withOpacity(0.2),
+      theme.colorScheme.secondary.withOpacity(0.1),
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section Header
         Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
+                gradient: LinearGradient(colors: gradientColors),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(
-                icon,
-                size: 20,
-                color: theme.colorScheme.primary,
-              ),
+              child: Icon(icon, size: 20, color: gradient != null ? gradient[0].withOpacity(1) : theme.colorScheme.primary),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 title,
-                style: theme.textTheme.titleLarge?.copyWith(
+                style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.onSurface,
                 ),
               ),
             ),
@@ -384,7 +607,6 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
         
         const SizedBox(height: 16),
         
-        // Content
         Stack(
           children: [
             Container(
@@ -399,8 +621,8 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.03),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
@@ -409,22 +631,24 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
                 style: theme.textTheme.bodyLarge?.copyWith(
                   height: 1.7,
                   color: theme.colorScheme.onSurface,
-                  fontSize: 15,
                 ),
               ),
             ),
             
-            // Blur Overlay
             if (shouldBlur)
               Positioned.fill(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
                   child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                     child: Container(
                       decoration: BoxDecoration(
                         color: theme.colorScheme.surface.withOpacity(0.7),
                         borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: theme.colorScheme.primary.withOpacity(0.3),
+                          width: 2,
+                        ),
                       ),
                       child: Center(
                         child: Column(
@@ -433,22 +657,30 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
                             Icon(
                               Icons.lock,
                               size: 48,
-                              color: theme.colorScheme.primary.withOpacity(0.5),
-                            ),
-                            const SizedBox(height: 12),
+                              color: theme.colorScheme.primary.withOpacity(0.6),
+                            )
+                              .animate(onPlay: (controller) => controller.repeat())
+                              .shimmer(duration: 2000.ms),
+                            
+                            const SizedBox(height: 16),
+                            
                             Text(
                               'Pro Özellik',
                               style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.onSurface,
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Bu içeriği görmek için Pro\'ya geçin\nveya reklam izleyin',
-                              textAlign: TextAlign.center,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurface.withOpacity(0.6),
+                            
+                            const SizedBox(height: 8),
+                            
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 32),
+                              child: Text(
+                                'Bu içeriği görmek için Pro\'ya geçin\nveya reklam izleyin',
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                ),
                               ),
                             ),
                           ],
@@ -457,37 +689,44 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
                     ),
                   ),
                 ),
-              ),
+              )
+                .animate()
+                .fadeIn(duration: 400.ms),
           ],
         ),
       ],
-    );
+    )
+      .animate()
+      .fadeIn(delay: (200 + index * 100).ms, duration: 600.ms)
+      .slideY(begin: 0.2, end: 0, delay: (200 + index * 100).ms);
   }
 
-  Widget _buildSymbolsSection(ThemeData theme) {
+  Widget _buildSymbolsSection(ThemeData theme, {required int index}) {
+    final symbols = widget.dream.allSymbols;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.purple.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.purple.withOpacity(0.2),
+                    Colors.deepPurple.withOpacity(0.1),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
-                Icons.auto_awesome,
-                size: 20,
-                color: Colors.purple,
-              ),
+              child: const Icon(Icons.auto_awesome, size: 20, color: Colors.purple),
             ),
             const SizedBox(width: 12),
             Text(
-              '✨ Rüya Simgeleri',
-              style: theme.textTheme.titleLarge?.copyWith(
+              'Rüya Sembolleri',
+              style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: theme.colorScheme.onSurface,
               ),
             ),
           ],
@@ -498,54 +737,70 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
         Wrap(
           spacing: 10,
           runSpacing: 10,
-          children: widget.dream.symbols!.map((symbol) {
+          children: symbols.asMap().entries.map((entry) {
+            final symbolIndex = entry.key;
+            final symbol = entry.value;
+            
             return Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 10,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    Colors.purple.withOpacity(0.1),
-                    Colors.deepPurple.withOpacity(0.05),
+                    Colors.purple.withOpacity(0.15),
+                    Colors.deepPurple.withOpacity(0.08),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: Colors.purple.withOpacity(0.2),
+                  color: Colors.purple.withOpacity(0.3),
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.purple.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(
-                    Icons.star,
+                    Icons.auto_awesome,
                     size: 16,
                     color: Colors.purple,
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
                   Text(
                     symbol,
                     style: const TextStyle(
+                      fontSize: 14,
                       color: Colors.purple,
                       fontWeight: FontWeight.w600,
-                      fontSize: 14,
                     ),
                   ),
                 ],
               ),
-            );
+            )
+              .animate()
+              .fadeIn(delay: (400 + symbolIndex * 80).ms, duration: 400.ms)
+              .scale(
+                delay: (400 + symbolIndex * 80).ms,
+                duration: 400.ms,
+                curve: Curves.elasticOut,
+              );
           }).toList(),
         ),
       ],
-    );
+    )
+      .animate()
+      .fadeIn(delay: (200 + index * 100).ms, duration: 600.ms)
+      .slideY(begin: 0.2, end: 0, delay: (200 + index * 100).ms);
   }
 
   Widget _buildUnlockButton(SubscriptionProvider provider, ThemeData theme) {
     return Column(
       children: [
-        // Pro Button
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
@@ -560,15 +815,12 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
             },
             icon: const Icon(Icons.workspace_premium),
             label: const Text(
-              'Pro\'ya Geç - Sınırsız Erişim',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
+              'Pro\'ya Geç - Tüm Özellikler',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.amber,
-              foregroundColor: Colors.black,
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -576,11 +828,16 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
               elevation: 4,
             ),
           ),
-        ),
+        )
+          .animate(onPlay: (controller) => controller.repeat())
+          .shimmer(
+            delay: 1000.ms,
+            duration: 2000.ms,
+            color: Colors.white.withOpacity(0.3),
+          ),
         
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         
-        // Divider
         Row(
           children: [
             Expanded(child: Divider(color: theme.dividerColor)),
@@ -590,7 +847,6 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
                 'veya',
                 style: TextStyle(
                   color: theme.colorScheme.onSurface.withOpacity(0.5),
-                  fontSize: 14,
                 ),
               ),
             ),
@@ -598,9 +854,8 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
           ],
         ),
         
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         
-        // Ad Button
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
@@ -608,10 +863,7 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
             icon: const Icon(Icons.play_circle_outline),
             label: const Text(
               'Reklam İzle - Bu Rüyayı Aç',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 15,
-              ),
+              style: TextStyle(fontWeight: FontWeight.w600),
             ),
             style: OutlinedButton.styleFrom(
               foregroundColor: theme.colorScheme.primary,
@@ -627,6 +879,9 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
           ),
         ),
       ],
-    );
+    )
+      .animate()
+      .fadeIn(delay: 800.ms, duration: 600.ms)
+      .slideY(begin: 0.2, end: 0);
   }
 }
