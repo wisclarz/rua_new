@@ -59,8 +59,6 @@ class N8nService {
           'model': 'whisper-1',
           'language': 'tr',
           'gpt_model': 'gpt-5-mini',
-          'max_tokens': 2000,
-          'temperature': 0.7,
         },
         
         'debug': {

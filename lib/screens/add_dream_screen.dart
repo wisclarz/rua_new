@@ -79,14 +79,45 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
 
     try {
       final directory = await getApplicationDocumentsDirectory();
-      final filePath = '${directory.path}/dream_${DateTime.now().millisecondsSinceEpoch}.aac';
+      final filePath = '${directory.path}/dream_${DateTime.now().millisecondsSinceEpoch}.m4a';
       
-      await _recorder.startRecorder(
-        toFile: filePath,
-        codec: Codec.aacADTS,
-        bitRate: 128000,
-        sampleRate: 44100,
-      );
+      // Codec denemesi: önce AAC MP4, sonra Opus, sonra default
+      Codec selectedCodec = Codec.aacMP4;
+      String fileExtension = '.m4a';
+      
+      try {
+        await _recorder.startRecorder(
+          toFile: filePath.replaceAll('.wav', fileExtension),
+          codec: selectedCodec,
+          audioSource: AudioSource.voice_recognition,
+          bitRate: 128000,
+          sampleRate: 44100,
+          numChannels: 1,
+        );
+      } catch (e) {
+        debugPrint('⚠️ AAC not supported, trying Opus...');
+        selectedCodec = Codec.opusOGG;
+        fileExtension = '.ogg';
+        
+        try {
+          await _recorder.startRecorder(
+            toFile: filePath.replaceAll('.wav', fileExtension),
+            codec: selectedCodec,
+            bitRate: 128000,
+            sampleRate: 44100,
+            numChannels: 1,
+          );
+        } catch (e2) {
+          debugPrint('⚠️ Opus not supported, using default codec...');
+          await _recorder.startRecorder(
+            toFile: filePath.replaceAll('.wav', '.aac'),
+            codec: Codec.defaultCodec,
+            bitRate: 128000,
+            sampleRate: 44100,
+            numChannels: 1,
+          );
+        }
+      }
 
       setState(() {
         _isRecording = true;
@@ -146,7 +177,13 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
 
   Future<void> _stopRecording() async {
     try {
+      debugPrint('⏹️ Stopping recording...');
       await _recorder.stopRecorder();
+      
+      // ÖNEMLİ: Dosyanın düzgün kapanması için bekleme
+      debugPrint('⏳ Waiting for file to be properly closed...');
+      await Future.delayed(Duration(milliseconds: 500));
+      
       setState(() {
         _isRecording = false;
         _isPaused = false;
@@ -154,14 +191,91 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
       _pulseController.stop();
       _pulseController.reset();
       HapticFeedback.mediumImpact();
-      debugPrint('⏹️ Recording stopped');
       
       if (_recordedFilePath != null) {
-        _showSaveDialog();
+        // Dosya varlığını ve boyutunu kontrol et
+        final file = File(_recordedFilePath!);
+        if (file.existsSync()) {
+          final fileSize = file.lengthSync();
+          debugPrint('📁 Recorded file size: $fileSize bytes');
+          
+          if (fileSize < 1000) {
+            debugPrint('❌ File too small: $fileSize bytes');
+            _showErrorSnackBar('Kayıt çok kısa. Lütfen tekrar deneyin.');
+            _discardRecording();
+            return;
+          }
+          
+          // AAC dosya doğrulaması
+          final isValid = await _validateAudioFile(file);
+          if (!isValid) {
+            debugPrint('❌ Invalid audio file');
+            _showErrorSnackBar('Geçersiz ses dosyası. Lütfen tekrar deneyin.');
+            _discardRecording();
+            return;
+          }
+          
+          debugPrint('✅ Recording stopped successfully');
+          _showSaveDialog();
+        } else {
+          debugPrint('❌ File does not exist');
+          _showErrorSnackBar('Ses dosyası oluşturulamadı');
+        }
       }
     } catch (e) {
       debugPrint('❌ Stop recording error: $e');
       _showErrorSnackBar('Kayıt durdurulamadı: $e');
+    }
+  }
+
+  // Çoklu format destekli ses dosyası doğrulama
+  Future<bool> _validateAudioFile(File file) async {
+    try {
+      final bytes = await file.readAsBytes();
+      
+      if (bytes.length < 100) {
+        debugPrint('❌ File too small to be valid audio');
+        return false;
+      }
+
+      final String path = file.path.toLowerCase();
+      
+      // M4A/MP4 - 'ftyp' atom
+      if (path.endsWith('.m4a') || path.endsWith('.mp4')) {
+        if (bytes.length >= 8) {
+          final signature = String.fromCharCodes(bytes.sublist(4, 8));
+          if (signature == 'ftyp') {
+            debugPrint('✅ Valid M4A/MP4 file format');
+            return true;
+          }
+        }
+      }
+      
+      // OGG - 'OggS' signature
+      if (path.endsWith('.ogg') || path.endsWith('.opus')) {
+        if (bytes.length >= 4) {
+          final signature = String.fromCharCodes(bytes.sublist(0, 4));
+          if (signature == 'OggS') {
+            debugPrint('✅ Valid OGG file format');
+            return true;
+          }
+        }
+      }
+      
+      // AAC - ADTS sync word
+      if (path.endsWith('.aac')) {
+        if (bytes.length >= 2 && bytes[0] == 0xFF && (bytes[1] & 0xF0) == 0xF0) {
+          debugPrint('✅ Valid AAC file format');
+          return true;
+        }
+      }
+
+      // Format tespit edilemezse ama dosya büyükse kabul et
+      debugPrint('⚠️ Format unknown but file size ok (${bytes.length} bytes)');
+      return true;
+    } catch (e) {
+      debugPrint('❌ Audio validation error: $e');
+      return false;
     }
   }
 
@@ -217,19 +331,18 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
     try {
       final dreamProvider = Provider.of<DreamProvider>(context, listen: false);
       
-      // ✅ DÜZELTME: Upload'u arka planda başlat, bekleme
-      // Fire and forget - kullanıcıyı bekleme
-      dreamProvider.uploadAudioFile(File(_recordedFilePath!)).then((_) {
+      final file = File(_recordedFilePath!);
+      debugPrint('📤 Uploading file: $_recordedFilePath (${file.lengthSync()} bytes)');
+      
+      dreamProvider.uploadAudioFile(file).then((_) {
         debugPrint('✅ Background upload completed');
       }).catchError((error) {
         debugPrint('❌ Background upload failed: $error');
       });
       
-      // Hemen kullanıcıya geri bildirim ver
       HapticFeedback.heavyImpact();
       
       if (mounted) {
-        // Başarı mesajı göster
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -260,7 +373,6 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
           ),
         );
         
-        // Hemen ana ekrana dön
         Navigator.pop(context);
       }
     } catch (e) {
@@ -342,7 +454,6 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
           children: [
             const SizedBox(height: 40),
             
-            // Info text
             Text(
               _isRecording 
                   ? (_isPaused ? 'Kayıt Duraklatıldı' : 'Kayıt Devam Ediyor')
@@ -367,12 +478,10 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
             
             const Spacer(),
             
-            // Recording visualization
             _buildRecordingVisualization(theme),
             
             const SizedBox(height: 40),
             
-            // Duration display
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
               decoration: BoxDecoration(
@@ -401,7 +510,6 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
             
             const Spacer(),
             
-            // Control buttons
             _buildControlButtons(theme),
             
             const SizedBox(height: 40),
@@ -412,313 +520,125 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
   }
 
   Widget _buildRecordingVisualization(ThemeData theme) {
-  return Stack(
-    alignment: Alignment.center,
-    children: [
-      // Outer Pulsing Circles
-      ...List.generate(3, (index) {
-        return AnimatedContainer(
-          duration: Duration(milliseconds: 1000 + (index * 200)),
-          width: 200 + (index * 40.0),
-          height: 200 + (index * 40.0),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: _isRecording 
-                  ? theme.colorScheme.primary.withOpacity(0.2 - (index * 0.05))
-                  : Colors.transparent,
-              width: 2,
-            ),
-          ),
-        )
-          .animate(onPlay: (controller) {
-            if (_isRecording) {
-              controller.repeat();
-            }
-          })
-          .fadeIn(duration: 400.ms)
-          .scale(
-            duration: Duration(milliseconds: 1500 + (index * 200)),
-            begin: const Offset(0.8, 0.8),
-            end: const Offset(1.0, 1.0),
-          )
-          .then()
-          .scale(
-            duration: Duration(milliseconds: 1500 + (index * 200)),
-            begin: const Offset(1.0, 1.0),
-            end: const Offset(0.8, 0.8),
-          );
-      }),
-      
-      // Wave Bars Visualization
-      if (_isRecording && !_isPaused)
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: List.generate(5, (index) {
-            return Container(
-              width: 4,
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            )
-              .animate(onPlay: (controller) => controller.repeat(reverse: true))
-              .custom(
-                duration: Duration(milliseconds: 300 + (index * 100)),
-                begin: 20,
-                end: 60 + (index * 10.0),
-                curve: Curves.easeInOut,
-                builder: (context, value, child) {
-                  return SizedBox(
-                    height: value,
-                    child: child,
-                  );
-                },
-              );
-          }),
-        ),
-      
-      // Central Microphone Icon
-      Container(
-        width: 100,
-        height: 100,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: _isRecording
-                ? [
-                    theme.colorScheme.primary,
-                    theme.colorScheme.secondary,
-                  ]
-                : [
-                    theme.colorScheme.surfaceContainerHighest,
-                    theme.colorScheme.surfaceContainerHigh,
-                  ],
-          ),
-          shape: BoxShape.circle,
-          boxShadow: [
-            if (_isRecording)
-              BoxShadow(
-                color: theme.colorScheme.primary.withOpacity(0.4),
-                blurRadius: 30,
-                spreadRadius: 5,
-              ),
-          ],
-        ),
-        child: Icon(
-          _isRecording ? Icons.mic : Icons.mic_none,
-          size: 48,
-          color: _isRecording ? Colors.white : theme.colorScheme.onSurface,
-        ),
-      )
-        .animate(target: _isRecording ? 1 : 0)
-        .scale(
-          duration: 400.ms,
-          curve: Curves.elasticOut,
-          begin: const Offset(1.0, 1.0),
-          end: const Offset(1.15, 1.15),
-        )
-        
-        .scale(
-          duration: 1000.ms,
-          begin: const Offset(1.0, 1.0),
-          end: const Offset(1.05, 1.05),
-        ),
-    ],
-  );
-}
-
-// Duraklat/Devam Et butonu için animasyonlu tasarım
-Widget _buildRecordingControls(ThemeData theme) {
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 24),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    return Stack(
+      alignment: Alignment.center,
       children: [
-        // Pause/Resume Button
-        if (_isRecording)
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _isPaused ? _resumeRecording : _pauseRecording,
-              borderRadius: BorderRadius.circular(30),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 16,
-                ),
-                decoration: BoxDecoration(
-                  color: _isPaused
-                      ? Colors.green.withOpacity(0.15)
-                      : Colors.orange.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(
-                    color: _isPaused
-                        ? Colors.green.withOpacity(0.5)
-                        : Colors.orange.withOpacity(0.5),
-                    width: 2,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _isPaused ? Icons.play_arrow : Icons.pause,
-                      color: _isPaused ? Colors.green : Colors.orange,
-                      size: 28,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _isPaused ? 'Devam Et' : 'Duraklat',
-                      style: TextStyle(
-                        color: _isPaused ? Colors.green : Colors.orange,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
+        ...List.generate(3, (index) {
+          return AnimatedContainer(
+            duration: Duration(milliseconds: 1000 + (index * 200)),
+            width: 200 + (index * 40.0),
+            height: 200 + (index * 40.0),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: _isRecording 
+                    ? theme.colorScheme.primary.withOpacity(0.2 - (index * 0.05))
+                    : Colors.transparent,
+                width: 2,
               ),
             ),
           )
-            .animate()
+            .animate(onPlay: (controller) {
+              if (_isRecording) {
+                controller.repeat();
+              }
+            })
             .fadeIn(duration: 400.ms)
-            .scale(duration: 400.ms, curve: Curves.elasticOut),
+            .scale(
+              duration: Duration(milliseconds: 1500 + (index * 200)),
+              begin: const Offset(0.8, 0.8),
+              end: const Offset(1.0, 1.0),
+            )
+            .then()
+            .scale(
+              duration: Duration(milliseconds: 1500 + (index * 200)),
+              begin: const Offset(1.0, 1.0),
+              end: const Offset(0.8, 0.8),
+            );
+        }),
         
-        const SizedBox(width: 16),
-        
-        // Stop Button
-        if (_isRecording)
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _stopRecording,
-              borderRadius: BorderRadius.circular(30),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 16,
-                ),
+        if (_isRecording && !_isPaused)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: List.generate(5, (index) {
+              return Container(
+                width: 4,
+                margin: const EdgeInsets.symmetric(horizontal: 3),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Colors.red, Colors.redAccent],
-                  ),
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.red.withOpacity(0.4),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+                  color: theme.colorScheme.primary,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.stop,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      'Bitir',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              )
+                .animate(onPlay: (controller) => controller.repeat(reverse: true))
+                .custom(
+                  duration: Duration(milliseconds: 300 + (index * 100)),
+                  begin: 20,
+                  end: 60 + (index * 10.0),
+                  curve: Curves.easeInOut,
+                  builder: (context, value, child) {
+                    return SizedBox(
+                      height: value,
+                      child: child,
+                    );
+                  },
+                );
+            }),
+          ),
+        
+        Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: _isRecording
+                  ? [
+                      theme.colorScheme.primary,
+                      theme.colorScheme.secondary,
+                    ]
+                  : [
+                      theme.colorScheme.surfaceContainerHighest,
+                      theme.colorScheme.surfaceContainerHigh,
+                    ],
             ),
+            shape: BoxShape.circle,
+            boxShadow: [
+              if (_isRecording)
+                BoxShadow(
+                  color: theme.colorScheme.primary.withOpacity(0.4),
+                  blurRadius: 30,
+                  spreadRadius: 5,
+                ),
+            ],
+          ),
+          child: Icon(
+            _isRecording ? Icons.mic : Icons.mic_none,
+            size: 48,
+            color: _isRecording ? Colors.white : theme.colorScheme.onSurface,
+          ),
+        )
+          .animate(target: _isRecording ? 1 : 0)
+          .scale(
+            duration: 400.ms,
+            curve: Curves.elasticOut,
+            begin: const Offset(1.0, 1.0),
+            end: const Offset(1.15, 1.15),
           )
-            .animate()
-            .fadeIn(delay: 200.ms, duration: 400.ms)
-            .scale(delay: 200.ms, duration: 400.ms, curve: Curves.elasticOut)
-            .shimmer(
-              delay: 1000.ms,
-              duration: 2000.ms,
-              color: Colors.white.withOpacity(0.3),
-            ),
+          .scale(
+            duration: 1000.ms,
+            begin: const Offset(1.0, 1.0),
+            end: const Offset(1.05, 1.05),
+          ),
       ],
-    ),
-  );
-}
-
-// Başlat butonu için geliştirilmiş animasyon
-Widget _buildStartButton(ThemeData theme) {
-  return GestureDetector(
-    onTap: _startRecording,
-    child: AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      width: 180,
-      height: 180,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            theme.colorScheme.primary,
-            theme.colorScheme.secondary,
-          ],
-        ),
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: theme.colorScheme.primary.withOpacity(0.4),
-            blurRadius: 30,
-            spreadRadius: 5,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: const Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.mic,
-            size: 60,
-            color: Colors.white,
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Başlat',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    ),
-  )
-    .animate(onPlay: (controller) => controller.repeat(reverse: true))
-    .scale(
-      duration: 2000.ms,
-      begin: const Offset(1.0, 1.0),
-      end: const Offset(1.08, 1.08),
-      curve: Curves.easeInOut,
-    )
-    .shimmer(
-      delay: 500.ms,
-      duration: 2000.ms,
-      color: Colors.white.withOpacity(0.3),
     );
-}
-
+  }
 
   Widget _buildControlButtons(ThemeData theme) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Delete/Cancel button (only when recording)
         if (_isRecording) ...[
           _buildIconButton(
             icon: Icons.delete_rounded,
@@ -731,7 +651,6 @@ Widget _buildStartButton(ThemeData theme) {
           const SizedBox(width: 32),
         ],
         
-        // Pause/Resume button (only when recording)
         if (_isRecording) ...[
           _buildIconButton(
             icon: _isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
@@ -741,7 +660,6 @@ Widget _buildStartButton(ThemeData theme) {
           const SizedBox(width: 32),
         ],
         
-        // Main record/stop button
         GestureDetector(
           onTap: _isRecording ? _stopRecording : _startRecording,
           child: Container(

@@ -41,7 +41,6 @@ class DreamProvider extends ChangeNotifier {
     debugPrint('🏗️ DreamProvider created (lightweight)');
   }
 
-  // ⚡ Lazy initialization
   Future<void> _ensureRecorderInitialized() async {
     if (_isRecorderInitialized) return;
     
@@ -218,17 +217,19 @@ class DreamProvider extends ChangeNotifier {
         return false;
       }
 
-      final String fileName = 'dream_${DateTime.now().millisecondsSinceEpoch}.wav';
+      final String fileName = 'dream_${DateTime.now().millisecondsSinceEpoch}.m4a';
       final Directory tempDir = Directory.systemTemp;
       _currentRecordingPath = '${tempDir.path}/$fileName';
       
       debugPrint('📁 Recording path: $_currentRecordingPath');
 
+      // AAC formatında kayıt (Android'de pcm16WAV'dan daha stabil)
       await _recorder!.startRecorder(
         toFile: _currentRecordingPath,
-        codec: Codec.pcm16,
+        codec: Codec.aacADTS,   // AAC format
         bitRate: 128000,
         sampleRate: 44100,
+        numChannels: 1,         // Mono kayıt
       );
 
       _isRecording = true;
@@ -260,6 +261,10 @@ class DreamProvider extends ChangeNotifier {
       await _recorder!.stopRecorder();
       _isRecording = false;
 
+      // ÖNEMLİ: Dosyanın düzgün kapanması için bekleme süresi
+      debugPrint('⏳ Waiting for file to be properly written...');
+      await Future.delayed(Duration(milliseconds: 500));
+
       final File audioFile = File(_currentRecordingPath!);
       if (!audioFile.existsSync()) {
         debugPrint('❌ Audio file does not exist');
@@ -270,9 +275,23 @@ class DreamProvider extends ChangeNotifier {
       final int fileSize = audioFile.lengthSync();
       debugPrint('📁 Audio file size: $fileSize bytes');
 
-      if (fileSize == 0) {
-        debugPrint('❌ Audio file is empty');
-        _setError('Ses dosyası boş');
+      // WAV dosyası için minimum boyut kontrolü (header + minimal audio)
+      if (fileSize < 1000) {  // En az 1KB olmalı
+        debugPrint('❌ Audio file too small: $fileSize bytes');
+        _setError('Ses dosyası çok kısa veya bozuk');
+        
+        // Dosya içeriğini kontrol et
+        final bytes = await audioFile.readAsBytes();
+        debugPrint('📊 First 44 bytes (WAV header): ${bytes.take(44).toList()}');
+        
+        return false;
+      }
+
+      // AAC/M4A dosya doğrulaması
+      final isValid = await _validateAudioFile(audioFile);
+      if (!isValid) {
+        debugPrint('❌ Invalid audio file format');
+        _setError('Geçersiz ses dosya formatı');
         return false;
       }
 
@@ -301,6 +320,34 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
+  // AAC/M4A dosya doğrulama fonksiyonu
+  Future<bool> _validateAudioFile(File file) async {
+    try {
+      final bytes = await file.readAsBytes();
+      
+      if (bytes.length < 100) {
+        debugPrint('❌ File too small to be valid audio');
+        return false;
+      }
+
+      // M4A dosyası 'ftyp' atom ile başlamalı
+      if (bytes.length >= 8) {
+        final signature = String.fromCharCodes(bytes.sublist(4, 8));
+        if (signature == 'ftyp') {
+          debugPrint('✅ Valid M4A/AAC file format detected');
+          return true;
+        }
+      }
+
+      // Dosya yeterince büyükse kabul et
+      debugPrint('⚠️ Could not verify file format, but size seems ok (${bytes.length} bytes)');
+      return true;
+    } catch (e) {
+      debugPrint('❌ Audio validation error: $e');
+      return false;
+    }
+  }
+
   Future<Dream> uploadAudioFile(File audioFile) async {
     debugPrint('📤 uploadAudioFile called with: ${audioFile.path}');
     
@@ -313,11 +360,17 @@ class DreamProvider extends ChangeNotifier {
       }
 
       final int fileSize = audioFile.lengthSync();
-      if (fileSize == 0) {
-        throw Exception('Ses dosyası boş');
+      if (fileSize < 1000) {  // Minimum 1KB
+        throw Exception('Ses dosyası çok kısa veya bozuk');
       }
 
       debugPrint('📁 Audio file size: $fileSize bytes');
+
+      // AAC/M4A dosya doğrulaması
+      final isValid = await _validateAudioFile(audioFile);
+      if (!isValid) {
+        throw Exception('Geçersiz ses dosya formatı');
+      }
 
       debugPrint('☁️ Uploading to Firebase Storage...');
       final String downloadUrl = await _uploadAudioToStorage(audioFile);
@@ -354,7 +407,7 @@ class DreamProvider extends ChangeNotifier {
 
     debugPrint('📤 Starting Firebase Storage upload for user: ${user.uid}');
 
-    final String fileName = 'dream_${DateTime.now().millisecondsSinceEpoch}.aac';
+    final String fileName = 'dream_${DateTime.now().millisecondsSinceEpoch}.m4a';
     final Reference storageRef = _storage
         .ref()
         .child('users')
@@ -365,11 +418,12 @@ class DreamProvider extends ChangeNotifier {
     debugPrint('📂 Storage path: users/${user.uid}/dreams/$fileName');
 
     final SettableMetadata metadata = SettableMetadata(
-      contentType: 'audio/aac',
+      contentType: 'audio/mp4',  // M4A, MP4 container kullanır
       customMetadata: {
         'uploadedBy': user.uid,
         'uploadedAt': DateTime.now().toIso8601String(),
         'fileSize': audioFile.lengthSync().toString(),
+        'codec': 'aac',
       },
     );
 
@@ -489,75 +543,68 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // 🔥 YENİ FORMAT: baslik, duygular, semboller, analiz, ruhSagligi
   Future<void> _updateFirestoreWithAnalysis(
-  String dreamId, 
-  Map<String, dynamic> analysisResult
-) async {
-  try {
-    debugPrint('💾 Updating Firestore with NEW FORMAT analysis for dream: $dreamId');
-    
-    // DÜZELTME: ruhSagligi hem camelCase hem snake_case kontrol et
-    final ruhSagligiValue = analysisResult['ruhSagligi'] ?? 
-                           analysisResult['ruh_sagligi'] ?? '';
-    
-    final Map<String, dynamic> updateData = {
-      'dreamText': analysisResult['dreamText'] ?? '',
-      'dream_text': analysisResult['dreamText'] ?? '',
-      
-      'title': analysisResult['baslik'] ?? 'Başlıksız Rüya',
-      'baslik': analysisResult['baslik'] ?? 'Başlıksız Rüya',
-      
-      // Duygular
-      'mood': analysisResult['duygular']?['anaDuygu'] ?? 
-              analysisResult['duygular']?['ana_duygu'] ?? 'Belirsiz',
-      'duygular': analysisResult['duygular'] ?? {
-        'anaDuygu': 'Belirsiz',
-        'altDuygular': []
-      },
-      
-      // Semboller
-      'symbols': analysisResult['semboller'] ?? [],
-      'semboller': analysisResult['semboller'] ?? [],
-      
-      // Analiz
-      'analysis': analysisResult['analiz'] ?? '',
-      'analiz': analysisResult['analiz'] ?? '',
-      'interpretation': analysisResult['analiz'] ?? '',
-      
-      // DÜZELTME: Ruh Sağlığı - her iki format da
-      'ruhSagligi': ruhSagligiValue,
-      'ruh_sagligi': ruhSagligiValue,
-      
-      'status': 'completed',
-      'updatedAt': Timestamp.fromDate(DateTime.now()),
-      'updated_at': Timestamp.fromDate(DateTime.now()),
-    };
-    
-    await _firestore.collection('dreams').doc(dreamId).update(updateData);
-    
-    debugPrint('✅ Firestore updated successfully with new format');
-    debugPrint('📝 Title: ${analysisResult['baslik']}');
-    debugPrint('😊 Ana Duygu: ${analysisResult['duygular']?['anaDuygu']}');
-    debugPrint('🔮 Semboller: ${analysisResult['semboller']}');
-    debugPrint('❤️ Ruh Sağlığı: ${ruhSagligiValue.substring(0, min<int>(50, ruhSagligiValue.length))}...');
-    
-  } catch (e) {
-    debugPrint('❌ Error updating Firestore: $e');
-    
+    String dreamId, 
+    Map<String, dynamic> analysisResult
+  ) async {
     try {
-      await _firestore.collection('dreams').doc(dreamId).update({
-        'status': 'failed',
-        'analysis': 'Sonuç kaydedilemedi: $e',
+      debugPrint('💾 Updating Firestore with NEW FORMAT analysis for dream: $dreamId');
+      
+      final ruhSagligiValue = analysisResult['ruhSagligi'] ?? 
+                             analysisResult['ruh_sagligi'] ?? '';
+      
+      final Map<String, dynamic> updateData = {
+        'dreamText': analysisResult['dreamText'] ?? '',
+        'dream_text': analysisResult['dreamText'] ?? '',
+        
+        'title': analysisResult['baslik'] ?? 'Başlıksız Rüya',
+        'baslik': analysisResult['baslik'] ?? 'Başlıksız Rüya',
+        
+        'mood': analysisResult['duygular']?['anaDuygu'] ?? 
+                analysisResult['duygular']?['ana_duygu'] ?? 'Belirsiz',
+        'duygular': analysisResult['duygular'] ?? {
+          'anaDuygu': 'Belirsiz',
+          'altDuygular': []
+        },
+        
+        'symbols': analysisResult['semboller'] ?? [],
+        'semboller': analysisResult['semboller'] ?? [],
+        
+        'analysis': analysisResult['analiz'] ?? '',
+        'analiz': analysisResult['analiz'] ?? '',
+        'interpretation': analysisResult['analiz'] ?? '',
+        
+        'ruhSagligi': ruhSagligiValue,
+        'ruh_sagligi': ruhSagligiValue,
+        
+        'status': 'completed',
         'updatedAt': Timestamp.fromDate(DateTime.now()),
-      });
-    } catch (updateError) {
-      debugPrint('❌ Failed to update status: $updateError');
+        'updated_at': Timestamp.fromDate(DateTime.now()),
+      };
+      
+      await _firestore.collection('dreams').doc(dreamId).update(updateData);
+      
+      debugPrint('✅ Firestore updated successfully with new format');
+      debugPrint('📝 Title: ${analysisResult['baslik']}');
+      debugPrint('😊 Ana Duygu: ${analysisResult['duygular']?['anaDuygu']}');
+      debugPrint('🔮 Semboller: ${analysisResult['semboller']}');
+      debugPrint('❤️ Ruh Sağlığı: ${ruhSagligiValue.substring(0, min<int>(50, ruhSagligiValue.length))}...');
+      
+    } catch (e) {
+      debugPrint('❌ Error updating Firestore: $e');
+      
+      try {
+        await _firestore.collection('dreams').doc(dreamId).update({
+          'status': 'failed',
+          'analysis': 'Sonuç kaydedilemedi: $e',
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        });
+      } catch (updateError) {
+        debugPrint('❌ Failed to update status: $updateError');
+      }
     }
   }
-}
 
-  // 🔥 YENİ FORMAT için güncellendi
   Future<void> updateDreamWithAnalysis({
     required String dreamId,
     required String dreamText,
@@ -640,6 +687,9 @@ class DreamProvider extends ChangeNotifier {
         await _recorder!.stopRecorder();
         _isRecording = false;
         
+        // Dosyanın kapanması için kısa bekleme
+        await Future.delayed(Duration(milliseconds: 200));
+        
         if (_currentRecordingPath != null) {
           final File file = File(_currentRecordingPath!);
           if (file.existsSync()) {
@@ -658,12 +708,6 @@ class DreamProvider extends ChangeNotifier {
 
   String _generateDreamId() {
     return 'dream_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}';
-  }
-
-  String _generateTitleFromText(String text) {
-    if (text.isEmpty) return 'Başlıksız Rüya';
-    if (text.length <= 30) return text;
-    return '${text.substring(0, 30)}...';
   }
 
   void _setLoading(bool loading) {

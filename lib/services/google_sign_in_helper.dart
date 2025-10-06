@@ -82,7 +82,6 @@ class GoogleSignInHelper {
       await googleSignIn.disconnect();
       print('✅ Google disconnect completed');
     } catch (e) {
-      // Disconnect errors are often non-critical and expected in some scenarios
       if (isDisconnectError(e)) {
         print('⚠️ Google disconnect error (non-critical): $e');
       } else {
@@ -92,10 +91,34 @@ class GoogleSignInHelper {
   }
 
   /// Validate Google authentication tokens
-  static bool validateGoogleAuthTokens(GoogleSignInAuthentication auth) {
-    return auth.accessToken != null && 
-           auth.idToken != null && 
-           auth.accessToken!.isNotEmpty && 
-           auth.idToken!.isNotEmpty;
+  /// Returns true if both accessToken and idToken are present and valid
+  static bool validateGoogleAuthTokens(GoogleSignInAuthentication? auth) {
+    if (auth == null) {
+      print('⚠️ GoogleSignInAuthentication is null');
+      return false;
+    }
+    
+    final hasAccessToken = auth.accessToken != null && auth.accessToken!.isNotEmpty;
+    final hasIdToken = auth.idToken != null && auth.idToken!.isNotEmpty;
+    
+    if (!hasAccessToken) {
+      print('⚠️ Access token is missing or empty');
+    }
+    
+    if (!hasIdToken) {
+      print('⚠️ ID token is missing or empty');
+    }
+    
+    return hasAccessToken && hasIdToken;
   }
-} 
+  
+  /// Get safe access token string (empty string if null)
+  static String getSafeAccessToken(GoogleSignInAuthentication? auth) {
+    return auth?.accessToken ?? '';
+  }
+  
+  /// Get safe ID token string (empty string if null)
+  static String getSafeIdToken(GoogleSignInAuthentication? auth) {
+    return auth?.idToken ?? '';
+  }
+}

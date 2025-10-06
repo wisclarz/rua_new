@@ -9,17 +9,12 @@ class FirebaseAuthService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: <String>['email'],
-    // Force account selection to avoid cached credential issues
     forceCodeForRefreshToken: true,
   );
 
-  // Current user stream
   Stream<firebase_auth.User?> get authStateChanges => _auth.authStateChanges();
-
-  // Get current user
   firebase_auth.User? get currentUser => _auth.currentUser;
 
-  // Sign up with email and password
   Future<app_models.User?> signUpWithEmailAndPassword({
     required String email,
     required String password,
@@ -32,10 +27,8 @@ class FirebaseAuthService {
       );
 
       if (credential.user != null) {
-        // Send email verification
         await credential.user!.sendEmailVerification();
 
-        // Create user profile in Firestore
         final user = app_models.User(
           id: credential.user!.uid,
           email: email,
@@ -55,7 +48,6 @@ class FirebaseAuthService {
     }
   }
 
-  // Sign in with email and password
   Future<app_models.User?> signInWithEmailAndPassword({
     required String email,
     required String password,
@@ -67,7 +59,6 @@ class FirebaseAuthService {
       );
 
       if (credential.user != null) {
-        // Update last login time
         await _updateLastLoginTime(credential.user!.uid);
         return await getUserProfile(credential.user!.uid);
       }
@@ -79,13 +70,10 @@ class FirebaseAuthService {
     }
   }
 
-  /// ✨ Sessiz Google Sign-In - Kullanıcı daha önce giriş yaptıysa otomatik giriş yapar
-  /// Onay ekranı göstermez, sadece cache'deki kullanıcıyı kontrol eder
   Future<app_models.User?> signInSilently() async {
     try {
       print('🤫 Attempting silent Google Sign-In...');
       
-      // Google Sign-In'den sessizce kullanıcı al (UI göstermez)
       final GoogleSignInAccount? googleUser = await _googleSignIn.signInSilently();
       
       if (googleUser == null) {
@@ -95,20 +83,16 @@ class FirebaseAuthService {
       
       print('✅ Found cached Google user: ${googleUser.email}');
       
-      // Firebase'de zaten giriş yapmış mı kontrol et
       final currentFirebaseUser = _auth.currentUser;
       if (currentFirebaseUser != null && currentFirebaseUser.email == googleUser.email) {
         print('✅ Firebase user already signed in: ${currentFirebaseUser.uid}');
-        // Profili al ve döndür
         return await getUserProfile(currentFirebaseUser.uid);
       }
       
-      // Google authentication tokenlarını al
       GoogleSignInAuthentication? googleAuth;
       try {
         googleAuth = await googleUser.authentication;
         
-        // Tokenları doğrula
         if (!GoogleSignInHelper.validateGoogleAuthTokens(googleAuth)) {
           print('⚠️ Invalid Google auth tokens in silent sign-in');
           return null;
@@ -118,24 +102,20 @@ class FirebaseAuthService {
         return null;
       }
       
-      // Firebase credential oluştur
       final credential = firebase_auth.GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      // Firebase'e giriş yap
       final userCredential = await _auth.signInWithCredential(credential);
       
       if (userCredential.user != null) {
         final firebaseUser = userCredential.user!;
         print('✅ Silent Firebase authentication successful: ${firebaseUser.uid}');
         
-        // Kullanıcı profilini al veya oluştur
         app_models.User? user = await getUserProfile(firebaseUser.uid);
         
         if (user == null) {
-          // Yeni kullanıcı profili oluştur
           user = app_models.User(
             id: firebaseUser.uid,
             email: firebaseUser.email ?? googleUser.email,
@@ -150,7 +130,6 @@ class FirebaseAuthService {
           await _createUserProfile(user);
           print('✅ New user profile created for silent sign-in: ${user.name}');
         } else {
-          // Mevcut kullanıcı, son giriş zamanını güncelle
           await _updateLastLoginTime(firebaseUser.uid);
           print('✅ Last login time updated for: ${user.name}');
         }
@@ -162,35 +141,29 @@ class FirebaseAuthService {
       
     } catch (e) {
       print('ℹ️ Silent sign-in failed (this is normal): $e');
-      // Sessiz giriş başarısız olması normaldir, hata fırlatmıyoruz
       return null;
     }
   }
 
-  // Sign in with Google
   Future<app_models.User?> signInWithGoogle() async {
     try {
-      // First clear any existing Google Sign-In session
       await GoogleSignInHelper.safeClearGoogleSignIn(_googleSignIn);
       
       GoogleSignInAccount? googleUser;
       GoogleSignInAuthentication? googleAuth;
       
-      // Try to get Google Sign-In account with multiple attempts
       int attempts = 0;
       const maxAttempts = 3;
       
       while (attempts < maxAttempts) {
         try {
           googleUser = await _googleSignIn.signIn();
-          if (googleUser == null) return null; // User cancelled
+          if (googleUser == null) return null;
 
-          // Try to get authentication tokens
           googleAuth = await googleUser.authentication;
           
-          // Validate tokens using helper
           if (GoogleSignInHelper.validateGoogleAuthTokens(googleAuth)) {
-            break; // Success, exit the retry loop
+            break;
           } else {
             throw Exception('Invalid tokens received');
           }
@@ -200,7 +173,6 @@ class FirebaseAuthService {
           
           if (GoogleSignInHelper.isPigeonUserDetailsError(e)) {
             print('⚠️ PigeonUserDetails error detected, retrying...');
-            // Clear and retry
             await GoogleSignInHelper.safeClearGoogleSignIn(_googleSignIn);
             await Future.delayed(const Duration(milliseconds: 500));
             continue;
@@ -210,12 +182,10 @@ class FirebaseAuthService {
             rethrow;
           }
           
-          // Wait before retry
           await Future.delayed(const Duration(milliseconds: 1000));
         }
       }
       
-      // If we still don't have valid auth, throw error
       if (googleAuth == null || !GoogleSignInHelper.validateGoogleAuthTokens(googleAuth)) {
         throw Exception('Failed to get valid Google authentication after $maxAttempts attempts');
       }
@@ -231,11 +201,9 @@ class FirebaseAuthService {
         final firebaseUser = userCredential.user!;
         print('✅ Firebase authentication successful for: ${firebaseUser.uid}');
         
-        // Check if user profile exists, create if not
         app_models.User? user = await getUserProfile(firebaseUser.uid);
         
         if (user == null) {
-          // Create new user profile
           user = app_models.User(
             id: firebaseUser.uid,
             email: firebaseUser.email ?? '',
@@ -248,7 +216,6 @@ class FirebaseAuthService {
           await _createUserProfile(user);
           print('✅ New user profile created: ${user.name}');
         } else {
-          // Update last login time
           await _updateLastLoginTime(firebaseUser.uid);
           print('✅ User login time updated: ${user.name}');
         }
@@ -262,9 +229,7 @@ class FirebaseAuthService {
     } catch (e) {
       print('❌ Error in Google Sign-In: $e');
       
-      // Special handling for PigeonUserDetails error
       if (GoogleSignInHelper.isPigeonUserDetailsError(e)) {
-        // Check if user is already authenticated in Firebase
         final currentUser = _auth.currentUser;
         if (currentUser != null) {
           print('🔄 PigeonUserDetails error but Firebase user exists, attempting recovery...');
@@ -281,12 +246,10 @@ class FirebaseAuthService {
         }
       }
       
-      // Use helper to get appropriate error message
       throw Exception(GoogleSignInHelper.getErrorMessage(e));
     }
   }
 
-  // Phone authentication - Send verification code
   Future<void> sendPhoneVerificationCode({
     required String phoneNumber,
     required Function(String verificationId) onCodeSent,
@@ -298,10 +261,9 @@ class FirebaseAuthService {
       
       await _auth.verifyPhoneNumber(
         phoneNumber: phoneNumber,
-        timeout: const Duration(seconds: 60), // Timeout süresi eklendi
+        timeout: const Duration(seconds: 60),
         verificationCompleted: (firebase_auth.PhoneAuthCredential credential) async {
           print('✅ Phone verification completed automatically');
-          // Auto verification completed (Android only)
           if (onAutoVerificationCompleted != null) {
             onAutoVerificationCompleted();
           }
@@ -324,7 +286,6 @@ class FirebaseAuthService {
     }
   }
 
-  // Phone authentication - Verify SMS code
   Future<app_models.User?> verifyPhoneCode({
     required String verificationId,
     required String smsCode,
@@ -341,14 +302,12 @@ class FirebaseAuthService {
       if (userCredential.user != null) {
         final firebaseUser = userCredential.user!;
         
-        // Check if user profile exists, create if not
         app_models.User? user = await getUserProfile(firebaseUser.uid);
         
         if (user == null) {
-          // Create new user profile
           user = app_models.User(
             id: firebaseUser.uid,
-            email: '', // Phone auth doesn't require email
+            email: '',
             phoneNumber: firebaseUser.phoneNumber,
             name: userName ?? 'Telefon Kullanıcısı',
             createdAt: DateTime.now(),
@@ -357,7 +316,6 @@ class FirebaseAuthService {
           
           await _createUserProfile(user);
         } else {
-          // Update last login time
           await _updateLastLoginTime(firebaseUser.uid);
         }
         
@@ -371,30 +329,24 @@ class FirebaseAuthService {
     }
   }
 
-  /// ✨ Çıkış yap - Hem Firebase hem Google'dan tamamen çıkış yapar
   Future<void> signOut() async {
     try {
       print('🚪 Starting sign out process...');
       
-      // Google Sign-In'den çıkış yap (önemli: silent sign-in'i de temizler)
       try {
         await _googleSignIn.signOut();
         print('✅ Google Sign-In signed out');
       } catch (e) {
         print('⚠️ Google sign out warning: $e');
-        // Google sign out hatası kritik değil, devam et
       }
       
-      // Google Sign-In disconnect (tüm izinleri iptal et)
       try {
         await _googleSignIn.disconnect();
         print('✅ Google Sign-In disconnected');
       } catch (e) {
         print('⚠️ Google disconnect warning: $e');
-        // Disconnect hatası normaldir (zaten bağlantı kesilmişse)
       }
       
-      // Firebase'den çıkış yap
       await _auth.signOut();
       print('✅ Firebase sign out completed');
       
@@ -406,7 +358,6 @@ class FirebaseAuthService {
     }
   }
 
-  // Reset password
   Future<void> resetPassword(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
@@ -417,7 +368,6 @@ class FirebaseAuthService {
     }
   }
 
-  // Change password
   Future<void> changePassword({
     required String currentPassword,
     required String newPassword,
@@ -426,15 +376,12 @@ class FirebaseAuthService {
       final user = _auth.currentUser;
       if (user == null) throw Exception('Kullanıcı oturumu bulunamadı');
 
-      // Re-authenticate user
       final credential = firebase_auth.EmailAuthProvider.credential(
         email: user.email!,
         password: currentPassword,
       );
       
       await user.reauthenticateWithCredential(credential);
-      
-      // Update password
       await user.updatePassword(newPassword);
       
     } on firebase_auth.FirebaseAuthException catch (e) {
@@ -444,24 +391,18 @@ class FirebaseAuthService {
     }
   }
 
-  // Delete account
   Future<void> deleteAccount(String password) async {
     try {
       final user = _auth.currentUser;
       if (user == null) throw Exception('Kullanıcı oturumu bulunamadı');
 
-      // Re-authenticate user
       final credential = firebase_auth.EmailAuthProvider.credential(
         email: user.email!,
         password: password,
       );
       
       await user.reauthenticateWithCredential(credential);
-      
-      // Delete user data from Firestore
       await _deleteUserData(user.uid);
-      
-      // Delete Firebase Auth account
       await user.delete();
       
     } on firebase_auth.FirebaseAuthException catch (e) {
@@ -471,7 +412,6 @@ class FirebaseAuthService {
     }
   }
 
-  // Send email verification
   Future<void> sendEmailVerification() async {
     try {
       final user = _auth.currentUser;
@@ -483,7 +423,6 @@ class FirebaseAuthService {
     }
   }
 
-  // Get user profile from Firestore
   Future<app_models.User?> getUserProfile(String userId) async {
     try {
       print('📄 Getting user profile from Firestore for: $userId');
@@ -505,7 +444,6 @@ class FirebaseAuthService {
     }
   }
 
-  // Update user profile
   Future<void> updateUserProfile(app_models.User user) async {
     try {
       print('💾 Saving user profile to Firestore: ${user.id}');
@@ -517,7 +455,6 @@ class FirebaseAuthService {
     }
   }
 
-  // Update user profile image URL
   Future<void> updateProfileImageUrl(String userId, String imageUrl) async {
     try {
       await _firestore.collection('users').doc(userId).update({
@@ -529,12 +466,10 @@ class FirebaseAuthService {
     }
   }
 
-  // Create user profile in Firestore
   Future<void> _createUserProfile(app_models.User user) async {
     await _firestore.collection('users').doc(user.id).set(user.toJson());
   }
 
-  // Update last login time
   Future<void> _updateLastLoginTime(String userId) async {
     await _firestore.collection('users').doc(userId).update({
       'lastLoginAt': Timestamp.fromDate(DateTime.now()),
@@ -542,15 +477,12 @@ class FirebaseAuthService {
     });
   }
 
-  // Delete user data from Firestore
   Future<void> _deleteUserData(String userId) async {
     final batch = _firestore.batch();
     
     try {
-      // Delete user document
       batch.delete(_firestore.collection('users').doc(userId));
       
-      // Delete user's dreams
       final dreamsQuery = await _firestore
           .collection('dreams')
           .where('userId', isEqualTo: userId)
@@ -560,7 +492,6 @@ class FirebaseAuthService {
         batch.delete(doc.reference);
       }
       
-      // Delete user's analyses
       final analysesQuery = await _firestore
           .collection('dream_analyses')
           .where('userId', isEqualTo: userId)
@@ -570,10 +501,7 @@ class FirebaseAuthService {
         batch.delete(doc.reference);
       }
       
-      // Delete user stats
       batch.delete(_firestore.collection('user_stats').doc(userId));
-      
-      // Delete user preferences
       batch.delete(_firestore.collection('user_preferences').doc(userId));
       
       await batch.commit();
@@ -582,7 +510,6 @@ class FirebaseAuthService {
     }
   }
 
-  // Handle Firebase Auth exceptions
   String _handleAuthException(firebase_auth.FirebaseAuthException e) {
     switch (e.code) {
       case 'weak-password':
@@ -609,7 +536,6 @@ class FirebaseAuthService {
         return 'Bu e-posta adresi farklı bir giriş yöntemi ile kayıtlı.';
       case 'credential-already-in-use':
         return 'Bu kimlik bilgisi zaten başka bir hesap tarafından kullanılıyor.';
-      // Phone authentication specific errors
       case 'invalid-phone-number':
         return 'Geçersiz telefon numarası formatı.';
       case 'invalid-verification-code':
