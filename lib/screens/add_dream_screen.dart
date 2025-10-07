@@ -18,6 +18,7 @@ class AddDreamScreen extends StatefulWidget {
 class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStateMixin {
   final FlutterSoundRecorder _recorder = FlutterSoundRecorder();
   final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _dreamTextController = TextEditingController();
   
   bool _isRecorderInitialized = false;
   bool _isRecording = false;
@@ -25,15 +26,28 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
   String? _recordedFilePath;
   Duration _recordingDuration = Duration.zero;
   
+  // Input mode: 'voice' or 'text'
+  String _inputMode = 'voice';
+  
   late AnimationController _pulseController;
   late AnimationController _waveController;
   late Animation<double> _pulseAnimation;
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
     _initializeRecorder();
     _setupAnimations();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(_onTabChanged);
+  }
+
+  void _onTabChanged() {
+    setState(() {
+      _inputMode = _tabController.index == 0 ? 'voice' : 'text';
+    });
+    debugPrint('📝 Input mode changed to: $_inputMode');
   }
 
   void _setupAnimations() {
@@ -81,7 +95,6 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
       final directory = await getApplicationDocumentsDirectory();
       final filePath = '${directory.path}/dream_${DateTime.now().millisecondsSinceEpoch}.m4a';
       
-      // Codec denemesi: önce AAC MP4, sonra Opus, sonra default
       Codec selectedCodec = Codec.aacMP4;
       String fileExtension = '.m4a';
       
@@ -180,7 +193,6 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
       debugPrint('⏹️ Stopping recording...');
       await _recorder.stopRecorder();
       
-      // ÖNEMLİ: Dosyanın düzgün kapanması için bekleme
       debugPrint('⏳ Waiting for file to be properly closed...');
       await Future.delayed(Duration(milliseconds: 500));
       
@@ -193,7 +205,6 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
       HapticFeedback.mediumImpact();
       
       if (_recordedFilePath != null) {
-        // Dosya varlığını ve boyutunu kontrol et
         final file = File(_recordedFilePath!);
         if (file.existsSync()) {
           final fileSize = file.lengthSync();
@@ -206,7 +217,6 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
             return;
           }
           
-          // AAC dosya doğrulaması
           final isValid = await _validateAudioFile(file);
           if (!isValid) {
             debugPrint('❌ Invalid audio file');
@@ -228,7 +238,6 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
     }
   }
 
-  // Çoklu format destekli ses dosyası doğrulama
   Future<bool> _validateAudioFile(File file) async {
     try {
       final bytes = await file.readAsBytes();
@@ -240,7 +249,6 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
 
       final String path = file.path.toLowerCase();
       
-      // M4A/MP4 - 'ftyp' atom
       if (path.endsWith('.m4a') || path.endsWith('.mp4')) {
         if (bytes.length >= 8) {
           final signature = String.fromCharCodes(bytes.sublist(4, 8));
@@ -251,7 +259,6 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
         }
       }
       
-      // OGG - 'OggS' signature
       if (path.endsWith('.ogg') || path.endsWith('.opus')) {
         if (bytes.length >= 4) {
           final signature = String.fromCharCodes(bytes.sublist(0, 4));
@@ -262,7 +269,6 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
         }
       }
       
-      // AAC - ADTS sync word
       if (path.endsWith('.aac')) {
         if (bytes.length >= 2 && bytes[0] == 0xFF && (bytes[1] & 0xF0) == 0xF0) {
           debugPrint('✅ Valid AAC file format');
@@ -270,7 +276,6 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
         }
       }
 
-      // Format tespit edilemezse ama dosya büyükse kabul et
       debugPrint('⚠️ Format unknown but file size ok (${bytes.length} bytes)');
       return true;
     } catch (e) {
@@ -285,11 +290,15 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Rüya Kaydını Kaydet'),
+        title: Text(_inputMode == 'voice' ? 'Rüya Kaydını Kaydet' : 'Rüyayı Kaydet'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Kaydınızı analiz için göndermek istiyor musunuz?'),
+            Text(
+              _inputMode == 'voice' 
+                ? 'Kaydınızı analiz için göndermek istiyor musunuz?'
+                : 'Rüyanızı analiz için göndermek istiyor musunuz?'
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: _titleController,
@@ -308,14 +317,20 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              _discardRecording();
+              if (_inputMode == 'voice') {
+                _discardRecording();
+              }
             },
             child: const Text('İptal'),
           ),
           ElevatedButton.icon(
             onPressed: () {
               Navigator.pop(context);
-              _saveAndUploadRecording();
+              if (_inputMode == 'voice') {
+                _saveAndUploadRecording();
+              } else {
+                _saveTextDream();
+              }
             },
             icon: const Icon(Icons.cloud_upload),
             label: const Text('Kaydet ve Gönder'),
@@ -381,6 +396,74 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
     }
   }
 
+  Future<void> _saveTextDream() async {
+    final dreamText = _dreamTextController.text.trim();
+    
+    if (dreamText.isEmpty) {
+      _showErrorSnackBar('Lütfen rüyanızı yazın');
+      return;
+    }
+
+    if (dreamText.length < 20) {
+      _showErrorSnackBar('Rüya metni çok kısa. Daha detaylı anlatın.');
+      return;
+    }
+
+    try {
+      final dreamProvider = Provider.of<DreamProvider>(context, listen: false);
+      
+      debugPrint('📝 Saving text dream...');
+      
+      dreamProvider.uploadTextDream(
+        dreamText: dreamText,
+        title: _titleController.text.trim(),
+      ).then((_) {
+        debugPrint('✅ Text dream saved successfully');
+      }).catchError((error) {
+        debugPrint('❌ Text dream save failed: $error');
+      });
+      
+      HapticFeedback.heavyImpact();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.text_fields, color: Colors.white),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Rüya kaydediliyor...',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      Text(
+                        'Analiz tamamlanınca bildirim alacaksınız',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      debugPrint('❌ Text dream save error: $e');
+      _showErrorSnackBar('Kayıt hatası: $e');
+    }
+  }
+
   void _discardRecording() {
     if (_recordedFilePath != null) {
       try {
@@ -420,8 +503,10 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
   void dispose() {
     _recorder.closeRecorder();
     _titleController.dispose();
+    _dreamTextController.dispose();
     _pulseController.dispose();
     _waveController.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
@@ -441,8 +526,164 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.pop(context),
         ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicatorColor: theme.colorScheme.primary,
+              indicatorWeight: 3,
+              labelColor: theme.colorScheme.primary,
+              unselectedLabelColor: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+              tabs: const [
+                Tab(
+                  icon: Icon(Icons.mic),
+                  text: 'Sesli',
+                ),
+                Tab(
+                  icon: Icon(Icons.text_fields),
+                  text: 'Yazılı',
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
-      body: _buildRecordingScreen(theme, size),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildRecordingScreen(theme, size),
+          _buildTextInputScreen(theme, size),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextInputScreen(ThemeData theme, Size size) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          children: [
+            const SizedBox(height: 20),
+            
+            Text(
+              'Rüyanızı Yazın',
+              style: theme.textTheme.titleLarge?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            
+            const SizedBox(height: 8),
+            
+            Text(
+              'Rüyanızı detaylı anlatın, daha iyi analiz edelim',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            
+            const SizedBox(height: 32),
+            
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                    width: 2,
+                  ),
+                ),
+                child: TextField(
+                  controller: _dreamTextController,
+                  maxLines: null,
+                  expands: true,
+                  textAlignVertical: TextAlignVertical.top,
+                  style: theme.textTheme.bodyLarge,
+                  onChanged: (value) {
+                    setState(() {}); // Real-time update
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Dün gece gördüğüm rüyada...',
+                    border: InputBorder.none,
+                    hintStyle: TextStyle(
+                      color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 24),
+            
+            Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: 16,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'En az 20 karakter yazmanız gerekmektedir',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _dreamTextController.text.trim().length >= 20
+                        ? theme.colorScheme.primaryContainer
+                        : theme.colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${_dreamTextController.text.length} / 20',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: _dreamTextController.text.trim().length >= 20
+                          ? theme.colorScheme.onPrimaryContainer
+                          : theme.colorScheme.onErrorContainer,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 24),
+            
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton.icon(
+                onPressed: _dreamTextController.text.trim().length >= 20
+                    ? _showSaveDialog
+                    : null,
+                icon: const Icon(Icons.cloud_upload),
+                label: const Text('Analiz İçin Gönder'),
+                style: ElevatedButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  disabledBackgroundColor: theme.colorScheme.surfaceContainerHighest,
+                  disabledForegroundColor: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.38),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

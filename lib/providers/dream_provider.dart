@@ -23,18 +23,15 @@ class DreamProvider extends ChangeNotifier {
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
-  // Audio recording variables
   FlutterSoundRecorder? _recorder;
   String? _currentRecordingPath;
   bool _isRecorderInitialized = false;
   
-  // Firebase instances  
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final N8nService _n8nService = N8nService();
   
-  // Real-time listener
   StreamSubscription<QuerySnapshot>? _dreamsSubscription;
 
   DreamProvider() {
@@ -196,6 +193,145 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
+  // TEXT DREAM: Metin ile rüya kaydetme
+  Future<Dream> uploadTextDream({
+    required String dreamText,
+    String? title,
+  }) async {
+    debugPrint('📝 uploadTextDream called');
+    
+    try {
+      _setLoading(true);
+      _clearError();
+
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('Kullanıcı oturumu bulunamadı');
+      }
+
+      if (dreamText.trim().isEmpty) {
+        throw Exception('Rüya metni boş olamaz');
+      }
+
+      if (dreamText.trim().length < 20) {
+        throw Exception('Rüya metni en az 20 karakter olmalıdır');
+      }
+
+      debugPrint('📝 Creating text dream record...');
+      final Dream newDream = await createTextDreamRecord(
+        dreamText: dreamText.trim(),
+        title: title?.trim(),
+      );
+      debugPrint('✅ Text dream created: ${newDream.id}');
+
+      return newDream;
+    } catch (e) {
+      debugPrint('❌ uploadTextDream error: $e');
+      _setError('Metin rüya kaydedilirken hata oluştu: $e');
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<Dream> createTextDreamRecord({
+    required String dreamText,
+    String? title,
+  }) async {
+    debugPrint('🔄 Creating TEXT dream record...');
+    
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw Exception('Kullanıcı oturumu bulunamadı');
+    }
+
+    final String dreamId = _generateDreamId();
+    
+    final Dream newDream = Dream(
+      id: dreamId,
+      userId: user.uid,
+      audioUrl: '', // Text için audio URL yok
+      fileName: null, // Text için dosya adı yok
+      title: title ?? 'Yeni Rüya',
+      dreamText: dreamText, // Direkt metni kaydet
+      analysis: 'Analiz yapılıyor...',
+      mood: 'Belirsiz',
+      status: DreamStatus.processing,
+      createdAt: DateTime.now(),
+    );
+
+    try {
+      final dreamMap = newDream.toMap();
+      await _firestore.collection('dreams').doc(dreamId).set(dreamMap);
+      debugPrint('✅ TEXT Dream document created in Firestore: $dreamId');
+      
+      if (_dreamsSubscription == null) {
+        startListeningToDreams();
+      }
+      
+      // Background workflow trigger - TEXT MODE
+      _triggerN8NWorkflowForText(dreamId, dreamText).then((_) {
+        debugPrint('✅ Background N8N TEXT workflow completed for: $dreamId');
+      }).catchError((error) {
+        debugPrint('❌ Background N8N TEXT workflow error: $error');
+      });
+      
+      return newDream;
+    } catch (e) {
+      debugPrint('❌ Failed to create TEXT dream document: $e');
+      throw Exception('Firestore document oluşturulamadı: $e');
+    }
+  }
+
+  // TEXT için N8N workflow tetikleyicisi
+  Future<void> _triggerN8NWorkflowForText(String dreamId, String dreamText) async {
+    try {
+      debugPrint('🚀 Triggering N8N TEXT workflow for dream: $dreamId');
+      
+      final user = _auth.currentUser;
+      if (user == null) {
+        debugPrint('❌ No user available for N8N workflow');
+        return;
+      }
+      
+      debugPrint('👤 Triggering TEXT workflow for user: ${user.uid}');
+      
+      final analysisResult = await _n8nService.triggerTextDreamAnalysisWithHistory(
+        dreamId: dreamId, 
+        dreamText: dreamText, 
+        user: user,
+      );
+      
+      if (analysisResult != null) {
+        debugPrint('✅ N8N TEXT analysis completed successfully');
+        debugPrint('📊 Analysis result: ${analysisResult.keys.join(', ')}');
+        
+        await _updateFirestoreWithAnalysis(dreamId, analysisResult);
+        
+      } else {
+        debugPrint('❌ Failed to get TEXT analysis from N8N');
+        
+        await _firestore.collection('dreams').doc(dreamId).update({
+          'status': 'failed',
+          'analysis': 'Analiz başlatılamadı. Lütfen tekrar deneyin.',
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        });
+      }
+    } catch (e) {
+      debugPrint('💥 Error triggering N8N TEXT workflow: $e');
+      
+      try {
+        await _firestore.collection('dreams').doc(dreamId).update({
+          'status': 'failed',
+          'analysis': 'Analiz sırasında hata oluştu: $e',
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        });
+      } catch (updateError) {
+        debugPrint('❌ Failed to update dream status: $updateError');
+      }
+    }
+  }
+
   Future<bool> startRecording() async {
     debugPrint('🔴 START RECORDING CALLED');
     try {
@@ -223,13 +359,12 @@ class DreamProvider extends ChangeNotifier {
       
       debugPrint('📁 Recording path: $_currentRecordingPath');
 
-      // AAC formatında kayıt (Android'de pcm16WAV'dan daha stabil)
       await _recorder!.startRecorder(
         toFile: _currentRecordingPath,
-        codec: Codec.aacADTS,   // AAC format
+        codec: Codec.aacADTS,
         bitRate: 128000,
         sampleRate: 44100,
-        numChannels: 1,         // Mono kayıt
+        numChannels: 1,
       );
 
       _isRecording = true;
@@ -261,7 +396,6 @@ class DreamProvider extends ChangeNotifier {
       await _recorder!.stopRecorder();
       _isRecording = false;
 
-      // ÖNEMLİ: Dosyanın düzgün kapanması için bekleme süresi
       debugPrint('⏳ Waiting for file to be properly written...');
       await Future.delayed(Duration(milliseconds: 500));
 
@@ -275,19 +409,16 @@ class DreamProvider extends ChangeNotifier {
       final int fileSize = audioFile.lengthSync();
       debugPrint('📁 Audio file size: $fileSize bytes');
 
-      // WAV dosyası için minimum boyut kontrolü (header + minimal audio)
-      if (fileSize < 1000) {  // En az 1KB olmalı
+      if (fileSize < 1000) {
         debugPrint('❌ Audio file too small: $fileSize bytes');
         _setError('Ses dosyası çok kısa veya bozuk');
         
-        // Dosya içeriğini kontrol et
         final bytes = await audioFile.readAsBytes();
         debugPrint('📊 First 44 bytes (WAV header): ${bytes.take(44).toList()}');
         
         return false;
       }
 
-      // AAC/M4A dosya doğrulaması
       final isValid = await _validateAudioFile(audioFile);
       if (!isValid) {
         debugPrint('❌ Invalid audio file format');
@@ -320,7 +451,6 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // AAC/M4A dosya doğrulama fonksiyonu
   Future<bool> _validateAudioFile(File file) async {
     try {
       final bytes = await file.readAsBytes();
@@ -330,7 +460,6 @@ class DreamProvider extends ChangeNotifier {
         return false;
       }
 
-      // M4A dosyası 'ftyp' atom ile başlamalı
       if (bytes.length >= 8) {
         final signature = String.fromCharCodes(bytes.sublist(4, 8));
         if (signature == 'ftyp') {
@@ -339,7 +468,6 @@ class DreamProvider extends ChangeNotifier {
         }
       }
 
-      // Dosya yeterince büyükse kabul et
       debugPrint('⚠️ Could not verify file format, but size seems ok (${bytes.length} bytes)');
       return true;
     } catch (e) {
@@ -360,13 +488,12 @@ class DreamProvider extends ChangeNotifier {
       }
 
       final int fileSize = audioFile.lengthSync();
-      if (fileSize < 1000) {  // Minimum 1KB
+      if (fileSize < 1000) {
         throw Exception('Ses dosyası çok kısa veya bozuk');
       }
 
       debugPrint('📁 Audio file size: $fileSize bytes');
 
-      // AAC/M4A dosya doğrulaması
       final isValid = await _validateAudioFile(audioFile);
       if (!isValid) {
         throw Exception('Geçersiz ses dosya formatı');
@@ -418,7 +545,7 @@ class DreamProvider extends ChangeNotifier {
     debugPrint('📂 Storage path: users/${user.uid}/dreams/$fileName');
 
     final SettableMetadata metadata = SettableMetadata(
-      contentType: 'audio/mp4',  // M4A, MP4 container kullanır
+      contentType: 'audio/mp4',
       customMetadata: {
         'uploadedBy': user.uid,
         'uploadedAt': DateTime.now().toIso8601String(),
@@ -481,7 +608,6 @@ class DreamProvider extends ChangeNotifier {
         startListeningToDreams();
       }
       
-      // Background workflow trigger
       _triggerN8NWorkflow(dreamId, audioUrl).then((_) {
         debugPrint('✅ Background N8N workflow completed for: $dreamId');
       }).catchError((error) {
@@ -687,7 +813,6 @@ class DreamProvider extends ChangeNotifier {
         await _recorder!.stopRecorder();
         _isRecording = false;
         
-        // Dosyanın kapanması için kısa bekleme
         await Future.delayed(Duration(milliseconds: 200));
         
         if (_currentRecordingPath != null) {

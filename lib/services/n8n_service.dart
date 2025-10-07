@@ -15,17 +15,20 @@ class N8nService {
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // ANA FONKSİYON: Önceki rüyalarla birlikte analiz tetikle ve sonucu al
+  // VOICE: Ses kaydıyla analiz tetikle (önceki rüyalarla)
   Future<Map<String, dynamic>?> triggerDreamAnalysisWithHistory({
     required String dreamId,
-    required String audioUrl,
+    String? audioUrl, // ← Nullable oldu
+    String? dreamText, // ← Nullable eklendi
     required firebase_auth.User user,
   }) async {
     try {
-      debugPrint('🚀 Starting dream analysis with history for: $dreamId');
+      // Input type'ı belirle
+      final inputType = audioUrl != null && audioUrl.isNotEmpty ? 'voice' : 'text';
+      
+      debugPrint('🚀 Starting $inputType dream analysis with history for: $dreamId');
       debugPrint('👤 User ID: ${user.uid}');
       
-      // 1. ID Token al
       String idToken = '';
       try {
         idToken = await user.getIdTokenResult().then((result) => result.token ?? '');
@@ -34,32 +37,23 @@ class N8nService {
         debugPrint('⚠️ ID Token error: $tokenError');
       }
       
-      // 2. Önceki 5 rüyayı Firestore'dan çek
       final previousDreams = await _fetchPreviousDreams(user.uid, dreamId);
       debugPrint('📚 Found ${previousDreams.length} previous dreams');
       
-      // 3. Payload'ı hazırla
+      // Dynamic payload - hem voice hem text destekler
       final Map<String, dynamic> payload = {
         'dreamId': dreamId,
-        'audioUrl': audioUrl,
         'userId': user.uid,
         'idToken': idToken,
+        'inputType': inputType, // ← 'voice' veya 'text'
         'timestamp': DateTime.now().toIso8601String(),
         'action': 'analyze_dream',
         'workflow': 'dream_analysis_v2',
         'version': '2.0.0',
         
-        // Önceki rüyalar
         'hasPreviousDreams': previousDreams.isNotEmpty,
         'previousDreams': previousDreams,
         'previousDreamsCount': previousDreams.length,
-        
-        // OpenAI configuration
-        'openai_config': {
-          'model': 'whisper-1',
-          'language': 'tr',
-          'gpt_model': 'gpt-5-mini',
-        },
         
         'debug': {
           'client': 'flutter_app',
@@ -67,27 +61,46 @@ class N8nService {
           'timestamp': DateTime.now().millisecondsSinceEpoch,
           'user_id': user.uid,
           'has_history': previousDreams.isNotEmpty,
+          'input_type': inputType,
         }
       };
 
-      debugPrint('📤 Sending payload with ${previousDreams.length} previous dreams');
+      // Voice-specific fields
+      if (audioUrl != null && audioUrl.isNotEmpty) {
+        payload['audioUrl'] = audioUrl;
+        payload['openai_config'] = {
+          'model': 'whisper-1',
+          'language': 'tr',
+          'gpt_model': 'gpt-4o-mini',
+        };
+      }
 
-      // 4. N8N'e gönder ve RESPONSE AL
+      // Text-specific fields
+      if (dreamText != null) {
+        payload['dreamText'] = dreamText;
+        payload['openai_config'] = {
+          'gpt_model': 'gpt-4o-mini',
+          'language': 'tr',
+        };
+        payload['debug']['text_length'] = dreamText.length;
+      }
+
+      debugPrint('📤 Sending $inputType payload with ${previousDreams.length} previous dreams');
+
       final response = await http.post(
         Uri.parse(_webhookUrl),
         headers: _headers,
         body: jsonEncode(payload),
-      ).timeout(const Duration(seconds: 60)); // Timeout artırıldı
+      ).timeout(const Duration(seconds: 60));
 
       debugPrint('📥 Response status: ${response.statusCode}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        debugPrint('✅ N8N webhook triggered successfully');
+        debugPrint('✅ N8N $inputType webhook triggered successfully');
         
         try {
-          // Response'u parse et
           final responseData = jsonDecode(response.body) as Map<String, dynamic>;
-          debugPrint('📥 Analysis received from N8N');
+          debugPrint('📥 $inputType Analysis received from N8N');
           
           return responseData;
           
@@ -107,6 +120,20 @@ class N8nService {
     }
   }
 
+  // TEXT: Metin ile analiz tetikle (önceki rüyalarla)
+  // Bu wrapper fonksiyon, ana fonksiyonu çağırır
+  Future<Map<String, dynamic>?> triggerTextDreamAnalysisWithHistory({
+    required String dreamId,
+    required String dreamText,
+    required firebase_auth.User user,
+  }) async {
+    return triggerDreamAnalysisWithHistory(
+      dreamId: dreamId,
+      dreamText: dreamText,
+      user: user,
+    );
+  }
+
   // Firestore'dan önceki 5 rüyayı çek
   Future<List<Map<String, dynamic>>> _fetchPreviousDreams(String userId, String currentDreamId) async {
     try {
@@ -114,7 +141,6 @@ class N8nService {
       
       QuerySnapshot? snapshot;
       
-      // Önce createdAt ile dene (en yaygın)
       try {
         snapshot = await _firestore
             .collection('dreams')
@@ -127,7 +153,6 @@ class N8nService {
       } catch (e) {
         debugPrint('⚠️ createdAt query failed, trying timestamp: $e');
         
-        // createdAt başarısız olursa timestamp dene
         try {
           snapshot = await _firestore
               .collection('dreams')
@@ -140,7 +165,6 @@ class N8nService {
         } catch (e2) {
           debugPrint('⚠️ timestamp query also failed, trying without orderBy: $e2');
           
-          // orderBy olmadan dene (index yoksa)
           snapshot = await _firestore
               .collection('dreams')
               .where('userId', isEqualTo: userId)
@@ -154,7 +178,6 @@ class N8nService {
       if (snapshot.docs.isEmpty) {
         debugPrint('📚 No completed dreams found, trying all statuses...');
         
-        // Status filtresi olmadan dene - herhangi bir rüya
         try {
           snapshot = await _firestore
               .collection('dreams')
@@ -177,7 +200,6 @@ class N8nService {
       final List<Map<String, dynamic>> previousDreams = [];
       
       for (var doc in snapshot.docs) {
-        // Mevcut rüyayı dahil etme
         if (doc.id == currentDreamId) {
           debugPrint('⏭️ Skipping current dream: $currentDreamId');
           continue;
@@ -185,7 +207,6 @@ class N8nService {
         
         final data = doc.data() as Map<String, dynamic>;
         
-        // Sadece dreamText olan rüyaları al (analizi tamamlanmış)
         final dreamText = data['dreamText'] ?? '';
         if (dreamText.isEmpty) {
           debugPrint('⏭️ Skipping dream without dreamText: ${doc.id}');
