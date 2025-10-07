@@ -5,7 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class N8nService {
-  static const String _webhookUrl = 'https://dreamdemoo.app.n8n.cloud/webhook/dream-analysis';
+  static const String _webhookUrl = 'https://dreamdemoo.app.n8n.cloud/webhook/bf22088f-6627-4593-85b6-8dc112767901';
   
   static const Map<String, String> _headers = {
     'Content-Type': 'application/json',
@@ -15,16 +15,90 @@ class N8nService {
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // VOICE: Ses kaydıyla analiz tetikle (önceki rüyalarla)
+  // ==========================================
+  // YENİ: TRANSCRIBE ONLY - Sadece ses metne çevrilir
+  // ==========================================
+  Future<String?> transcribeAudioOnly({
+    required String audioUrl,
+    required firebase_auth.User user,
+  }) async {
+    try {
+      debugPrint('🎙️ Starting transcription-only for audio: $audioUrl');
+      
+      String idToken = '';
+      try {
+        idToken = await user.getIdTokenResult().then((result) => result.token ?? '');
+      } catch (tokenError) {
+        debugPrint('⚠️ ID Token error: $tokenError');
+      }
+      
+      final Map<String, dynamic> payload = {
+        'audioUrl': audioUrl,
+        'userId': user.uid,
+        'idToken': idToken,
+        'action': 'transcribe_only', // ← N8N Switch için kritik
+        'timestamp': DateTime.now().toIso8601String(),
+        
+        'openai_config': {
+          'model': 'whisper-1',
+          'language': 'tr',
+        },
+        
+        'debug': {
+          'client': 'flutter_app',
+          'platform': defaultTargetPlatform.name,
+          'action': 'transcribe_only',
+        }
+      };
+
+      debugPrint('📤 Sending transcription-only request');
+
+      final response = await http.post(
+        Uri.parse(_webhookUrl),
+        headers: _headers,
+        body: jsonEncode(payload),
+      ).timeout(const Duration(seconds: 45));
+
+      debugPrint('📥 Transcription response status: ${response.statusCode}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        try {
+          final responseData = jsonDecode(response.body) as Map<String, dynamic>;
+          final transcription = responseData['transcription'] ?? responseData['dreamText'];
+          
+          if (transcription != null && transcription.toString().isNotEmpty) {
+            debugPrint('✅ Transcription received: ${transcription.toString().substring(0, transcription.toString().length > 50 ? 50 : transcription.toString().length)}...');
+            return transcription.toString();
+          } else {
+            debugPrint('❌ Empty transcription in response');
+            return null;
+          }
+        } catch (e) {
+          debugPrint('❌ Failed to parse transcription: $e');
+          return null;
+        }
+      } else {
+        debugPrint('❌ Transcription request failed: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('💥 Transcription error: $e');
+      return null;
+    }
+  }
+
+  // ==========================================
+  // UNIFIED: Hem voice hem text için tek fonksiyon
+  // ==========================================
   Future<Map<String, dynamic>?> triggerDreamAnalysisWithHistory({
     required String dreamId,
-    String? audioUrl, // ← Nullable oldu
-    String? dreamText, // ← Nullable eklendi
+    String? audioUrl,
+    String? dreamText,
     required firebase_auth.User user,
   }) async {
     try {
       // Input type'ı belirle
-      final inputType = audioUrl != null && audioUrl.isNotEmpty ? 'voice' : 'text';
+      final inputType = audioUrl != null ? 'voice' : 'text';
       
       debugPrint('🚀 Starting $inputType dream analysis with history for: $dreamId');
       debugPrint('👤 User ID: ${user.uid}');
@@ -40,14 +114,14 @@ class N8nService {
       final previousDreams = await _fetchPreviousDreams(user.uid, dreamId);
       debugPrint('📚 Found ${previousDreams.length} previous dreams');
       
-      // Dynamic payload - hem voice hem text destekler
+      // Dynamic payload
       final Map<String, dynamic> payload = {
         'dreamId': dreamId,
         'userId': user.uid,
         'idToken': idToken,
-        'inputType': inputType, // ← 'voice' veya 'text'
+        'inputType': inputType,
+        'action': 'analyze_dream', // ← N8N Switch için
         'timestamp': DateTime.now().toIso8601String(),
-        'action': 'analyze_dream',
         'workflow': 'dream_analysis_v2',
         'version': '2.0.0',
         
@@ -66,7 +140,7 @@ class N8nService {
       };
 
       // Voice-specific fields
-      if (audioUrl != null && audioUrl.isNotEmpty) {
+      if (audioUrl != null) {
         payload['audioUrl'] = audioUrl;
         payload['openai_config'] = {
           'model': 'whisper-1',
@@ -120,21 +194,9 @@ class N8nService {
     }
   }
 
-  // TEXT: Metin ile analiz tetikle (önceki rüyalarla)
-  // Bu wrapper fonksiyon, ana fonksiyonu çağırır
-  Future<Map<String, dynamic>?> triggerTextDreamAnalysisWithHistory({
-    required String dreamId,
-    required String dreamText,
-    required firebase_auth.User user,
-  }) async {
-    return triggerDreamAnalysisWithHistory(
-      dreamId: dreamId,
-      dreamText: dreamText,
-      user: user,
-    );
-  }
-
-  // Firestore'dan önceki 5 rüyayı çek
+  // ==========================================
+  // Firestore'dan önceki rüyaları çek
+  // ==========================================
   Future<List<Map<String, dynamic>>> _fetchPreviousDreams(String userId, String currentDreamId) async {
     try {
       debugPrint('📚 Fetching previous dreams for user: $userId');
@@ -234,18 +296,7 @@ class N8nService {
       
     } catch (e) {
       debugPrint('💥 Error fetching previous dreams: $e');
-      debugPrint('💥 Stack trace: ${StackTrace.current}');
       return [];
-    }
-  }
-
-  // Test için: Önceki rüyaları manuel çek
-  Future<void> testFetchPreviousDreams(String userId) async {
-    debugPrint('🧪 Testing previous dreams fetch...');
-    final dreams = await _fetchPreviousDreams(userId, 'test_dream_id');
-    debugPrint('🧪 Found ${dreams.length} dreams');
-    for (var dream in dreams) {
-      debugPrint('  - ${dream['title']} (${dream['timestamp']})');
     }
   }
 }

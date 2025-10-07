@@ -23,6 +23,10 @@ class DreamProvider extends ChangeNotifier {
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
+  // YENİ: Pending audio URL (transcription preview için)
+  String? _pendingAudioUrl;
+  String? get pendingAudioUrl => _pendingAudioUrl;
+
   FlutterSoundRecorder? _recorder;
   String? _currentRecordingPath;
   bool _isRecorderInitialized = false;
@@ -193,7 +197,9 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // TEXT DREAM: Metin ile rüya kaydetme
+  // ==========================================
+  // YENİ: TEXT DREAM - Metin ile rüya kaydetme
+  // ==========================================
   Future<Dream> uploadTextDream({
     required String dreamText,
     String? title,
@@ -250,10 +256,10 @@ class DreamProvider extends ChangeNotifier {
     final Dream newDream = Dream(
       id: dreamId,
       userId: user.uid,
-      audioUrl: '', // Text için audio URL yok
-      fileName: null, // Text için dosya adı yok
+      audioUrl: '',
+      fileName: null,
       title: title ?? 'Yeni Rüya',
-      dreamText: dreamText, // Direkt metni kaydet
+      dreamText: dreamText,
       analysis: 'Analiz yapılıyor...',
       mood: 'Belirsiz',
       status: DreamStatus.processing,
@@ -269,7 +275,6 @@ class DreamProvider extends ChangeNotifier {
         startListeningToDreams();
       }
       
-      // Background workflow trigger - TEXT MODE
       _triggerN8NWorkflowForText(dreamId, dreamText).then((_) {
         debugPrint('✅ Background N8N TEXT workflow completed for: $dreamId');
       }).catchError((error) {
@@ -283,7 +288,6 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
-  // TEXT için N8N workflow tetikleyicisi
   Future<void> _triggerN8NWorkflowForText(String dreamId, String dreamText) async {
     try {
       debugPrint('🚀 Triggering N8N TEXT workflow for dream: $dreamId');
@@ -296,7 +300,7 @@ class DreamProvider extends ChangeNotifier {
       
       debugPrint('👤 Triggering TEXT workflow for user: ${user.uid}');
       
-      final analysisResult = await _n8nService.triggerTextDreamAnalysisWithHistory(
+      final analysisResult = await _n8nService.triggerDreamAnalysisWithHistory(
         dreamId: dreamId, 
         dreamText: dreamText, 
         user: user,
@@ -332,6 +336,201 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
+  // ==========================================
+  // YENİ: VOICE with TRANSCRIPTION PREVIEW
+  // ==========================================
+  Future<Dream> uploadAudioFile(File audioFile, {
+    Function(String transcription)? onTranscriptionReady,
+  }) async {
+    debugPrint('📤 uploadAudioFile called with: ${audioFile.path}');
+    
+    bool shouldKeepLoading = false;
+    
+    try {
+      _setLoading(true);
+      _clearError();
+
+      if (!audioFile.existsSync()) {
+        throw Exception('Ses dosyası bulunamadı');
+      }
+
+      final int fileSize = audioFile.lengthSync();
+      if (fileSize < 1000) {
+        throw Exception('Ses dosyası çok kısa veya bozuk');
+      }
+
+      debugPrint('📁 Audio file size: $fileSize bytes');
+
+      final isValid = await _validateAudioFile(audioFile);
+      if (!isValid) {
+        throw Exception('Geçersiz ses dosya formatı');
+      }
+
+      debugPrint('☁️ Uploading to Firebase Storage...');
+      final String downloadUrl = await _uploadAudioToStorage(audioFile);
+      debugPrint('✅ Upload successful: $downloadUrl');
+
+      // Store URL for later use
+      _pendingAudioUrl = downloadUrl;
+
+      // ÖNEMLİ: Önce transcription yap
+      if (onTranscriptionReady != null) {
+        debugPrint('🎙️ Getting transcription...');
+        final user = _auth.currentUser;
+        if (user != null) {
+          final transcription = await _n8nService.transcribeAudioOnly(
+            audioUrl: downloadUrl,
+            user: user,
+          );
+          
+          if (transcription != null && transcription.isNotEmpty) {
+            debugPrint('✅ Transcription ready, showing to user...');
+            onTranscriptionReady(transcription);
+            
+            shouldKeepLoading = true;
+            _setLoading(false);
+            throw Exception('WAITING_FOR_USER_APPROVAL');
+          } else {
+            debugPrint('❌ Transcription failed, continuing without preview...');
+          }
+        }
+      }
+
+      debugPrint('📝 Creating dream record...');
+      final Dream newDream = await createDreamRecord(downloadUrl, audioFile.path);
+      debugPrint('✅ Dream created: ${newDream.id}');
+
+      try {
+        if (audioFile.path.contains('temp') || audioFile.path.contains('cache')) {
+          await audioFile.delete();
+          debugPrint('🗑️ Temporary file deleted');
+        }
+      } catch (e) {
+        debugPrint('⚠️ Could not delete file: $e');
+      }
+
+      return newDream;
+    } catch (e) {
+      debugPrint('❌ uploadAudioFile error: $e');
+      if (e.toString().contains('WAITING_FOR_USER_APPROVAL')) {
+        rethrow;
+      }
+      _setError('Dosya yüklenirken hata oluştu: $e');
+      rethrow;
+    } finally {
+      if (!shouldKeepLoading) {
+        _setLoading(false);
+      }
+    }
+  }
+
+  // ==========================================
+  // YENİ: Create Dream with Approved Transcription
+  // ==========================================
+  Future<Dream> createDreamWithTranscription({
+    required String audioUrl,
+    required String transcription,
+    String? title,
+  }) async {
+    debugPrint('📝 Creating dream with approved transcription...');
+    
+    try {
+      _setLoading(true);
+      _clearError();
+
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('Kullanıcı oturumu bulunamadı');
+      }
+
+      final String dreamId = _generateDreamId();
+      
+      final Dream newDream = Dream(
+        id: dreamId,
+        userId: user.uid,
+        audioUrl: audioUrl,
+        fileName: audioUrl.split('/').last,
+        title: title ?? 'Yeni Rüya Kaydı',
+        dreamText: transcription,
+        analysis: 'Analiz yapılıyor...',
+        mood: 'Belirsiz',
+        status: DreamStatus.processing,
+        createdAt: DateTime.now(),
+      );
+
+      try {
+        final dreamMap = newDream.toMap();
+        await _firestore.collection('dreams').doc(dreamId).set(dreamMap);
+        debugPrint('✅ Dream document created in Firestore: $dreamId');
+        
+        if (_dreamsSubscription == null) {
+          startListeningToDreams();
+        }
+        
+        _triggerN8NAnalysisWithTranscription(dreamId, transcription).then((_) {
+          debugPrint('✅ Background N8N analysis completed for: $dreamId');
+        }).catchError((error) {
+          debugPrint('❌ Background N8N analysis error: $error');
+        });
+        
+        return newDream;
+      } catch (e) {
+        debugPrint('❌ Failed to create dream document: $e');
+        throw Exception('Firestore document oluşturulamadı: $e');
+      }
+    } catch (e) {
+      debugPrint('❌ createDreamWithTranscription error: $e');
+      _setError('Rüya kaydedilirken hata oluştu: $e');
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<void> _triggerN8NAnalysisWithTranscription(String dreamId, String transcription) async {
+    try {
+      debugPrint('🚀 Triggering N8N analysis with existing transcription for: $dreamId');
+      
+      final user = _auth.currentUser;
+      if (user == null) {
+        debugPrint('❌ No user available for N8N workflow');
+        return;
+      }
+      
+      final analysisResult = await _n8nService.triggerDreamAnalysisWithHistory(
+        dreamId: dreamId, 
+        dreamText: transcription,
+        user: user,
+      );
+      
+      if (analysisResult != null) {
+        debugPrint('✅ N8N analysis completed successfully');
+        await _updateFirestoreWithAnalysis(dreamId, analysisResult);
+      } else {
+        debugPrint('❌ Failed to get analysis from N8N');
+        await _firestore.collection('dreams').doc(dreamId).update({
+          'status': 'failed',
+          'analysis': 'Analiz başlatılamadı. Lütfen tekrar deneyin.',
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        });
+      }
+    } catch (e) {
+      debugPrint('💥 Error triggering N8N analysis: $e');
+      try {
+        await _firestore.collection('dreams').doc(dreamId).update({
+          'status': 'failed',
+          'analysis': 'Analiz sırasında hata oluştu: $e',
+          'updatedAt': Timestamp.fromDate(DateTime.now()),
+        });
+      } catch (updateError) {
+        debugPrint('❌ Failed to update dream status: $updateError');
+      }
+    }
+  }
+
+  // ==========================================
+  // EXISTING: Recording functions
+  // ==========================================
   Future<bool> startRecording() async {
     debugPrint('🔴 START RECORDING CALLED');
     try {
@@ -473,56 +672,6 @@ class DreamProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('❌ Audio validation error: $e');
       return false;
-    }
-  }
-
-  Future<Dream> uploadAudioFile(File audioFile) async {
-    debugPrint('📤 uploadAudioFile called with: ${audioFile.path}');
-    
-    try {
-      _setLoading(true);
-      _clearError();
-
-      if (!audioFile.existsSync()) {
-        throw Exception('Ses dosyası bulunamadı');
-      }
-
-      final int fileSize = audioFile.lengthSync();
-      if (fileSize < 1000) {
-        throw Exception('Ses dosyası çok kısa veya bozuk');
-      }
-
-      debugPrint('📁 Audio file size: $fileSize bytes');
-
-      final isValid = await _validateAudioFile(audioFile);
-      if (!isValid) {
-        throw Exception('Geçersiz ses dosya formatı');
-      }
-
-      debugPrint('☁️ Uploading to Firebase Storage...');
-      final String downloadUrl = await _uploadAudioToStorage(audioFile);
-      debugPrint('✅ Upload successful: $downloadUrl');
-
-      debugPrint('📝 Creating dream record...');
-      final Dream newDream = await createDreamRecord(downloadUrl, audioFile.path);
-      debugPrint('✅ Dream created: ${newDream.id}');
-
-      try {
-        if (audioFile.path.contains('temp') || audioFile.path.contains('cache')) {
-          await audioFile.delete();
-          debugPrint('🗑️ Temporary file deleted');
-        }
-      } catch (e) {
-        debugPrint('⚠️ Could not delete file: $e');
-      }
-
-      return newDream;
-    } catch (e) {
-      debugPrint('❌ uploadAudioFile error: $e');
-      _setError('Dosya yüklenirken hata oluştu: $e');
-      rethrow;
-    } finally {
-      _setLoading(false);
     }
   }
 
