@@ -9,6 +9,7 @@ import 'dart:math';
 import 'dart:async';
 import '../models/dream_model.dart';
 import '../services/n8n_service.dart';
+import '../services/openai_service.dart';
 
 class DreamProvider extends ChangeNotifier {
   List<Dream> _dreams = [];
@@ -23,9 +24,9 @@ class DreamProvider extends ChangeNotifier {
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
-  // YENİ: Pending audio URL (transcription preview için)
-  String? _pendingAudioUrl;
-  String? get pendingAudioUrl => _pendingAudioUrl;
+  // YENİ: Pending transcription (transcription preview için)
+  String? _pendingTranscription;
+  String? get pendingTranscription => _pendingTranscription;
 
   FlutterSoundRecorder? _recorder;
   String? _currentRecordingPath;
@@ -35,6 +36,7 @@ class DreamProvider extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final N8nService _n8nService = N8nService();
+  final OpenAIService _openAIService = OpenAIService();
   
   StreamSubscription<QuerySnapshot>? _dreamsSubscription;
 
@@ -337,14 +339,12 @@ class DreamProvider extends ChangeNotifier {
   }
 
   // ==========================================
-  // YENİ: VOICE with TRANSCRIPTION PREVIEW
+  // YENİ: VOICE with TRANSCRIPTION PREVIEW (Firebase Storage OLMADAN)
   // ==========================================
-  Future<Dream> uploadAudioFile(File audioFile, {
-    Function(String transcription)? onTranscriptionReady,
+  Future<void> transcribeAudioFile(File audioFile, {
+    required Function(String transcription) onTranscriptionReady,
   }) async {
-    debugPrint('📤 uploadAudioFile called with: ${audioFile.path}');
-    
-    bool shouldKeepLoading = false;
+    debugPrint('🎙️ transcribeAudioFile called with: ${audioFile.path}');
     
     try {
       _setLoading(true);
@@ -366,73 +366,61 @@ class DreamProvider extends ChangeNotifier {
         throw Exception('Geçersiz ses dosya formatı');
       }
 
-      debugPrint('☁️ Uploading to Firebase Storage...');
-      final String downloadUrl = await _uploadAudioToStorage(audioFile);
-      debugPrint('✅ Upload successful: $downloadUrl');
-
-      // Store URL for later use
-      _pendingAudioUrl = downloadUrl;
-
-      // ÖNEMLİ: Önce transcription yap
-      if (onTranscriptionReady != null) {
-        debugPrint('🎙️ Getting transcription...');
-        final user = _auth.currentUser;
-        if (user != null) {
-          final transcription = await _n8nService.transcribeAudioOnly(
-            audioUrl: downloadUrl,
-            user: user,
-          );
-          
-          if (transcription != null && transcription.isNotEmpty) {
-            debugPrint('✅ Transcription ready, showing to user...');
-            onTranscriptionReady(transcription);
-            
-            shouldKeepLoading = true;
-            _setLoading(false);
-            throw Exception('WAITING_FOR_USER_APPROVAL');
-          } else {
-            debugPrint('❌ Transcription failed, continuing without preview...');
-          }
-        }
-      }
-
-      debugPrint('📝 Creating dream record...');
-      final Dream newDream = await createDreamRecord(downloadUrl, audioFile.path);
-      debugPrint('✅ Dream created: ${newDream.id}');
-
-      try {
-        if (audioFile.path.contains('temp') || audioFile.path.contains('cache')) {
+      debugPrint('🎙️ Starting local transcription with OpenAI Whisper...');
+      
+      // OpenAI servisi ile LOCAL dosyayı transkribe et (Firebase'e yüklemeden)
+      final transcription = await _openAIService.transcribeAudio(
+        audioFile: audioFile,
+        language: 'tr',
+      );
+      
+      if (transcription != null && transcription.isNotEmpty) {
+        debugPrint('✅ Transcription successful!');
+        debugPrint('📝 Length: ${transcription.length} characters');
+        
+        // Transkripsiyon başarılı, callback'i çağır
+        _pendingTranscription = transcription;
+        onTranscriptionReady(transcription);
+        
+        // Ses dosyasını sil (artık ihtiyacımız yok)
+        try {
           await audioFile.delete();
-          debugPrint('🗑️ Temporary file deleted');
+          debugPrint('🗑️ Audio file deleted after transcription');
+        } catch (e) {
+          debugPrint('⚠️ Could not delete audio file: $e');
         }
-      } catch (e) {
-        debugPrint('⚠️ Could not delete file: $e');
+      } else {
+        debugPrint('❌ Transcription failed');
+        throw Exception('Ses dosyası metne çevrilemedi. Lütfen tekrar deneyin.');
       }
-
-      return newDream;
     } catch (e) {
-      debugPrint('❌ uploadAudioFile error: $e');
-      if (e.toString().contains('WAITING_FOR_USER_APPROVAL')) {
-        rethrow;
+      debugPrint('❌ transcribeAudioFile error: $e');
+      _setError('Transkripsiyon hatası: $e');
+      
+      // Hata durumunda da dosyayı sil
+      try {
+        if (audioFile.existsSync()) {
+          await audioFile.delete();
+          debugPrint('🗑️ Audio file deleted after error');
+        }
+      } catch (deleteError) {
+        debugPrint('⚠️ Could not delete file: $deleteError');
       }
-      _setError('Dosya yüklenirken hata oluştu: $e');
+      
       rethrow;
     } finally {
-      if (!shouldKeepLoading) {
-        _setLoading(false);
-      }
+      _setLoading(false);
     }
   }
 
   // ==========================================
-  // YENİ: Create Dream with Approved Transcription
+  // YENİ: Create Dream with Approved Transcription (SES DOSYASI OLMADAN)
   // ==========================================
   Future<Dream> createDreamWithTranscription({
-    required String audioUrl,
     required String transcription,
     String? title,
   }) async {
-    debugPrint('📝 Creating dream with approved transcription...');
+    debugPrint('📝 Creating dream with approved transcription (no audio file)...');
     
     try {
       _setLoading(true);
@@ -443,14 +431,19 @@ class DreamProvider extends ChangeNotifier {
         throw Exception('Kullanıcı oturumu bulunamadı');
       }
 
+      if (transcription.trim().isEmpty) {
+        throw Exception('Transkripsiyon metni boş olamaz');
+      }
+
       final String dreamId = _generateDreamId();
       
+      // Ses dosyası yok, sadece metin var
       final Dream newDream = Dream(
         id: dreamId,
         userId: user.uid,
-        audioUrl: audioUrl,
-        fileName: audioUrl.split('/').last,
-        title: title ?? 'Yeni Rüya Kaydı',
+        audioUrl: '', // Artık ses dosyası yok
+        fileName: null,
+        title: title ?? 'Yeni Sesli Rüya',
         dreamText: transcription,
         analysis: 'Analiz yapılıyor...',
         mood: 'Belirsiz',
@@ -467,11 +460,15 @@ class DreamProvider extends ChangeNotifier {
           startListeningToDreams();
         }
         
+        // Transkripsiyon ile analizi tetikle
         _triggerN8NAnalysisWithTranscription(dreamId, transcription).then((_) {
           debugPrint('✅ Background N8N analysis completed for: $dreamId');
         }).catchError((error) {
           debugPrint('❌ Background N8N analysis error: $error');
         });
+        
+        // Pending transcription'ı temizle
+        _pendingTranscription = null;
         
         return newDream;
       } catch (e) {

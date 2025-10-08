@@ -74,6 +74,7 @@ dependencies:
   
   # HTTP
   http: ^1.2.2
+  dio: ^5.4.0
 
 dev_dependencies:
   flutter_test:

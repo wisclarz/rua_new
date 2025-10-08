@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# ⚠️ SENSITIVE - OpenAI Config (API Keys)
+lib/config/openai_config.dart
