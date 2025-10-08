@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../config/app_theme.dart';
 import 'home_screen.dart';
 import 'explore_screen.dart';
 import 'dream_history_screen.dart';
@@ -102,22 +101,27 @@ class _MainNavigationState extends State<MainNavigation> with SingleTickerProvid
             ),
           ],
         ),
-        child: FloatingActionButton(
-          onPressed: () {
-            HapticFeedback.mediumImpact();
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const AddDreamScreen(),
+        child: Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: () {
+              HapticFeedback.mediumImpact();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AddDreamScreen(),
+                ),
+              );
+            },
+            child: const Center(
+              child: Icon(
+                Icons.mic,
+                size: 32,
+                color: Colors.white,
               ),
-            );
-          },
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          child: const Icon(
-            Icons.mic,
-            size: 32,
-            color: Colors.white,
+            ),
           ),
         ),
       ),

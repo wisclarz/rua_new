@@ -9,7 +9,7 @@ class FirebaseAuthService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: <String>['email'],
-    forceCodeForRefreshToken: true,
+    // signInOption: SignInOption.standard, // Tekrar onay ekranını engelle
   );
 
   Stream<firebase_auth.User?> get authStateChanges => _auth.authStateChanges();
@@ -147,8 +147,44 @@ class FirebaseAuthService {
 
   Future<app_models.User?> signInWithGoogle() async {
     try {
-      await GoogleSignInHelper.safeClearGoogleSignIn(_googleSignIn);
+      // 1. Önce Firebase'de zaten giriş yapmış kullanıcı var mı kontrol et
+      final currentFirebaseUser = _auth.currentUser;
+      if (currentFirebaseUser != null) {
+        print('✅ Firebase user already authenticated: ${currentFirebaseUser.uid}');
+        final existingUser = await getUserProfile(currentFirebaseUser.uid);
+        if (existingUser != null) {
+          print('✅ Returning existing user without showing Google UI');
+          return existingUser;
+        }
+      }
       
+      // 2. Önce Google'dan önbelleğe alınmış kullanıcıyı kontrol et (SESSIZ)
+      print('🤫 Checking for cached Google user...');
+      final cachedGoogleUser = await _googleSignIn.signInSilently(suppressErrors: true);
+      if (cachedGoogleUser != null) {
+        print('✅ Found cached Google user: ${cachedGoogleUser.email}');
+        try {
+          final googleAuth = await cachedGoogleUser.authentication;
+          if (GoogleSignInHelper.validateGoogleAuthTokens(googleAuth)) {
+            final credential = firebase_auth.GoogleAuthProvider.credential(
+              accessToken: googleAuth.accessToken,
+              idToken: googleAuth.idToken,
+            );
+            final userCredential = await _auth.signInWithCredential(credential);
+            if (userCredential.user != null) {
+              print('✅ Silent sign-in successful, no UI shown!');
+              return await _handleGoogleSignInSuccess(userCredential.user!, cachedGoogleUser);
+            }
+          }
+        } catch (e) {
+          print('⚠️ Silent sign-in failed, will show UI: $e');
+        }
+      } else {
+        print('ℹ️ No cached Google user found');
+      }
+      
+      // 3. Sessiz giriş başarısız, Google UI göster
+      print('📱 Showing Google Sign-In UI...');
       GoogleSignInAccount? googleUser;
       GoogleSignInAuthentication? googleAuth;
       
@@ -198,29 +234,7 @@ class FirebaseAuthService {
       final userCredential = await _auth.signInWithCredential(credential);
       
       if (userCredential.user != null) {
-        final firebaseUser = userCredential.user!;
-        print('✅ Firebase authentication successful for: ${firebaseUser.uid}');
-        
-        app_models.User? user = await getUserProfile(firebaseUser.uid);
-        
-        if (user == null) {
-          user = app_models.User(
-            id: firebaseUser.uid,
-            email: firebaseUser.email ?? '',
-            name: firebaseUser.displayName ?? 'Google User',
-            profileImageUrl: firebaseUser.photoURL,
-            createdAt: DateTime.now(),
-            preferences: app_models.UserPreferences.defaultPreferences(),
-          );
-          
-          await _createUserProfile(user);
-          print('✅ New user profile created: ${user.name}');
-        } else {
-          await _updateLastLoginTime(firebaseUser.uid);
-          print('✅ User login time updated: ${user.name}');
-        }
-        
-        return user;
+        return await _handleGoogleSignInSuccess(userCredential.user!, googleUser!);
       }
       return null;
     } on firebase_auth.FirebaseAuthException catch (e) {
@@ -475,6 +489,35 @@ class FirebaseAuthService {
       'lastLoginAt': Timestamp.fromDate(DateTime.now()),
       'updatedAt': Timestamp.fromDate(DateTime.now()),
     });
+  }
+  
+  // Helper method for handling successful Google Sign-In
+  Future<app_models.User?> _handleGoogleSignInSuccess(
+    firebase_auth.User firebaseUser,
+    dynamic googleUser,
+  ) async {
+    print('✅ Firebase authentication successful for: ${firebaseUser.uid}');
+    
+    app_models.User? user = await getUserProfile(firebaseUser.uid);
+    
+    if (user == null) {
+      user = app_models.User(
+        id: firebaseUser.uid,
+        email: firebaseUser.email ?? '',
+        name: firebaseUser.displayName ?? 'Google User',
+        profileImageUrl: firebaseUser.photoURL,
+        createdAt: DateTime.now(),
+        preferences: app_models.UserPreferences.defaultPreferences(),
+      );
+      
+      await _createUserProfile(user);
+      print('✅ New user profile created: ${user.name}');
+    } else {
+      await _updateLastLoginTime(firebaseUser.uid);
+      print('✅ User login time updated: ${user.name}');
+    }
+    
+    return user;
   }
 
   Future<void> _deleteUserData(String userId) async {

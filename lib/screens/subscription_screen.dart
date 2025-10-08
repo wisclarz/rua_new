@@ -2,9 +2,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/subscription_provider.dart';
 import '../models/subscription_model.dart';
 import 'package:flutter/services.dart';
+import '../widgets/decorative_header.dart';
 
 class SubscriptionScreen extends StatefulWidget {
   const SubscriptionScreen({super.key});
@@ -48,12 +50,27 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
           builder: (context, provider, _) {
             return FadeTransition(
               opacity: _fadeAnimation,
-              child: CustomScrollView(
-                physics: const BouncingScrollPhysics(),
-                slivers: [
+              child: Stack(
+                children: [
+                  // Floating background clouds
+                  Positioned.fill(
+                    child: FloatingClouds(
+                      clouds: FloatingClouds.subtleClouds(theme),
+                    ),
+                  ),
+                  
+                  // Main content
+                  CustomScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    slivers: [
                   // Header
                   SliverToBoxAdapter(
                     child: _buildHeader(theme),
+                  ),
+                  
+                  // Gradient Transition
+                  const SliverToBoxAdapter(
+                    child: GradientTransition(),
                   ),
                   
                   // Current Plan Info
@@ -79,6 +96,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
                   const SliverToBoxAdapter(
                     child: SizedBox(height: 40),
                   ),
+                    ],
+                  ),
                 ],
               ),
             );
@@ -89,17 +108,49 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
   }
 
   Widget _buildHeader(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(20),
+    return DecorativeHeader(
+      minHeight: 180,
+      decorations: [
+        DecorationItem(
+          icon: Icons.workspace_premium,
+          size: 90,
+          top: 10,
+          right: 20,
+          opacity: 0.12,
+          color: const Color(0xFFFFD700).withOpacity(0.12),
+        ),
+        DecorationItem(
+          icon: Icons.stars,
+          size: 60,
+          top: 50,
+          left: 20,
+          opacity: 0.1,
+          color: const Color(0xFFFFD700).withOpacity(0.1),
+        ),
+        DecorationItem(
+          icon: Icons.auto_awesome,
+          size: 50,
+          top: 80,
+          right: 120,
+          opacity: 0.08,
+        ),
+      ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              IconButton(
-                icon: Icon(Icons.close, color: theme.colorScheme.onSurface),
+              IconButton.filled(
+                icon: const Icon(Icons.close),
                 onPressed: () => Navigator.pop(context),
-              ),
+                style: IconButton.styleFrom(
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                  foregroundColor: theme.colorScheme.onSurface,
+                ),
+              )
+                .animate()
+                .fadeIn(duration: 400.ms)
+                .scale(duration: 400.ms, curve: Curves.elasticOut),
               const Spacer(),
             ],
           ),
@@ -110,14 +161,20 @@ class _SubscriptionScreenState extends State<SubscriptionScreen>
               fontWeight: FontWeight.bold,
               color: theme.colorScheme.onSurface,
             ),
-          ),
+          )
+            .animate()
+            .fadeIn(delay: 200.ms, duration: 400.ms)
+            .slideX(begin: -0.2, end: 0),
           const SizedBox(height: 8),
           Text(
             'Reklamsız deneyim ve tüm özelliklere sınırsız erişim',
             style: theme.textTheme.bodyLarge?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
             ),
-          ),
+          )
+            .animate()
+            .fadeIn(delay: 300.ms, duration: 400.ms)
+            .slideX(begin: -0.2, end: 0),
         ],
       ),
     );

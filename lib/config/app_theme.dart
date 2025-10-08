@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+/// ⚡⚡ OPTIMIZED AppTheme with cached fonts and reduced gradient calculations
 class AppTheme {
+  // ⚡ Cache GoogleFonts TextTheme to avoid repeated fetches
+  static TextTheme? _cachedLightTextTheme;
+  static TextTheme? _cachedDarkTextTheme;
   // 🌙 Deep Purple Palette - HTML Dark Theme ile Uyumlu
   
   // Ana Mor Tonları - HTML primary: #7f13ec ile uyumlu
@@ -47,6 +51,7 @@ class AppTheme {
   static const Color darkOutline = Color(0xFF3D2A5C); // Border
   static const Color darkOutlineVariant = Color(0xFF2D1B4E); // Subtle border
   
+  // ⚡⚡ OPTIMIZED: Const gradients for better performance
   // 🌈 Dreamy Gradients - Mor Gradientleri (pembe yok)
   static const LinearGradient dreamyPurpleGradient = LinearGradient(
     begin: Alignment.topLeft,
@@ -110,7 +115,9 @@ class AppTheme {
 
   // 🎨 Light Theme
   static ThemeData get lightTheme {
-    final baseTextTheme = GoogleFonts.poppinsTextTheme();
+    // ⚡⚡ OPTIMIZED: Cache GoogleFonts to avoid re-downloading
+    _cachedLightTextTheme ??= GoogleFonts.poppinsTextTheme();
+    final baseTextTheme = _cachedLightTextTheme!;
     
     return ThemeData(
       useMaterial3: true,
@@ -329,7 +336,9 @@ class AppTheme {
 
   // 🌙 Dark Theme
   static ThemeData get darkTheme {
-    final baseTextTheme = GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme);
+    // ⚡⚡ OPTIMIZED: Cache GoogleFonts to avoid re-downloading
+    _cachedDarkTextTheme ??= GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme);
+    final baseTextTheme = _cachedDarkTextTheme!;
     
     return ThemeData(
       useMaterial3: true,

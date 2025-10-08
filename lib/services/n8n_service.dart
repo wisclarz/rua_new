@@ -16,8 +16,10 @@ class N8nService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // ==========================================
+  // DEPRECATED: Artık OpenAIService kullanılıyor
   // YENİ: TRANSCRIBE ONLY - Sadece ses metne çevrilir
   // ==========================================
+  /* 
   Future<String?> transcribeAudioOnly({
     required String audioUrl,
     required firebase_auth.User user,
@@ -86,6 +88,7 @@ class N8nService {
       return null;
     }
   }
+  */
 
   // ==========================================
   // UNIFIED: Hem voice hem text için tek fonksiyon

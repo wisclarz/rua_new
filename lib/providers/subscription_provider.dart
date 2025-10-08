@@ -32,23 +32,43 @@ class SubscriptionProvider with ChangeNotifier {
   bool get isAdLoaded => _isAdLoaded;
 
   SubscriptionProvider() {
-    _initialize();
+    debugPrint('🏗️ SubscriptionProvider created (lightweight)');
+    // ⚡⚡ OPTIMIZED: Defer heavy initialization to not block startup
+    _deferredInitialize();
+  }
+
+  /// ⚡⚡ OPTIMIZED: Deferred initialization for better startup performance
+  void _deferredInitialize() {
+    // Schedule heavy operations after a delay to let UI render first
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      debugPrint('⏰ Deferred: Starting SubscriptionProvider initialization...');
+      _initialize();
+    });
   }
 
   Future<void> _initialize() async {
     try {
-      // Initialize In-App Purchase
-      final bool available = await _iap.isAvailable();
-      if (available) {
-        await _loadProducts();
-        _listenToPurchaseUpdated();
-      }
+      debugPrint('🔄 Initializing In-App Purchase...');
+      // Initialize In-App Purchase (background)
+      _iap.isAvailable().then((available) {
+        if (available) {
+          _loadProducts();
+          _listenToPurchaseUpdated();
+        }
+      }).catchError((e) {
+        debugPrint('❌ IAP initialization error: $e');
+      });
       
-      // Initialize AdMob
-      await MobileAds.instance.initialize();
+      debugPrint('🔄 Initializing AdMob...');
+      // Initialize AdMob (background, non-blocking)
+      MobileAds.instance.initialize().then((_) {
+        debugPrint('✅ AdMob initialized');
+      }).catchError((e) {
+        debugPrint('❌ AdMob initialization error: $e');
+      });
       
-      // Load user subscription
-      await loadUserSubscription();
+      // ⚡ Only load subscription when actually needed
+      debugPrint('✅ Subscription provider ready (lazy mode)');
     } catch (e) {
       debugPrint('❌ Subscription initialization error: $e');
     }
@@ -64,12 +84,12 @@ class SubscriptionProvider with ChangeNotifier {
         startDate: DateTime.now(),
         isActive: true,
       );
-      notifyListeners();
+      _safeNotify();
       return;
     }
 
     _isLoading = true;
-    notifyListeners();
+    _safeNotify();
 
     try {
       final doc = await _firestore
@@ -96,10 +116,14 @@ class SubscriptionProvider with ChangeNotifier {
           isActive: true,
         );
         
-        await _firestore
+        // ⚡ Non-blocking write
+        _firestore
             .collection('subscriptions')
             .doc(user.uid)
-            .set(_currentSubscription!.toMap());
+            .set(_currentSubscription!.toMap())
+            .catchError((e) {
+              debugPrint('❌ Error creating subscription: $e');
+            });
       }
 
       _errorMessage = null;
@@ -108,8 +132,15 @@ class SubscriptionProvider with ChangeNotifier {
       debugPrint('❌ Load subscription error: $e');
     } finally {
       _isLoading = false;
-      notifyListeners();
+      _safeNotify();
     }
+  }
+
+  /// ⚡ Safe notify to prevent build-time errors
+  void _safeNotify() {
+    scheduleMicrotask(() {
+      notifyListeners();
+    });
   }
 
   // ==================== IN-APP PURCHASE ====================

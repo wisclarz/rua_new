@@ -1,5 +1,5 @@
-name: rua_new
-description: "A new Flutter project."
+name: dreamp
+description: "Dreamp - Rüya Yorumlama Uygulaması"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -74,16 +74,27 @@ dependencies:
   
   # HTTP
   http: ^1.2.2
+  dio: ^5.4.0  # OpenAI API için multipart upload
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
   
-  # Assets (Eğer lottie animasyonları vs kullanacaksanız)
-  # assets:
-  #   - assets/images/
-  #   - assets/lottie/
+  assets:
+    - assets/icons/
+    - assets/images/
+    - assets/animations/
+
+# Flutter Launcher Icons Configuration
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/app_icon.png"
+  adaptive_icon_background: "#1a0033"
+  adaptive_icon_foreground: "assets/icons/app_icon_foreground.png"
+  remove_alpha_ios: true

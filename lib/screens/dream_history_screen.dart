@@ -9,6 +9,7 @@ import 'package:animations/animations.dart';
 import '../providers/dream_provider.dart';
 import '../models/dream_model.dart';
 import '../widgets/dream_detail_widget.dart';
+import '../widgets/decorative_header.dart';
 
 class DreamHistoryScreen extends StatefulWidget {
   const DreamHistoryScreen({super.key});
@@ -58,28 +59,7 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
     final theme = Theme.of(context);
     
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
-      appBar: AppBar(
-        title: const Text('Rüya Geçmişi')
-          .animate()
-          .fadeIn(duration: 400.ms)
-          .slideX(begin: -0.2, end: 0),
-        backgroundColor: theme.colorScheme.surface,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              _loadDreams();
-            },
-            tooltip: 'Yenile',
-          )
-            .animate()
-            .fadeIn(delay: 200.ms, duration: 400.ms)
-            .rotate(delay: 200.ms, duration: 600.ms, curve: Curves.elasticOut),
-        ],
-      ),
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: Consumer<DreamProvider>(
         builder: (context, dreamProvider, child) {
           if (dreamProvider.isLoading) {
@@ -93,25 +73,104 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
           final filteredDreams = _getFilteredDreams(dreamProvider.dreams);
 
           if (filteredDreams.isEmpty) {
-            return _buildEmptyState(theme);
+            return Stack(
+              children: [
+                // Floating background clouds
+                Positioned.fill(
+                  child: FloatingClouds(
+                    clouds: FloatingClouds.subtleClouds(theme),
+                  ),
+                ),
+                
+                // Main content
+                CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: DecorativeHeader(
+                        title: 'Rüya Geçmişi',
+                        subtitle: 'Geçmiş rüyalarınızı inceleyin',
+                        decorations: DecorativeHeader.cloudDecorations(theme),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(
+                      child: GradientTransition(),
+                    ),
+                    SliverFillRemaining(
+                      child: _buildEmptyState(theme),
+                    ),
+                  ],
+                ),
+              ],
+            );
           }
 
-          return RefreshIndicator(
+          return Stack(
+            children: [
+              // Floating background clouds
+              Positioned.fill(
+                child: FloatingClouds(
+                  clouds: FloatingClouds.scatteredClouds(theme),
+                ),
+              ),
+              
+              // Main content with refresh
+              RefreshIndicator(
             onRefresh: _loadDreams,
             color: theme.colorScheme.primary,
-            child: Column(
-              children: [
-                _buildFilterChips(dreamProvider.dreams, theme),
-                
-                Expanded(
-                  child: AnimationLimiter(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-                      physics: const BouncingScrollPhysics(
-                        parent: AlwaysScrollableScrollPhysics(),
+            child: CustomScrollView(
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              slivers: [
+                // Decorative Header
+                SliverToBoxAdapter(
+                  child: DecorativeHeader(
+                    title: 'Rüya Geçmişi',
+                    subtitle: '${dreamProvider.dreams.length} rüya kaydedildi',
+                    decorations: DecorativeHeader.cloudDecorations(theme),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 16.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          IconButton.filled(
+                            icon: const Icon(Icons.refresh, size: 20),
+                            onPressed: () {
+                              HapticFeedback.lightImpact();
+                              _loadDreams();
+                            },
+                            tooltip: 'Yenile',
+                            style: IconButton.styleFrom(
+                              backgroundColor: theme.colorScheme.primaryContainer,
+                              foregroundColor: theme.colorScheme.onPrimaryContainer,
+                            ),
+                          )
+                            .animate()
+                            .fadeIn(delay: 200.ms, duration: 400.ms)
+                            .rotate(delay: 200.ms, duration: 600.ms, curve: Curves.elasticOut),
+                        ],
                       ),
-                      itemCount: filteredDreams.length,
-                      itemBuilder: (context, index) {
+                    ),
+                  ),
+                ),
+                
+                // Gradient Transition
+                const SliverToBoxAdapter(
+                  child: GradientTransition(),
+                ),
+                
+                // Filter Chips
+                SliverToBoxAdapter(
+                  child: _buildFilterChips(dreamProvider.dreams, theme),
+                ),
+                
+                // Dreams List
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
                         return AnimationConfiguration.staggeredList(
                           position: index,
                           duration: const Duration(milliseconds: 400),
@@ -127,11 +186,14 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
                           ),
                         );
                       },
+                      childCount: filteredDreams.length,
                     ),
                   ),
                 ),
               ],
-            ),
+                ),
+              ),
+            ],
           );
         },
       ),
@@ -464,13 +526,7 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
   }
 
   Widget _buildEmptyState(ThemeData theme) {
-    return RefreshIndicator(
-      onRefresh: _loadDreams,
-      child: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverFillRemaining(
-            child: Center(
+    return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -529,11 +585,7 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
                     .fadeIn(delay: 600.ms, duration: 600.ms),
                 ],
               ),
-            ),
-          ),
-        ],
-      ),
-    );
+            );
   }
 
   Widget _buildErrorState(String error, ThemeData theme) {

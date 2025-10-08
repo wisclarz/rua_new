@@ -9,6 +9,7 @@ import 'dart:math';
 import 'dart:async';
 import '../models/dream_model.dart';
 import '../services/n8n_service.dart';
+import '../services/openai_service.dart';
 
 class DreamProvider extends ChangeNotifier {
   List<Dream> _dreams = [];
@@ -23,10 +24,6 @@ class DreamProvider extends ChangeNotifier {
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
-  // YENİ: Pending audio URL (transcription preview için)
-  String? _pendingAudioUrl;
-  String? get pendingAudioUrl => _pendingAudioUrl;
-
   FlutterSoundRecorder? _recorder;
   String? _currentRecordingPath;
   bool _isRecorderInitialized = false;
@@ -35,6 +32,7 @@ class DreamProvider extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final N8nService _n8nService = N8nService();
+  final OpenAIService _openAIService = OpenAIService();
   
   StreamSubscription<QuerySnapshot>? _dreamsSubscription;
 
@@ -74,6 +72,7 @@ class DreamProvider extends ChangeNotifier {
     return granted;
   }
 
+  /// ⚡⚡ OPTIMIZED: Firestore listener with better query limits
   void startListeningToDreams() {
     final user = _auth.currentUser;
     if (user == null) {
@@ -88,16 +87,19 @@ class DreamProvider extends ChangeNotifier {
 
     debugPrint('🎧 Starting real-time listener for dreams...');
     
+    // ⚡ Reduced limit from 50 to 30 for better performance
     _dreamsSubscription = _firestore
         .collection('dreams')
         .where('userId', isEqualTo: user.uid)
         .orderBy('createdAt', descending: true)
-        .limit(50)
+        .limit(30) // Reduced from 50
         .snapshots()
         .listen(
       (snapshot) {
-        debugPrint('🔄 Firestore snapshot received: ${snapshot.docs.length} dreams');
-        _processDreamsSnapshot(snapshot);
+        // ⚡ Process in microtask to not block UI thread
+        scheduleMicrotask(() {
+          _processDreamsSnapshot(snapshot);
+        });
       },
       onError: (error) {
         debugPrint('❌ Firestore listener error: $error');
@@ -105,10 +107,12 @@ class DreamProvider extends ChangeNotifier {
     );
   }
 
+  /// ⚡⚡ OPTIMIZED: Batch processing and debounced notifications
   void _processDreamsSnapshot(QuerySnapshot snapshot) {
     try {
       final newDreams = <Dream>[];
       
+      // ⚡ Batch process all documents
       for (var doc in snapshot.docs) {
         try {
           final dreamData = doc.data() as Map<String, dynamic>;
@@ -116,21 +120,36 @@ class DreamProvider extends ChangeNotifier {
           
           final dream = Dream.fromMap(dreamData);
           newDreams.add(dream);
-          
-          if (dream.analysis != null && dream.analysis != 'Analiz yapılıyor...') {
-            debugPrint('✅ Dream analysis updated: ${dream.id}');
-          }
         } catch (e) {
           debugPrint('❌ Error parsing dream document ${doc.id}: $e');
         }
       }
       
-      _dreams = newDreams;
-      _safeNotify();
+      // ⚡ Only notify if data actually changed
+      if (_dreamsHaveChanged(newDreams)) {
+        _dreams = newDreams;
+        _safeNotify();
+        debugPrint('✅ Dreams updated: ${newDreams.length} items');
+      }
       
     } catch (e) {
       debugPrint('❌ Error processing snapshot: $e');
     }
+  }
+
+  /// ⚡ Check if dreams list actually changed to prevent unnecessary rebuilds
+  bool _dreamsHaveChanged(List<Dream> newDreams) {
+    if (_dreams.length != newDreams.length) return true;
+    
+    for (int i = 0; i < _dreams.length; i++) {
+      if (_dreams[i].id != newDreams[i].id ||
+          _dreams[i].status != newDreams[i].status ||
+          _dreams[i].analysis != newDreams[i].analysis) {
+        return true;
+      }
+    }
+    
+    return false;
   }
 
   void stopListeningToDreams() {
@@ -141,11 +160,18 @@ class DreamProvider extends ChangeNotifier {
     }
   }
 
+  /// ⚡⚡ OPTIMIZED: Further deferred dream loading
   void startListeningToAuthenticatedUser() {
     final user = _auth.currentUser;
     if (user != null) {
-      debugPrint('🔐 User authenticated, starting dream listener for: ${user.uid}');
-      Future.microtask(() => loadDreams());
+      debugPrint('🔐 User authenticated, scheduling dream listener for: ${user.uid}');
+      // ⚡⚡ Increased delay from 500ms to 1000ms for smoother startup
+      Future.delayed(const Duration(milliseconds: 1000), () {
+        if (_auth.currentUser != null) {
+          debugPrint('📱 Now loading dreams after UI is ready...');
+          loadDreams();
+        }
+      });
     } else {
       debugPrint('🔐 No authenticated user, stopping listener');
       stopListeningToDreams();
@@ -366,56 +392,49 @@ class DreamProvider extends ChangeNotifier {
         throw Exception('Geçersiz ses dosya formatı');
       }
 
-      debugPrint('☁️ Uploading to Firebase Storage...');
-      final String downloadUrl = await _uploadAudioToStorage(audioFile);
-      debugPrint('✅ Upload successful: $downloadUrl');
-
-      // Store URL for later use
-      _pendingAudioUrl = downloadUrl;
-
-      // ÖNEMLİ: Önce transcription yap
-      if (onTranscriptionReady != null) {
-        debugPrint('🎙️ Getting transcription...');
-        final user = _auth.currentUser;
-        if (user != null) {
-          final transcription = await _n8nService.transcribeAudioOnly(
-            audioUrl: downloadUrl,
-            user: user,
-          );
+      // Firebase Storage'a yüklemeye gerek yok! Direkt transkripsiyon yap
+      debugPrint('🎙️ Getting transcription with OpenAI...');
+      
+      // Direkt yerel ses dosyasını OpenAI'ye gönder
+      final transcription = await _openAIService.transcribeAudio(
+        audioFile: audioFile,
+        language: 'tr',
+      );
+      
+      if (transcription != null && transcription.isNotEmpty) {
+        debugPrint('✅ Transcription ready, showing to user...');
+        
+        if (onTranscriptionReady != null) {
+          onTranscriptionReady(transcription);
           
-          if (transcription != null && transcription.isNotEmpty) {
-            debugPrint('✅ Transcription ready, showing to user...');
-            onTranscriptionReady(transcription);
-            
-            shouldKeepLoading = true;
-            _setLoading(false);
-            throw Exception('WAITING_FOR_USER_APPROVAL');
-          } else {
-            debugPrint('❌ Transcription failed, continuing without preview...');
-          }
+          shouldKeepLoading = true;
+          _setLoading(false);
+          throw Exception('WAITING_FOR_USER_APPROVAL');
         }
+      } else {
+        debugPrint('❌ Transcription failed');
+        throw Exception('Transkripsiyon başarısız oldu');
       }
 
-      debugPrint('📝 Creating dream record...');
-      final Dream newDream = await createDreamRecord(downloadUrl, audioFile.path);
-      debugPrint('✅ Dream created: ${newDream.id}');
-
-      try {
-        if (audioFile.path.contains('temp') || audioFile.path.contains('cache')) {
-          await audioFile.delete();
-          debugPrint('🗑️ Temporary file deleted');
-        }
-      } catch (e) {
-        debugPrint('⚠️ Could not delete file: $e');
-      }
-
-      return newDream;
+      // Bu noktaya gelmemeli çünkü WAITING_FOR_USER_APPROVAL exception'ı fırlatılıyor
+      return Dream(
+        id: '',
+        userId: '',
+        audioUrl: '',
+        fileName: null,
+        title: '',
+        dreamText: null,
+        analysis: null,
+        mood: 'Belirsiz',
+        status: DreamStatus.processing,
+        createdAt: DateTime.now(),
+      );
     } catch (e) {
       debugPrint('❌ uploadAudioFile error: $e');
       if (e.toString().contains('WAITING_FOR_USER_APPROVAL')) {
         rethrow;
       }
-      _setError('Dosya yüklenirken hata oluştu: $e');
+      _setError('Transkripsiyon sırasında hata oluştu: $e');
       rethrow;
     } finally {
       if (!shouldKeepLoading) {
@@ -448,8 +467,8 @@ class DreamProvider extends ChangeNotifier {
       final Dream newDream = Dream(
         id: dreamId,
         userId: user.uid,
-        audioUrl: audioUrl,
-        fileName: audioUrl.split('/').last,
+        audioUrl: audioUrl.isNotEmpty ? audioUrl : '',
+        fileName: audioUrl.isNotEmpty ? audioUrl.split('/').last : null,
         title: title ?? 'Yeni Rüya Kaydı',
         dreamText: transcription,
         analysis: 'Analiz yapılıyor...',

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import '../widgets/decorative_header.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -63,38 +65,35 @@ class _ExploreScreenState extends State<ExploreScreen> with AutomaticKeepAliveCl
     final theme = Theme.of(context);
     
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(
-          parent: AlwaysScrollableScrollPhysics(),
-        ),
-        slivers: [
-          // Simple AppBar
-          SliverAppBar(
-            expandedHeight: 120,
-            floating: false,
-            pinned: true,
-            backgroundColor: theme.colorScheme.surface,
-            flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                'Keşfet',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      theme.colorScheme.primary.withValues(alpha: 0.05),
-                      theme.colorScheme.secondary.withValues(alpha: 0.02),
-                    ],
-                  ),
-                ),
-              ),
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: Stack(
+        children: [
+          // Floating background clouds
+          Positioned.fill(
+            child: FloatingClouds(
+              clouds: FloatingClouds.subtleClouds(theme),
             ),
+          ),
+          
+          // Main content
+          CustomScrollView(
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
+            ),
+            slivers: [
+          // Modern Header
+          SliverToBoxAdapter(
+            child: DecorativeHeader(
+              title: 'Keşfet',
+              subtitle: 'Rüya sembollerini ve anlamlarını inceleyin',
+              decorations: DecorativeHeader.starsDecorations(theme),
+              minHeight: 160,
+            ),
+          ),
+          
+          // Gradient Transition
+          const SliverToBoxAdapter(
+            child: GradientTransition(),
           ),
           
           // Search Bar
@@ -122,6 +121,8 @@ class _ExploreScreenState extends State<ExploreScreen> with AutomaticKeepAliveCl
               ),
             ),
           ),
+            ],
+          ),
         ],
       ),
     );
@@ -133,21 +134,39 @@ class _ExploreScreenState extends State<ExploreScreen> with AutomaticKeepAliveCl
       child: Container(
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: theme.colorScheme.outlineVariant,
-            width: 1,
+            color: theme.colorScheme.primary.withOpacity(0.2),
+            width: 1.5,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: theme.colorScheme.primary.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: TextField(
           decoration: InputDecoration(
             hintText: 'Sembol veya kategori ara...',
-            prefixIcon: Icon(
-              Icons.search,
+            hintStyle: TextStyle(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+              fontSize: 15,
+            ),
+            prefixIcon: Container(
+              margin: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.search,
+                color: theme.colorScheme.primary,
+              ),
             ),
             border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
           onSubmitted: (value) {
             if (value.isNotEmpty) {
@@ -156,23 +175,33 @@ class _ExploreScreenState extends State<ExploreScreen> with AutomaticKeepAliveCl
           },
         ),
       ),
-    );
+    )
+      .animate()
+      .fadeIn(delay: 200.ms, duration: 400.ms)
+      .slideY(begin: -0.2, end: 0);
   }
 
   Widget _buildCategoryCard(ExploreCategory category, ThemeData theme) {
     return Container(
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: category.color.withValues(alpha: 0.3),
           width: 1.5,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: category.color.withOpacity(0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           onTap: () {
             HapticFeedback.lightImpact();
             _showCategoryDetails(category);
@@ -182,18 +211,25 @@ class _ExploreScreenState extends State<ExploreScreen> with AutomaticKeepAliveCl
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Icon Container
+                // Icon Container with gradient
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 56,
+                  height: 56,
                   decoration: BoxDecoration(
-                    color: category.color.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        category.color.withValues(alpha: 0.2),
+                        category.color.withValues(alpha: 0.1),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(
                     category.icon,
                     color: category.color,
-                    size: 24,
+                    size: 28,
                   ),
                 ),
                 
@@ -224,20 +260,36 @@ class _ExploreScreenState extends State<ExploreScreen> with AutomaticKeepAliveCl
                 
                 const SizedBox(height: 8),
                 
-                // Items count
+                // Items count with better styling
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: category.color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    '${category.items.length} öğe',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: category.color,
-                      fontWeight: FontWeight.w600,
+                    gradient: LinearGradient(
+                      colors: [
+                        category.color.withValues(alpha: 0.15),
+                        category.color.withValues(alpha: 0.08),
+                      ],
                     ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.inventory_2_outlined,
+                        size: 12,
+                        color: category.color,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${category.items.length} öğe',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: category.color,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],

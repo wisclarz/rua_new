@@ -4,15 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'dart:math' as math;
-import '../config/app_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:shimmer/shimmer.dart';
-import '../models/dream_model.dart';
 import '../providers/auth_provider_interface.dart';
 import '../providers/dream_provider.dart';
 import '../providers/subscription_provider.dart';
-import '../screens/subscription_screen.dart';
-import '../widgets/dream_detail_widget.dart';
+import '../widgets/decorative_header.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -53,33 +49,50 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           final currentStreak = _calculateCurrentStreak(dreamProvider);
           final longestStreak = _calculateLongestStreak(dreamProvider);
           
-          return CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              // Clean Header
-              SliverToBoxAdapter(
-                child: _buildCleanHeader(context, user, theme),
-              ),
-              
-              // Premium Banner (if not pro)
-              if (!subscriptionProvider.isPro)
-                SliverToBoxAdapter(
-                  child: _buildPremiumBanner(subscriptionProvider, theme),
+          return Stack(
+            children: [
+              // Floating background clouds
+              Positioned.fill(
+                child: FloatingClouds(
+                  clouds: FloatingClouds.scatteredClouds(theme),
                 ),
-              
-              // Weekly Calendar Streak Card
-              SliverToBoxAdapter(
-                child: _buildWeeklyStreakCard(context, dreamProvider, todayLogged, currentStreak, theme),
               ),
               
-              // Enhanced Stats
-              SliverToBoxAdapter(
-                child: _buildEnhancedStats(context, dreamProvider, currentStreak, longestStreak, theme),
-              ),
-              
-              // Spacer at bottom
-              const SliverToBoxAdapter(
-                child: SizedBox(height: 100),
+              // Main content
+              CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  // Clean Header
+                  SliverToBoxAdapter(
+                    child: _buildCleanHeader(context, user, theme),
+                  ),
+                  
+                  // Gradient Transition
+                  const SliverToBoxAdapter(
+                    child: GradientTransition(),
+                  ),
+                  
+                  // Premium Banner (if not pro)
+                  if (!subscriptionProvider.isPro)
+                    SliverToBoxAdapter(
+                      child: _buildPremiumBanner(subscriptionProvider, theme),
+                    ),
+                  
+                  // Weekly Calendar Streak Card
+                  SliverToBoxAdapter(
+                    child: _buildWeeklyStreakCard(context, dreamProvider, todayLogged, currentStreak, theme),
+                  ),
+                  
+                  // Enhanced Stats
+                  SliverToBoxAdapter(
+                    child: _buildEnhancedStats(context, dreamProvider, currentStreak, longestStreak, theme),
+                  ),
+                  
+                  // Spacer at bottom
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: 100),
+                  ),
+                ],
               ),
             ],
           );
@@ -91,18 +104,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   Widget _buildCleanHeader(BuildContext context, dynamic user, ThemeData theme) {
   return Container(
     margin: const EdgeInsets.only(bottom: 12),
-    padding: const EdgeInsets.fromLTRB(20, 60, 20, 24),
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          theme.colorScheme.surface.withOpacity(0.08),
-          theme.colorScheme.secondary.withOpacity(0.05),
-        ],
-      ),
-    ),
-    child: Column(
+    child: DecorativeHeader(
+      decorations: DecorativeHeader.cloudDecorations(theme),
+      minHeight: 160,
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
@@ -217,6 +222,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ],
         ),
       ],
+      ),
     ),
   );
 }
@@ -444,22 +450,6 @@ String _getGreeting() {
     .fadeIn(delay: 500.ms, duration: 600.ms)
     .slideY(begin: 0.2, end: 0, curve: Curves.easeOutCubic);
 }
-Widget _buildShimmerCard(ThemeData theme) {
-  return Container(
-    margin: const EdgeInsets.only(bottom: 16),
-    child: Shimmer.fromColors(
-      baseColor: theme.colorScheme.surfaceContainerHighest,
-      highlightColor: theme.colorScheme.surface,
-      child: Container(
-        height: 200,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-        ),
-      ),
-    ),
-  );
-}
 
   Widget _buildDayIndicator({
   required DateTime day,
@@ -572,7 +562,10 @@ bool _hasDreamOnDate(dynamic dreamProvider, DateTime date) {
                 color: theme.colorScheme.onSurface,
               ),
             ),
-          ),
+          )
+            .animate()
+            .fadeIn(delay: 700.ms, duration: 600.ms)
+            .slideY(begin: 0.2, end: 0),
           // First row
           Row(
             children: [
@@ -583,6 +576,7 @@ bool _hasDreamOnDate(dynamic dreamProvider, DateTime date) {
                   label: 'Toplam Rüya',
                   value: totalDreams.toString(),
                   color: const Color(0xFF6B4EFF),
+                  delay: 800,
                 ),
               ),
               const SizedBox(width: 12),
@@ -593,6 +587,7 @@ bool _hasDreamOnDate(dynamic dreamProvider, DateTime date) {
                   label: 'En Uzun Seri',
                   value: longestStreak.toString(),
                   color: Colors.orange,
+                  delay: 900,
                 ),
               ),
             ],
@@ -608,6 +603,7 @@ bool _hasDreamOnDate(dynamic dreamProvider, DateTime date) {
                   label: 'Bu Hafta',
                   value: thisWeekDreams.toString(),
                   color: Colors.blue,
+                  delay: 1000,
                 ),
               ),
               const SizedBox(width: 12),
@@ -618,6 +614,7 @@ bool _hasDreamOnDate(dynamic dreamProvider, DateTime date) {
                   label: 'Bu Ay',
                   value: thisMonthDreams.toString(),
                   color: Colors.green,
+                  delay: 1100,
                 ),
               ),
             ],
@@ -633,6 +630,7 @@ bool _hasDreamOnDate(dynamic dreamProvider, DateTime date) {
     required String label,
     required String value,
     required Color color,
+    int delay = 0,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -675,51 +673,20 @@ bool _hasDreamOnDate(dynamic dreamProvider, DateTime date) {
           ),
         ],
       ),
-    );
+    )
+      .animate()
+      .fadeIn(delay: delay.ms, duration: 600.ms)
+      .slideY(begin: 0.3, end: 0, curve: Curves.easeOutCubic)
+      .scale(
+        delay: delay.ms,
+        duration: 600.ms,
+        begin: const Offset(0.8, 0.8),
+        end: const Offset(1.0, 1.0),
+        curve: Curves.easeOutCubic,
+      );
   }
 
   // Helper methods
-  List<DateTime> _getLast7Days() {
-    final now = DateTime.now();
-    return List.generate(7, (index) {
-      return now.subtract(Duration(days: 6 - index));
-    });
-  }
-
-  Map<String, List<Dream>> _getDreamsMapForWeek(DreamProvider provider) {
-    final map = <String, List<Dream>>{};
-    final last7Days = _getLast7Days();
-    
-    for (final dream in provider.dreams) {
-      final dreamDate = DateTime(
-        dream.createdAt.year,
-        dream.createdAt.month,
-        dream.createdAt.day,
-      );
-      
-      for (final day in last7Days) {
-        final checkDate = DateTime(day.year, day.month, day.day);
-        if (dreamDate == checkDate) {
-          final key = _dateKey(day);
-          map[key] = [...(map[key] ?? []), dream];
-        }
-      }
-    }
-    
-    return map;
-  }
-
-  String _dateKey(DateTime date) {
-    return '${date.year}-${date.month}-${date.day}';
-  }
-
-  bool _isToday(DateTime date) {
-    final now = DateTime.now();
-    return date.year == now.year &&
-        date.month == now.month &&
-        date.day == now.day;
-  }
-
   bool _checkTodayDreamLogged(DreamProvider provider) {
     final today = DateTime.now();
     return provider.dreams.any((dream) {

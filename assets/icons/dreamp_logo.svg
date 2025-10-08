@@ -1,0 +1,71 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="moonGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B5CF6;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#6366F1;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3B82F6;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a0033;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2d0a4d;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="url(#bgGradient)" rx="180"/>
+  
+  <!-- Main Moon Circle -->
+  <circle cx="512" cy="460" r="280" fill="url(#moonGradient)" opacity="0.95" filter="url(#glow)"/>
+  
+  <!-- Moon Crescent (overlay) -->
+  <circle cx="580" cy="420" r="240" fill="#1a0033" opacity="0.3"/>
+  
+  <!-- Stars -->
+  <g fill="#FFFFFF" opacity="0.9">
+    <!-- Large star top-right -->
+    <path d="M780,200 l8,25 l26,0 l-21,15 l8,25 l-21,-15 l-21,15 l8,-25 l-21,-15 l26,0 z" filter="url(#glow)"/>
+    <!-- Medium star top-left -->
+    <path d="M240,180 l6,18 l19,0 l-15,11 l6,18 l-15,-11 l-15,11 l6,-18 l-15,-11 l19,0 z" filter="url(#glow)"/>
+    <!-- Small star right -->
+    <path d="M850,400 l4,12 l13,0 l-10,8 l4,12 l-10,-8 l-10,8 l4,-12 l-10,-8 l13,0 z"/>
+    <!-- Small star left -->
+    <path d="M180,450 l4,12 l13,0 l-10,8 l4,12 l-10,-8 l-10,8 l4,-12 l-10,-8 l13,0 z"/>
+    <!-- Tiny stars scattered -->
+    <circle cx="320" cy="280" r="4"/>
+    <circle cx="700" cy="320" r="4"/>
+    <circle cx="400" cy="600" r="3"/>
+    <circle cx="650" cy="650" r="3"/>
+  </g>
+  
+  <!-- Dream clouds at bottom -->
+  <g opacity="0.4" fill="#FFFFFF">
+    <ellipse cx="350" cy="720" rx="90" ry="40" filter="url(#glow)"/>
+    <ellipse cx="450" cy="730" rx="110" ry="45" filter="url(#glow)"/>
+    <ellipse cx="550" cy="720" rx="100" ry="42" filter="url(#glow)"/>
+    <ellipse cx="650" cy="735" rx="95" ry="40" filter="url(#glow)"/>
+  </g>
+  
+  <!-- "D" Letter integrated with moon -->
+  <text x="512" y="540" font-family="Arial, sans-serif" font-size="280" font-weight="bold" 
+        fill="#FFFFFF" text-anchor="middle" opacity="0.95" filter="url(#glow)">D</text>
+  
+  <!-- Sparkles around moon -->
+  <g fill="#FFD700" opacity="0.8">
+    <circle cx="300" cy="380" r="6" filter="url(#glow)"/>
+    <circle cx="730" cy="500" r="5" filter="url(#glow)"/>
+    <circle cx="420" cy="250" r="4" filter="url(#glow)"/>
+    <circle cx="620" cy="280" r="5" filter="url(#glow)"/>
+  </g>
+  
+  <!-- Bottom text "DREAMP" -->
+  <text x="512" y="900" font-family="Arial, sans-serif" font-size="90" font-weight="bold" 
+        fill="#FFFFFF" text-anchor="middle" letter-spacing="8" opacity="0.95">DREAMP</text>
+</svg>
+

@@ -106,7 +106,17 @@ class AuthProvider with ChangeNotifier {
       _setLoading(true);
       _clearError();
       
-      final user = await _authService.signInWithGoogle();
+      // Önce sessiz giriş dene (kullanıcı daha önce giriş yaptıysa)
+      var user = await _authService.signInSilently();
+      
+      if (user != null) {
+        _currentUser = user;
+        notifyListeners();
+        return true;
+      }
+      
+      // Sessiz giriş başarısız oldu, normal Google giriş ekranını göster
+      user = await _authService.signInWithGoogle();
       
       if (user != null) {
         _currentUser = user;

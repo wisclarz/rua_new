@@ -3,11 +3,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../models/dream_model.dart';
 import '../providers/auth_provider_interface.dart';
 import '../providers/dream_provider.dart';
 import '../providers/subscription_provider.dart';
 import '../screens/subscription_screen.dart';
+import '../widgets/decorative_header.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -45,13 +47,28 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         builder: (context, authProvider, dreamProvider, subscriptionProvider, _) {
           final user = authProvider.currentUser;
           
-          return CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              // Header
-              SliverToBoxAdapter(
-                child: _buildHeader(context, user, theme),
+          return Stack(
+            children: [
+              // Floating background clouds
+              Positioned.fill(
+                child: FloatingClouds(
+                  clouds: FloatingClouds.subtleClouds(theme),
+                ),
               ),
+              
+              // Main content
+              CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  // Header
+                  SliverToBoxAdapter(
+                    child: _buildHeader(context, user, theme),
+                  ),
+                  
+                  // Gradient Transition
+                  const SliverToBoxAdapter(
+                    child: GradientTransition(),
+                  ),
               
               // Subscription Card
               SliverToBoxAdapter(
@@ -71,6 +88,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               const SliverToBoxAdapter(
                 child: SizedBox(height: 100),
               ),
+                ],
+              ),
             ],
           );
         },
@@ -79,9 +98,11 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   }
 
   Widget _buildHeader(BuildContext context, dynamic user, ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 60, 20, 24),
+    return DecorativeHeader(
+      decorations: DecorativeHeader.starsDecorations(theme),
+      minHeight: 220,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           // Avatar
           Container(
@@ -117,7 +138,11 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                     size: 50,
                     color: Colors.white,
                   ),
-          ),
+          )
+            .animate()
+            .scale(duration: 600.ms, curve: Curves.elasticOut)
+            .shimmer(delay: 600.ms, duration: 1500.ms),
+          
           const SizedBox(height: 16),
           
           // Name
@@ -127,7 +152,10 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               fontWeight: FontWeight.bold,
               color: theme.colorScheme.onSurface,
             ),
-          ),
+          )
+            .animate()
+            .fadeIn(delay: 200.ms, duration: 400.ms)
+            .slideY(begin: 0.2, end: 0),
           
           const SizedBox(height: 4),
           
@@ -137,7 +165,10 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
             ),
-          ),
+          )
+            .animate()
+            .fadeIn(delay: 300.ms, duration: 400.ms)
+            .slideY(begin: 0.2, end: 0),
         ],
       ),
     );
@@ -318,6 +349,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               value: totalDreams.toString(),
               icon: Icons.nights_stay,
               color: const Color(0xFF6B4EFF),
+              delay: 400,
             ),
           ),
           const SizedBox(width: 12),
@@ -328,6 +360,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               value: completedDreams.toString(),
               icon: Icons.check_circle,
               color: Colors.green,
+              delay: 500,
             ),
           ),
           const SizedBox(width: 12),
@@ -338,6 +371,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               value: processingDreams.toString(),
               icon: Icons.hourglass_empty,
               color: Colors.orange,
+              delay: 600,
             ),
           ),
         ],
@@ -351,6 +385,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     required String value,
     required IconData icon,
     required Color color,
+    int delay = 0,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -380,7 +415,17 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           ),
         ],
       ),
-    );
+    )
+      .animate()
+      .fadeIn(delay: delay.ms, duration: 600.ms)
+      .slideY(begin: 0.3, end: 0, curve: Curves.easeOutCubic)
+      .scale(
+        delay: delay.ms,
+        duration: 600.ms,
+        begin: const Offset(0.8, 0.8),
+        end: const Offset(1.0, 1.0),
+        curve: Curves.easeOutCubic,
+      );
   }
 
   Widget _buildMenuItems(

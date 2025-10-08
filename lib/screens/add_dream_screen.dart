@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/dream_provider.dart';
+import '../widgets/decorative_header.dart';
 
 class AddDreamScreen extends StatefulWidget {
   const AddDreamScreen({super.key});
@@ -31,7 +32,6 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
   
   late AnimationController _pulseController;
   late AnimationController _waveController;
-  late Animation<double> _pulseAnimation;
   late TabController _tabController;
 
   @override
@@ -59,10 +59,6 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
     _waveController = AnimationController(
       duration: const Duration(milliseconds: 2000),
       vsync: this,
-    );
-
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
   }
 
@@ -347,22 +343,225 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
       final dreamProvider = Provider.of<DreamProvider>(context, listen: false);
       
       final file = File(_recordedFilePath!);
-      debugPrint('📤 Uploading file: $_recordedFilePath (${file.lengthSync()} bytes)');
+      debugPrint('📤 Starting transcription for: $_recordedFilePath (${file.lengthSync()} bytes)');
       
-      dreamProvider.uploadAudioFile(file).then((_) {
-        debugPrint('✅ Background upload completed');
-      }).catchError((error) {
-        debugPrint('❌ Background upload failed: $error');
-      });
+      // Loading dialog göster
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                const Text(
+                  'Ses kaydınız metne çevriliyor...',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Bu birkaç saniye sürebilir',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
       
-      HapticFeedback.heavyImpact();
+      // Transkripsiyon yap ve callback ile yakala
+      String? transcriptionResult;
+      bool transcriptionReceived = false;
+      
+      try {
+        await dreamProvider.uploadAudioFile(
+          file,
+          onTranscriptionReady: (transcription) {
+            debugPrint('📝 Transcription callback received');
+            transcriptionResult = transcription;
+            transcriptionReceived = true;
+          },
+        );
+      } catch (e) {
+        if (e.toString().contains('WAITING_FOR_USER_APPROVAL')) {
+          // Bu beklenen bir durum, kullanıcı transcription'ı görüyor
+          debugPrint('✅ Waiting for user approval...');
+        } else {
+          // Gerçek bir hata
+          debugPrint('❌ Transcription failed: $e');
+          if (mounted) {
+            Navigator.pop(context); // Loading dialog'u kapat
+          }
+          _showErrorSnackBar('Transkripsiyon hatası: $e');
+          return;
+        }
+      }
+      
+      // Loading dialog'u kapat ve transcription dialog'u göster
+      if (mounted && transcriptionReceived && transcriptionResult != null) {
+        Navigator.pop(context); // Loading dialog'u kapat
+        // Biraz bekle ki dialog düzgün kapansın
+        await Future.delayed(const Duration(milliseconds: 200));
+        if (mounted) {
+          _showTranscriptionDialog(transcriptionResult!);
+        }
+      } else if (mounted) {
+        Navigator.pop(context);
+        _showErrorSnackBar('Transkripsiyon alınamadı');
+      }
+      
+    } catch (e) {
+      debugPrint('❌ Save error: $e');
+      _showErrorSnackBar('Kayıt hatası: $e');
+    }
+  }
+
+  void _showTranscriptionDialog(String transcription) {
+    final transcriptionController = TextEditingController(text: transcription);
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(Icons.text_fields, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
+            const Text('Rüya Metni'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Ses kaydınız metne çevrildi. İsterseniz düzenleyebilirsiniz:',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 300),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: TextField(
+                  controller: transcriptionController,
+                  maxLines: null,
+                  style: const TextStyle(fontSize: 14),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    hintText: 'Rüya metni...',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: Colors.blue[700]),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Metni kontrol edin ve gerekirse düzeltin',
+                      style: TextStyle(fontSize: 12, color: Colors.blue[700]),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // Dialog'u kapat
+              _discardRecording(); // Kaydı sil
+            },
+            child: const Text('İptal'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              final editedText = transcriptionController.text.trim();
+              
+              if (editedText.isEmpty) {
+                _showErrorSnackBar('Rüya metni boş olamaz');
+                return;
+              }
+              
+              if (editedText.length < 20) {
+                _showErrorSnackBar('Rüya metni en az 20 karakter olmalıdır');
+                return;
+              }
+              
+              Navigator.pop(context); // Dialog'u kapat
+              
+              // Artık analiz için n8n'e gönder
+              await _sendTranscriptionForAnalysis(editedText);
+            },
+            icon: const Icon(Icons.send),
+            label: const Text('Analiz İçin Gönder'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _sendTranscriptionForAnalysis(String transcription) async {
+    try {
+      final dreamProvider = Provider.of<DreamProvider>(context, listen: false);
       
       if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                const Text(
+                  'Rüyanız analiz için gönderiliyor...',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+      
+      // Rüyayı kaydet ve analize gönder (sadece metin, ses dosyası yok)
+      await dreamProvider.createDreamWithTranscription(
+        audioUrl: '', // Ses dosyası saklamıyoruz, boş string
+        transcription: transcription,
+        title: _titleController.text.trim(),
+      );
+      
+      if (mounted) {
+        Navigator.pop(context); // Loading dialog
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.cloud_upload, color: Colors.white),
+                const Icon(Icons.check_circle, color: Colors.white),
                 const SizedBox(width: 12),
                 const Expanded(
                   child: Column(
@@ -370,7 +569,7 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Rüya kaydediliyor...',
+                        'Rüya kaydedildi!',
                         style: TextStyle(fontWeight: FontWeight.w600),
                       ),
                       Text(
@@ -388,11 +587,19 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
           ),
         );
         
-        Navigator.pop(context);
+        Navigator.pop(context); // Ana ekrana dön
       }
+      
+      // Yerel geçici ses dosyasını temizle
+      _discardRecording();
+      debugPrint('✅ Local audio file cleaned up');
+      
     } catch (e) {
-      debugPrint('❌ Save error: $e');
-      _showErrorSnackBar('Kayıt hatası: $e');
+      if (mounted) {
+        Navigator.pop(context); // Loading dialog
+      }
+      debugPrint('❌ Analysis send error: $e');
+      _showErrorSnackBar('Analiz gönderme hatası: $e');
     }
   }
 
@@ -564,34 +771,79 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
   }
 
   Widget _buildTextInputScreen(ThemeData theme, Size size) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-            
-            Text(
-              'Rüyanızı Yazın',
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w600,
+    return Stack(
+      children: [
+        // Floating background clouds
+        Positioned.fill(
+          child: FloatingClouds(
+            clouds: FloatingClouds.subtleClouds(theme),
+          ),
+        ),
+        
+        // Main content
+        CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: DecorativeHeader(
+            minHeight: 120,
+            decorations: [
+              DecorationItem(
+                icon: Icons.edit_note,
+                size: 70,
+                top: 10,
+                right: 20,
+                opacity: 0.08,
               ),
-            ),
-            
-            const SizedBox(height: 8),
-            
-            Text(
-              'Rüyanızı detaylı anlatın, daha iyi analiz edelim',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+              DecorationItem(
+                icon: Icons.text_fields,
+                size: 50,
+                top: 30,
+                left: 20,
+                opacity: 0.06,
+                color: theme.colorScheme.secondary.withOpacity(0.06),
               ),
-              textAlign: TextAlign.center,
+            ],
+            child: Column(
+              children: [
+                Text(
+                  'Rüyanızı Yazın',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: theme.colorScheme.onSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
+                  .animate()
+                  .fadeIn(duration: 400.ms)
+                  .slideY(begin: -0.2, end: 0),
+                
+                const SizedBox(height: 8),
+                
+                Text(
+                  'Rüyanızı detaylı anlatın, daha iyi analiz edelim',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                  textAlign: TextAlign.center,
+                )
+                  .animate()
+                  .fadeIn(delay: 200.ms, duration: 400.ms)
+                  .slideY(begin: -0.2, end: 0),
+              ],
             ),
-            
-            const SizedBox(height: 32),
-            
-            Expanded(
+          ),
+        ),
+        
+        const SliverToBoxAdapter(
+          child: GradientTransition(height: 30),
+        ),
+        
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              children: [
+                Expanded(
               child: Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -620,11 +872,11 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
                   ),
                 ),
               ),
-            ),
-            
-            const SizedBox(height: 24),
-            
-            Row(
+                ),
+                
+                const SizedBox(height: 24),
+                
+                Row(
               children: [
                 Icon(
                   Icons.info_outline,
@@ -659,11 +911,11 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
                   ),
                 ),
               ],
-            ),
-            
-            const SizedBox(height: 24),
-            
-            SizedBox(
+                ),
+                
+                const SizedBox(height: 24),
+                
+                SizedBox(
               width: double.infinity,
               height: 56,
               child: ElevatedButton.icon(
@@ -680,44 +932,98 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
                   disabledForegroundColor: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.38),
                 ),
               ),
+                ),
+              ],
             ),
+          ),
+        ),
           ],
         ),
-      ),
+      ],
     );
   }
 
   Widget _buildRecordingScreen(ThemeData theme, Size size) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-        child: Column(
-          children: [
-            const SizedBox(height: 40),
-            
-            Text(
-              _isRecording 
-                  ? (_isPaused ? 'Kayıt Duraklatıldı' : 'Kayıt Devam Ediyor')
-                  : 'Rüyanızı Anlatın',
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w600,
+    return Stack(
+      children: [
+        // Floating background clouds (dynamic based on recording state)
+        Positioned.fill(
+          child: FloatingClouds(
+            clouds: _isRecording 
+                ? FloatingClouds.subtleClouds(theme)
+                : FloatingClouds.subtleClouds(theme),
+          ),
+        ),
+        
+        // Main content
+        CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: DecorativeHeader(
+            minHeight: 140,
+            decorations: [
+              DecorationItem(
+                icon: Icons.mic,
+                size: 80,
+                top: 10,
+                right: 20,
+                opacity: _isRecording ? 0.12 : 0.06,
+                color: _isRecording ? theme.colorScheme.primary.withOpacity(0.12) : null,
               ),
-            ),
-            
-            const SizedBox(height: 8),
-            
-            Text(
-              _isRecording 
-                  ? 'Detaylı anlatın, daha iyi analiz edelim'
-                  : 'Kayıt butonuna basarak başlayın',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+              DecorationItem(
+                icon: Icons.graphic_eq,
+                size: 60,
+                top: 30,
+                left: 20,
+                opacity: _isRecording ? 0.15 : 0.04,
+                color: theme.colorScheme.secondary.withOpacity(_isRecording ? 0.15 : 0.04),
               ),
-              textAlign: TextAlign.center,
+            ],
+            child: Column(
+              children: [
+                Text(
+                  _isRecording 
+                      ? (_isPaused ? 'Kayıt Duraklatıldı' : 'Kayıt Devam Ediyor')
+                      : 'Rüyanızı Anlatın',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: theme.colorScheme.onSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
+                  .animate()
+                  .fadeIn(duration: 400.ms)
+                  .slideY(begin: -0.2, end: 0),
+                
+                const SizedBox(height: 8),
+                
+                Text(
+                  _isRecording 
+                      ? 'Detaylı anlatın, daha iyi analiz edelim'
+                      : 'Kayıt butonuna basarak başlayın',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                  textAlign: TextAlign.center,
+                )
+                  .animate()
+                  .fadeIn(delay: 200.ms, duration: 400.ms)
+                  .slideY(begin: -0.2, end: 0),
+              ],
             ),
-            
-            const Spacer(),
+          ),
+        ),
+        
+        const SliverToBoxAdapter(
+          child: GradientTransition(height: 30),
+        ),
+        
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
+            child: Column(
+              children: [
+                const Spacer(),
             
             _buildRecordingVisualization(theme),
             
@@ -755,8 +1061,12 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
             
             const SizedBox(height: 40),
           ],
+            ),
+          ),
         ),
-      ),
+          ],
+        ),
+      ],
     );
   }
 

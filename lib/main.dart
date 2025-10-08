@@ -21,7 +21,7 @@ bool _isFirebaseInitialized = false;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Set system UI overlay style
+  // ⚡⚡ OPTIMIZED: Batch system configuration (non-blocking)
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -31,14 +31,23 @@ void main() async {
     ),
   );
   
-  // Set preferred orientations
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+  // ⚡ Run orientation and Firebase in parallel
+  final futures = [
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]),
+    _initializeFirebase(),
+  ];
   
+  await Future.wait(futures);
+  
+  runApp(const MyApp());
+}
+
+/// ⚡ Separate Firebase initialization for better async handling
+Future<void> _initializeFirebase() async {
   try {
-    // Initialize Firebase
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
@@ -49,8 +58,6 @@ void main() async {
     debugPrint('❌ Firebase initialization error: $e');
     debugPrint('📱 Using mock authentication provider');
   }
-  
-  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -60,30 +67,30 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // ⚡ Auth provider - initialized early but async
+        // ⚡⚡ OPTIMIZED: Auth provider - LAZY initialization (non-blocking)
         ChangeNotifierProvider<AuthProviderInterface>(
           create: (_) => _isFirebaseInitialized 
               ? FirebaseAuthProvider()
               : MockAuthProvider(),
-          lazy: false,
+          lazy: true, // Changed to lazy to prevent blocking startup
         ),
         
-        // ⚡ Subscription provider - initialized early for all screens
+        // ⚡⚡ OPTIMIZED: Subscription provider - LAZY initialization
         ChangeNotifierProvider<SubscriptionProvider>(
           create: (_) => SubscriptionProvider(),
-          lazy: false,
+          lazy: true, // Defer heavy initialization (AdMob, IAP)
         ),
         
-        // ⚡ Dream provider - lazy loaded
+        // ⚡ Dream provider - lazy loaded, deferred initialization
         ChangeNotifierProxyProvider<AuthProviderInterface, DreamProvider>(
           create: (_) => DreamProvider(),
           lazy: true,
           update: (context, auth, dreamProvider) {
             if (dreamProvider == null) return DreamProvider();
             
-            // ⚡ Use Future.microtask to avoid blocking UI
+            // ⚡ Defer dream loading until after first frame is rendered
             if (auth.isAuthenticated && auth.isInitialized) {
-              Future.microtask(() {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
                 dreamProvider.startListeningToAuthenticatedUser();
               });
             } else {
@@ -110,28 +117,38 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class AuthWrapper extends StatelessWidget {
+/// ⚡⚡ OPTIMIZED AuthWrapper with selective rebuilds
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  bool _subscriptionRequested = false;
 
   @override
   Widget build(BuildContext context) {
     return Consumer2<AuthProviderInterface, SubscriptionProvider>(
       builder: (context, authProvider, subscriptionProvider, child) {
-        // Show splash screen while loading
-        if (authProvider.isLoading || 
-            !authProvider.isInitialized ||
-            subscriptionProvider.isLoading) {
+        // ⚡ Show splash screen while loading
+        if (!authProvider.isInitialized) {
           return const SplashScreen();
         }
         
-        // Show main navigation if authenticated
+        // ⚡ Show main navigation if authenticated
         if (authProvider.isAuthenticated) {
-          // Load user subscription
-          Future.microtask(() {
-            if (subscriptionProvider.currentSubscription == null) {
-              subscriptionProvider.loadUserSubscription();
-            }
-          });
+          // ⚡⚡ OPTIMIZED: Only request subscription once
+          if (!_subscriptionRequested) {
+            _subscriptionRequested = true;
+            // Schedule after build cycle
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (subscriptionProvider.currentSubscription == null) {
+                subscriptionProvider.loadUserSubscription();
+              }
+            });
+          }
           
           return const MainNavigation();
         }

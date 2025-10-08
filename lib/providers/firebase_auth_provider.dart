@@ -55,8 +55,15 @@ class FirebaseAuthProvider extends ChangeNotifier implements AuthProviderInterfa
       // Setup auth listener
       _setupAuthListener();
       
-      // ✨ AUTO SILENT SIGN-IN CHECK
-      await _attemptSilentSignIn();
+      // ⚡⚡ OPTIMIZED: Defer silent sign-in to not block startup
+      // Schedule it after a delay to let UI render first
+      Future.delayed(const Duration(milliseconds: 500), () {
+        debugPrint('⏰ Deferred: Now attempting silent sign-in...');
+        _attemptSilentSignIn();
+      });
+      
+      // Mark as not loading immediately to unblock UI
+      _setLoading(false);
       
     } catch (e) {
       debugPrint('❌ Initialization error: $e');
@@ -66,7 +73,7 @@ class FirebaseAuthProvider extends ChangeNotifier implements AuthProviderInterfa
     }
   }
   
-  /// ✨ Otomatik sessiz giriş kontrolü
+  /// ⚡⚡ OPTIMIZED: Deferred silent sign-in (non-blocking)
   Future<void> _attemptSilentSignIn() async {
     try {
       debugPrint('🔍 Checking for existing Google Sign-In session...');
@@ -79,22 +86,21 @@ class FirebaseAuthProvider extends ChangeNotifier implements AuthProviderInterfa
         return;
       }
       
-      // Google Sign-In'den sessizce giriş dene
-      final user = await _authService!.signInSilently();
-      
-      if (user != null) {
-        debugPrint('✅ Silent sign-in successful: ${user.name}');
-        _currentUser = user;
-        _setLoading(false);
-        _safeNotify();
-      } else {
-        debugPrint('ℹ️ No existing Google session found');
-        _setLoading(false);
-      }
+      // ⚡ Don't block - try silent sign-in in background
+      _authService!.signInSilently().then((user) {
+        if (user != null) {
+          debugPrint('✅ Silent sign-in successful: ${user.name}');
+          _currentUser = user;
+          _safeNotify();
+        } else {
+          debugPrint('ℹ️ No existing Google session found');
+        }
+      }).catchError((e) {
+        debugPrint('ℹ️ Silent sign-in not available: $e');
+      });
       
     } catch (e) {
-      debugPrint('ℹ️ Silent sign-in not available: $e');
-      _setLoading(false);
+      debugPrint('ℹ️ Silent sign-in error: $e');
     }
   }
   
@@ -118,38 +124,61 @@ class FirebaseAuthProvider extends ChangeNotifier implements AuthProviderInterfa
   
   Future<void> _handleUserSignedIn(firebase_auth.User firebaseUser) async {
     try {
-      debugPrint('👤 Getting user profile for: ${firebaseUser.uid}');
-      final user = await _authService!.getUserProfile(firebaseUser.uid);
-      
-      if (user != null) {
-        debugPrint('✅ User profile loaded: ${user.name}');
-        _currentUser = user;
-      } else {
-        debugPrint('⚠️ User profile not found, creating new one');
-        final newUser = app_models.User(
-          id: firebaseUser.uid,
-          email: firebaseUser.email ?? '',
-          phoneNumber: firebaseUser.phoneNumber,
-          name: firebaseUser.displayName ?? 'Firebase User',
-          profileImageUrl: firebaseUser.photoURL,
-          createdAt: DateTime.now(),
-          lastLoginAt: DateTime.now(),
-          preferences: app_models.UserPreferences.defaultPreferences(),
-          isEmailVerified: firebaseUser.emailVerified,
-        );
-        
-        await _authService!.updateUserProfile(newUser);
-        _currentUser = newUser;
-        debugPrint('✅ New user profile created: ${newUser.name}');
-      }
+      // ⚡ Set a lightweight user immediately to unblock UI
+      _currentUser = app_models.User(
+        id: firebaseUser.uid,
+        email: firebaseUser.email ?? '',
+        phoneNumber: firebaseUser.phoneNumber,
+        name: firebaseUser.displayName ?? 'Kullanıcı',
+        profileImageUrl: firebaseUser.photoURL,
+        createdAt: DateTime.now(),
+        lastLoginAt: DateTime.now(),
+        preferences: app_models.UserPreferences.defaultPreferences(),
+        isEmailVerified: firebaseUser.emailVerified,
+      );
       
       if (_isLoading) {
         _setLoading(false);
       }
       _safeNotify();
       
+      // ⚡ Load full profile asynchronously (non-blocking)
+      debugPrint('👤 Loading full user profile for: ${firebaseUser.uid}');
+      scheduleMicrotask(() async {
+        try {
+          final user = await _authService!.getUserProfile(firebaseUser.uid);
+          
+          if (user != null) {
+            debugPrint('✅ User profile loaded: ${user.name}');
+            _currentUser = user;
+            _safeNotify();
+          } else {
+            debugPrint('⚠️ User profile not found, creating new one');
+            final newUser = app_models.User(
+              id: firebaseUser.uid,
+              email: firebaseUser.email ?? '',
+              phoneNumber: firebaseUser.phoneNumber,
+              name: firebaseUser.displayName ?? 'Firebase User',
+              profileImageUrl: firebaseUser.photoURL,
+              createdAt: DateTime.now(),
+              lastLoginAt: DateTime.now(),
+              preferences: app_models.UserPreferences.defaultPreferences(),
+              isEmailVerified: firebaseUser.emailVerified,
+            );
+            
+            await _authService!.updateUserProfile(newUser);
+            _currentUser = newUser;
+            debugPrint('✅ New user profile created: ${newUser.name}');
+            _safeNotify();
+          }
+        } catch (e) {
+          debugPrint('❌ Error loading full profile: $e');
+          // Keep the lightweight user, don't fail completely
+        }
+      });
+      
     } catch (e) {
-      debugPrint('❌ Error loading user profile: $e');
+      debugPrint('❌ Error in user sign-in handler: $e');
       _setError('Kullanıcı profili yüklenirken hata: $e');
       _currentUser = null;
       

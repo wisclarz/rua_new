@@ -15,9 +15,13 @@
     <!-- ============================================================================ -->
     
     <application
-        android:label="rua_new"
+        android:label="Dreamp"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:largeHeap="true"
+        android:usesCleartextTraffic="false"
+        android:allowBackup="true"
+        android:requestLegacyExternalStorage="false">
         
         <activity
             android:name=".MainActivity"

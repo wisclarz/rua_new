@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
 import '../providers/firebase_auth_provider.dart';
 import '../widgets/glassmorphic_container.dart';
 
@@ -509,7 +508,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
 
   Future<void> _handleGoogleSignIn(BuildContext context, FirebaseAuthProvider authProvider) async {
-    final success = await FirebaseAuthProvider().signInWithGoogle();
+    // Mevcut provider instance'ını kullan (yeni instance yaratma!)
+    final success = await authProvider.signInWithGoogle();
     
     if (mounted) {
       if (success) {
