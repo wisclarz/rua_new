@@ -18,7 +18,7 @@ dependencies:
   firebase_analytics: ^11.2.1
   
   # Google Sign In
-  google_sign_in: ^6.2.1
+  google_sign_in: ^6.2.2
   
   # ==================== ABONELIK SISTEMI ====================
   # In-App Purchase (Subscription Management)
@@ -84,7 +84,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   
-  # Assets (Eğer lottie animasyonları vs kullanacaksanız)
-  # assets:
-  #   - assets/images/
-  #   - assets/lottie/
+  # Assets
+  assets:
+    - assets/images/
+    - assets/animations/

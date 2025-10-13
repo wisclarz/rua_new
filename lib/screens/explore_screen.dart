@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../widgets/dreamy_background.dart';
+import '../utils/staggered_animation.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -63,184 +65,203 @@ class _ExploreScreenState extends State<ExploreScreen> with AutomaticKeepAliveCl
     final theme = Theme.of(context);
     
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(
-          parent: AlwaysScrollableScrollPhysics(),
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        title: const StaggeredFadeSlide(
+          delay: 0,
+          duration: Duration(milliseconds: 300),
+          begin: Offset(-0.1, 0),
+          child: Text('Keşfet'),
         ),
-        slivers: [
-          // Simple AppBar
-          SliverAppBar(
-            expandedHeight: 120,
-            floating: false,
-            pinned: true,
-            backgroundColor: theme.colorScheme.surface,
-            flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                'Keşfet',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: DreamyBackground(
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
+          ),
+          slivers: [
+            SliverToBoxAdapter(
+              child: SizedBox(height: MediaQuery.of(context).padding.top + 56),
+            ),
+            
+            const SliverToBoxAdapter(
+              child: SizedBox(height: 12),
+            ),
+          
+            // Search Bar
+            SliverToBoxAdapter(
+              child: _buildSearchBar(theme),
+            ),
+            
+            // Categories Grid
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+              sliver: SliverGrid(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  childAspectRatio: 0.9,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
                 ),
-              ),
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      theme.colorScheme.primary.withValues(alpha: 0.05),
-                      theme.colorScheme.secondary.withValues(alpha: 0.02),
-                    ],
-                  ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    return RepaintBoundary(
+                      child: _buildCategoryCard(_categories[index], theme),
+                    );
+                  },
+                  childCount: _categories.length,
                 ),
               ),
             ),
-          ),
-          
-          // Search Bar
-          SliverToBoxAdapter(
-            child: _buildSearchBar(theme),
-          ),
-          
-          // Categories Grid
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-            sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 0.9,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-              ),
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  return RepaintBoundary(
-                    child: _buildCategoryCard(_categories[index], theme),
-                  );
-                },
-                childCount: _categories.length,
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildSearchBar(ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: theme.colorScheme.outlineVariant,
-            width: 1,
-          ),
-        ),
-        child: TextField(
-          decoration: InputDecoration(
-            hintText: 'Sembol veya kategori ara...',
-            prefixIcon: Icon(
-              Icons.search,
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+    return StaggeredFadeSlide(
+      delay: 100,
+      duration: const Duration(milliseconds: 400),
+      begin: const Offset(0, -0.1),
+      child: RepaintBoundary(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant,
+                width: 1,
+              ),
             ),
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Sembol veya kategori ara...',
+                hintStyle: TextStyle(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                ),
+                prefixIcon: Icon(
+                  Icons.search,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                ),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                isDense: true,
+              ),
+              onSubmitted: (value) {
+                if (value.isNotEmpty) {
+                  _showSearchResults(value);
+                }
+              },
+            ),
           ),
-          onSubmitted: (value) {
-            if (value.isNotEmpty) {
-              _showSearchResults(value);
-            }
-          },
         ),
       ),
     );
   }
 
   Widget _buildCategoryCard(ExploreCategory category, ThemeData theme) {
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: category.color.withValues(alpha: 0.3),
-          width: 1.5,
-        ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            HapticFeedback.lightImpact();
-            _showCategoryDetails(category);
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Icon Container
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: category.color.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    category.icon,
-                    color: category.color,
-                    size: 24,
-                  ),
-                ),
-                
-                const Spacer(),
-                
-                // Title
-                Text(
-                  category.title,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    height: 1.2,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                
-                const SizedBox(height: 4),
-                
-                // Subtitle
-                Text(
-                  category.subtitle,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                
-                const SizedBox(height: 8),
-                
-                // Items count
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: category.color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    '${category.items.length} öğe',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: category.color,
-                      fontWeight: FontWeight.w600,
+    // Calculate animation delay based on category index
+    final index = _categories.indexOf(category);
+    final delay = 200 + (index * 60);
+    
+    return StaggeredFadeSlide(
+      delay: delay,
+      duration: const Duration(milliseconds: 400),
+      begin: const Offset(0, 0.1),
+      child: RepaintBoundary(
+        child: Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: category.color.withValues(alpha: 0.3),
+              width: 1.5,
+            ),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () {
+                HapticFeedback.lightImpact();
+                _showCategoryDetails(category);
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Icon Container
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: category.color.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        category.icon,
+                        color: category.color,
+                        size: 24,
+                      ),
                     ),
-                  ),
+                    
+                    const Spacer(),
+                    
+                    // Title
+                    Text(
+                      category.title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        height: 1.2,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    
+                    const SizedBox(height: 4),
+                    
+                    // Subtitle
+                    Text(
+                      category.subtitle,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    
+                    const SizedBox(height: 8),
+                    
+                    // Items count
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: category.color.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '${category.items.length} öğe',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: category.color,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),

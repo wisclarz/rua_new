@@ -8,6 +8,9 @@ import '../providers/auth_provider_interface.dart';
 import '../providers/dream_provider.dart';
 import '../providers/subscription_provider.dart';
 import '../screens/subscription_screen.dart';
+import '../utils/navigation_utils.dart';
+import '../utils/staggered_animation.dart';
+import '../widgets/dreamy_background.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -16,38 +19,28 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
+class _ProfileScreenState extends State<ProfileScreen> with AutomaticKeepAliveClientMixin {
   @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  bool get wantKeepAlive => true;
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
     
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: Consumer3<AuthProviderInterface, DreamProvider, SubscriptionProvider>(
-        builder: (context, authProvider, dreamProvider, subscriptionProvider, _) {
-          final user = authProvider.currentUser;
-          
-          return CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
+      body: DreamyBackground(
+        child: Consumer3<AuthProviderInterface, DreamProvider, SubscriptionProvider>(
+          builder: (context, authProvider, dreamProvider, subscriptionProvider, _) {
+            final user = authProvider.currentUser;
+            
+            return CustomScrollView(
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              slivers: [
               // Header
               SliverToBoxAdapter(
                 child: _buildHeader(context, user, theme),
@@ -72,8 +65,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 child: SizedBox(height: 100),
               ),
             ],
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -83,59 +77,74 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
       padding: const EdgeInsets.fromLTRB(20, 60, 20, 24),
       child: Column(
         children: [
-          // Avatar
-          Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  const Color(0xFF6B4EFF),
-                  const Color(0xFF9C27B0),
+          // Avatar with lightweight animation
+          StaggeredFadeScale(
+            delay: 0,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeOutBack,
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    const Color(0xFF6B4EFF),
+                    const Color(0xFF9C27B0),
+                  ],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF6B4EFF).withValues(alpha: 0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
                 ],
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF6B4EFF).withValues(alpha: 0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: user?.profileImageUrl != null
-                ? ClipOval(
-                    child: Image.network(
-                      user!.profileImageUrl!,
-                      fit: BoxFit.cover,
+              child: user?.profileImageUrl != null
+                  ? ClipOval(
+                      child: Image.network(
+                        user!.profileImageUrl!,
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  : const Icon(
+                      Icons.person,
+                      size: 50,
+                      color: Colors.white,
                     ),
-                  )
-                : const Icon(
-                    Icons.person,
-                    size: 50,
-                    color: Colors.white,
-                  ),
+            ),
           ),
           const SizedBox(height: 16),
           
-          // Name
-          Text(
-            user?.name ?? user?.phoneNumber ?? 'Kullanıcı',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.onSurface,
+          // Name with lightweight animation
+          StaggeredFadeSlide(
+            delay: 100,
+            duration: const Duration(milliseconds: 350),
+            begin: const Offset(0, 0.1),
+            child: Text(
+              user?.name ?? user?.phoneNumber ?? 'Kullanıcı',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.onSurface,
+              ),
             ),
           ),
           
           const SizedBox(height: 4),
           
-          // Email or Phone
-          Text(
-            user?.email ?? user?.phoneNumber ?? 'Kullanıcı',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+          // Email or Phone with lightweight animation
+          StaggeredFadeSlide(
+            delay: 150,
+            duration: const Duration(milliseconds: 350),
+            begin: const Offset(0, 0.1),
+            child: Text(
+              user?.email ?? user?.phoneNumber ?? 'Kullanıcı',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
             ),
           ),
         ],
@@ -147,32 +156,37 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     final isPro = provider.isPro;
     final currentPlan = provider.currentPlan;
     
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: isPro
-            ? LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  const Color(0xFF6B4EFF),
-                  const Color(0xFF9C27B0),
-                ],
-              )
-            : null,
-        color: isPro ? null : theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: isPro
-            ? [
-                BoxShadow(
-                  color: const Color(0xFF6B4EFF).withValues(alpha: 0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ]
-            : null,
-      ),
+    return StaggeredFadeSlide(
+      delay: 200,
+      duration: const Duration(milliseconds: 400),
+      begin: const Offset(0, 0.1),
+      child: RepaintBoundary(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+          gradient: isPro
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    const Color(0xFF6B4EFF),
+                    const Color(0xFF9C27B0),
+                  ],
+                )
+              : null,
+          color: isPro ? null : theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: isPro
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF6B4EFF).withValues(alpha: 0.3),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ]
+              : null,
+        ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -240,12 +254,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               child: ElevatedButton(
                 onPressed: () {
                   HapticFeedback.mediumImpact();
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const SubscriptionScreen(),
-                    ),
-                  );
+                  // ⚡ Fast transition (120ms)
+                  context.pushFast(const SubscriptionScreen());
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF6B4EFF),
@@ -295,6 +305,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           ],
         ],
       ),
+        ),
+      ),
     );
   }
 
@@ -318,6 +330,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               value: totalDreams.toString(),
               icon: Icons.nights_stay,
               color: const Color(0xFF6B4EFF),
+              delay: 500,
             ),
           ),
           const SizedBox(width: 12),
@@ -328,6 +341,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               value: completedDreams.toString(),
               icon: Icons.check_circle,
               color: Colors.green,
+              delay: 580,
             ),
           ),
           const SizedBox(width: 12),
@@ -338,6 +352,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               value: processingDreams.toString(),
               icon: Icons.hourglass_empty,
               color: Colors.orange,
+              delay: 660,
             ),
           ),
         ],
@@ -351,34 +366,38 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     required String value,
     required IconData icon,
     required Color color,
+    required int delay,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.dividerColor),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.onSurface,
-            ),
+    return StaggeredFadeSlide(
+      delay: delay,
+      duration: const Duration(milliseconds: 350),
+      begin: const Offset(0, 0.1),
+      child: RepaintBoundary(
+        child: GlassCard(
+          padding: const EdgeInsets.all(16),
+          borderRadius: 16,
+          child: Column(
+            children: [
+              Icon(icon, color: color, size: 28),
+              const SizedBox(height: 8),
+              Text(
+                value,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                title,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -389,6 +408,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     SubscriptionProvider subscriptionProvider,
     ThemeData theme,
   ) {
+    int menuDelay = 740;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
       child: Column(
@@ -400,13 +420,10 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               icon: Icons.card_membership,
               title: 'Abonelik Yönetimi',
               subtitle: 'Planını yönet ve değiştir',
+              delay: menuDelay,
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const SubscriptionScreen(),
-                  ),
-                );
+                // ⚡ Fast transition (120ms)
+                context.pushFast(const SubscriptionScreen());
               },
             ),
           
@@ -416,6 +433,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             icon: Icons.settings,
             title: 'Ayarlar',
             subtitle: 'Uygulama ayarlarını düzenle',
+            delay: subscriptionProvider.isPro ? menuDelay + 60 : menuDelay,
             onTap: () {
               // TODO: Navigate to settings
             },
@@ -427,6 +445,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             icon: Icons.help_outline,
             title: 'Yardım & Destek',
             subtitle: 'SSS ve iletişim',
+            delay: subscriptionProvider.isPro ? menuDelay + 120 : menuDelay + 60,
             onTap: () {
               // TODO: Navigate to help
             },
@@ -438,6 +457,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             icon: Icons.privacy_tip_outlined,
             title: 'Gizlilik Politikası',
             subtitle: 'Verilerinizin korunması',
+            delay: subscriptionProvider.isPro ? menuDelay + 180 : menuDelay + 120,
             onTap: () {
               // TODO: Show privacy policy
             },
@@ -451,6 +471,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             icon: Icons.logout,
             title: 'Çıkış Yap',
             subtitle: 'Hesaptan çıkış yap',
+            delay: subscriptionProvider.isPro ? menuDelay + 240 : menuDelay + 180,
             onTap: () async {
               final confirm = await showDialog<bool>(
                 context: context,
@@ -488,52 +509,57 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     required String subtitle,
     required VoidCallback onTap,
     bool isDestructive = false,
+    int delay = 700,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.dividerColor),
-      ),
-      child: ListTile(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          onTap();
-        },
-        leading: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: isDestructive 
-                ? Colors.red.withValues(alpha: 0.1)
-                : theme.colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(12),
+    return StaggeredFadeSlide(
+      delay: delay,
+      duration: const Duration(milliseconds: 350),
+      begin: const Offset(-0.1, 0),
+      child: RepaintBoundary(
+        child: GlassCard(
+          padding: EdgeInsets.zero,
+          margin: const EdgeInsets.only(bottom: 12),
+          borderRadius: 16,
+          child: ListTile(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              onTap();
+            },
+            leading: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: isDestructive 
+                    ? Colors.red.withValues(alpha: 0.1)
+                    : theme.colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                color: isDestructive ? Colors.red : theme.colorScheme.primary,
+                size: 22,
+              ),
+            ),
+            title: Text(
+              title,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: isDestructive 
+                    ? Colors.red 
+                    : theme.colorScheme.onSurface,
+              ),
+            ),
+            subtitle: Text(
+              subtitle,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+            trailing: Icon(
+              Icons.chevron_right,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+            ),
           ),
-          child: Icon(
-            icon,
-            color: isDestructive ? Colors.red : theme.colorScheme.primary,
-            size: 22,
-          ),
-        ),
-        title: Text(
-          title,
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: isDestructive 
-                ? Colors.red 
-                : theme.colorScheme.onSurface,
-          ),
-        ),
-        subtitle: Text(
-          subtitle,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-          ),
-        ),
-        trailing: Icon(
-          Icons.chevron_right,
-          color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
         ),
       ),
     );

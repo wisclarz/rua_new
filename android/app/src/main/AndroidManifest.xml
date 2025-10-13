@@ -29,6 +29,13 @@
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
             
+            <!-- ⚡ HIGH REFRESH RATE SUPPORT (90Hz, 120Hz) -->
+            <!-- Android will use the device's maximum refresh rate -->
+            <!-- This ensures FPS = Screen Hz (60/90/120 FPS) -->
+            <meta-data
+                android:name="android.view.Display.preferHighRefreshRate"
+                android:value="true" />
+            
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"

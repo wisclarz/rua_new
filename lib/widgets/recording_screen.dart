@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import '../config/app_constants.dart';
 import 'recording_controls.dart';
+import 'dreamy_background.dart';
 
 /// Sesli kayıt ekranı widget
+/// 
+/// Performance optimizations:
+/// - Uses AppConstants for all values
+/// - Const constructors where possible
+/// - Separated duration display for better rebuilds
 class RecordingScreen extends StatelessWidget {
   final bool isRecording;
   final bool isPaused;
@@ -30,17 +36,9 @@ class RecordingScreen extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+        padding: const EdgeInsets.symmetric(horizontal: AppConstants.spacingXXL),
         child: Column(
           children: [
-            const SizedBox(height: 20),
-            
-            _buildTitle(theme),
-            
-            const SizedBox(height: 8),
-            
-            _buildSubtitle(theme),
-            
             const Spacer(),
             
             RecordingVisualization(
@@ -49,9 +47,13 @@ class RecordingScreen extends StatelessWidget {
               theme: theme,
             ),
             
-            const SizedBox(height: 40),
+            const SizedBox(height: AppConstants.spacingXXXL + 8),
             
-            _buildDurationDisplay(theme),
+            _DurationDisplay(
+              duration: recordingDuration,
+              isRecording: isRecording,
+              theme: theme,
+            ),
             
             const Spacer(),
             
@@ -64,73 +66,36 @@ class RecordingScreen extends StatelessWidget {
               onDelete: onDelete,
             ),
             
-            const SizedBox(height: 40),
+            const SizedBox(height: AppConstants.spacingXXXL + 8),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildTitle(ThemeData theme) {
-    return Text(
-      isRecording 
-          ? (isPaused ? 'Kayıt Duraklatıldı' : 'Kayıt Devam Ediyor')
-          : 'Rüyanızı Anlatın',
-      style: theme.textTheme.headlineSmall?.copyWith(
-        color: theme.colorScheme.primary,
-        fontWeight: FontWeight.w700,
+/// Optimized duration display widget
+class _DurationDisplay extends StatelessWidget {
+  final Duration duration;
+  final bool isRecording;
+  final ThemeData theme;
+  
+  const _DurationDisplay({
+    required this.duration,
+    required this.isRecording,
+    required this.theme,
+  });
+  
+  @override
+  Widget build(BuildContext context) {
+    return GlassCard(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 40,
+        vertical: AppConstants.spacingXL,
       ),
-    ).animate(target: isRecording ? 1 : 0).fadeIn(duration: 400.ms);
-  }
-
-  Widget _buildSubtitle(ThemeData theme) {
-    return Text(
-      isRecording 
-          ? 'Detaylı anlatın, daha iyi analiz edelim'
-          : 'Kayıt butonuna basarak başlayın',
-      style: theme.textTheme.bodyMedium?.copyWith(
-        color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-      ),
-      textAlign: TextAlign.center,
-    ).animate().fadeIn(delay: 100.ms, duration: 500.ms);
-  }
-
-  Widget _buildDurationDisplay(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isRecording 
-              ? [
-                  theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
-                  theme.colorScheme.primaryContainer.withValues(alpha: 0.2),
-                ]
-              : [
-                  theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-                  theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
-                ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isRecording 
-              ? theme.colorScheme.primary.withValues(alpha: 0.3)
-              : theme.colorScheme.outline.withValues(alpha: 0.2),
-          width: 2,
-        ),
-        boxShadow: isRecording
-            ? [
-                BoxShadow(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.2),
-                  blurRadius: 20,
-                  offset: const Offset(0, 4),
-                ),
-              ]
-            : [],
-      ),
+      borderRadius: AppConstants.radiusXXL,
       child: Text(
-        _formatDuration(recordingDuration),
+        _formatDuration(duration),
         style: theme.textTheme.displayMedium?.copyWith(
           fontWeight: FontWeight.w800,
           color: isRecording 

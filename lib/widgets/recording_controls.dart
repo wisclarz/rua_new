@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../config/app_constants.dart';
 
 /// Recording kontrol butonları widget
 /// Kayıt, duraklat, sil işlemlerini yönetir
+/// 
+/// Performance optimizations:
+/// - Uses AppConstants for all values
+/// - Optimized animations for 60/120Hz displays
+/// - Reduced widget rebuilds
 class RecordingControls extends StatelessWidget {
   final bool isRecording;
   final bool isPaused;
@@ -25,8 +31,8 @@ class RecordingControls extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppConstants.spacingL),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -37,8 +43,10 @@ class RecordingControls extends StatelessWidget {
               label: 'Sil',
               color: Colors.red.shade400,
               onPressed: onDelete ?? () {},
-            ).animate().fadeIn(duration: 300.ms).slideX(begin: -0.5, end: 0),
-            const SizedBox(width: 20),
+            ).animate()
+                .fadeIn(duration: AppConstants.animationNormal)
+                .slideX(begin: -0.5, end: 0),
+            const SizedBox(width: AppConstants.spacingXL),
           ],
           
           if (isRecording) ...[
@@ -48,8 +56,12 @@ class RecordingControls extends StatelessWidget {
               label: isPaused ? 'Devam' : 'Duraklat',
               color: theme.colorScheme.primary,
               onPressed: isPaused ? (onResume ?? () {}) : (onPause ?? () {}),
-            ).animate().fadeIn(duration: 300.ms, delay: 50.ms),
-            const SizedBox(width: 20),
+            ).animate()
+                .fadeIn(
+                  duration: AppConstants.animationNormal,
+                  delay: AppConstants.delayShort,
+                ),
+            const SizedBox(width: AppConstants.spacingXL),
           ],
           
           // Ana kayıt butonu
@@ -64,7 +76,7 @@ class RecordingControls extends StatelessWidget {
   }
 }
 
-/// Ana kayıt butonu widget
+/// Ana kayıt butonu widget - Optimized
 class _MainRecordButton extends StatelessWidget {
   final bool isRecording;
   final VoidCallback onPressed;
@@ -78,11 +90,16 @@ class _MainRecordButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Pre-calculate colors to avoid rebuilds
+    final buttonColor = isRecording 
+        ? const Color(0xFFFF5252) 
+        : theme.colorScheme.primary;
+    
     return GestureDetector(
       onTap: onPressed,
       child: Container(
-        width: 80,
-        height: 80,
+        width: AppConstants.recordingMainButtonSize,
+        height: AppConstants.recordingMainButtonSize,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: LinearGradient(
@@ -100,9 +117,7 @@ class _MainRecordButton extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: (isRecording 
-                  ? const Color(0xFFFF5252) 
-                  : theme.colorScheme.primary).withValues(alpha: 0.4),
+              color: buttonColor.withValues(alpha: 0.4),
               blurRadius: 24,
               spreadRadius: 3,
               offset: const Offset(0, 4),
@@ -111,7 +126,7 @@ class _MainRecordButton extends StatelessWidget {
         ),
         child: Icon(
           isRecording ? Icons.check_rounded : Icons.mic_rounded,
-          size: 36,
+          size: AppConstants.recordingIconSize,
           color: Colors.white,
         ),
       ),
@@ -119,7 +134,7 @@ class _MainRecordButton extends StatelessWidget {
   }
 }
 
-/// Yan butonlar (sil, duraklat/devam)
+/// Yan butonlar (sil, duraklat/devam) - Optimized
 class _RecordingIconButton extends StatelessWidget {
   final ThemeData theme;
   final IconData icon;
@@ -143,14 +158,14 @@ class _RecordingIconButton extends StatelessWidget {
         GestureDetector(
           onTap: onPressed,
           child: Container(
-            width: 60,
-            height: 60,
+            width: AppConstants.recordingSideButtonSize,
+            height: AppConstants.recordingSideButtonSize,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: color.withValues(alpha: 0.15),
               border: Border.all(
                 color: color.withValues(alpha: 0.4),
-                width: 2,
+                width: AppConstants.borderThick,
               ),
               boxShadow: [
                 BoxShadow(
@@ -162,12 +177,12 @@ class _RecordingIconButton extends StatelessWidget {
             ),
             child: Icon(
               icon,
-              size: 28,
+              size: AppConstants.recordingSideIconSize,
               color: color,
             ),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppConstants.spacingS),
         Text(
           label,
           style: theme.textTheme.bodySmall?.copyWith(
@@ -181,6 +196,12 @@ class _RecordingIconButton extends StatelessWidget {
 }
 
 /// Recording görselleştirme widget (animasyonlu mikrofon ikonu)
+/// 
+/// Performance optimizations:
+/// - Optimized animations for 60/120Hz displays
+/// - Uses AppConstants for consistent timing
+/// - Reduced opacity calculations
+/// - Conditional animation rendering
 class RecordingVisualization extends StatelessWidget {
   final bool isRecording;
   final bool isPaused;
@@ -193,11 +214,125 @@ class RecordingVisualization extends StatelessWidget {
     required this.theme,
   });
 
+  static const double _iconContainerSize = 140.0;
+  static const double _iconSize = 64.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final shouldAnimate = isRecording && !isPaused;
+    
+    return SizedBox(
+      width: AppConstants.recordingVisualizationSize,
+      height: AppConstants.recordingVisualizationSize,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Pulse halkası 1 - En dış (sadece recording sırasında render edilir)
+          if (shouldAnimate)
+            _PulseRing(
+              size: _iconContainerSize,
+              color: theme.colorScheme.primary.withValues(alpha: 0.15),
+              borderWidth: AppConstants.borderThin,
+              delay: Duration.zero,
+            ),
+          
+          // Pulse halkası 2 - Orta
+          if (shouldAnimate)
+            _PulseRing(
+              size: _iconContainerSize,
+              color: theme.colorScheme.primary.withValues(alpha: 0.2),
+              borderWidth: AppConstants.borderThin,
+              delay: const Duration(milliseconds: 1000),
+            ),
+          
+          // Pulse halkası 3 - İç
+          if (shouldAnimate)
+            _PulseRing(
+              size: _iconContainerSize,
+              color: theme.colorScheme.primary.withValues(alpha: 0.25),
+              borderWidth: AppConstants.borderNormal,
+              delay: const Duration(milliseconds: 2000),
+            ),
+          
+          // Ana mikrofon ikonu
+          _MicrophoneIcon(
+            size: _iconContainerSize,
+            iconSize: _iconSize,
+            isRecording: isRecording,
+            isPaused: isPaused,
+            shouldAnimate: shouldAnimate,
+            theme: theme,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Optimized pulse ring component
+class _PulseRing extends StatelessWidget {
+  final double size;
+  final Color color;
+  final double borderWidth;
+  final Duration delay;
+
+  const _PulseRing({
+    required this.size,
+    required this.color,
+    required this.borderWidth,
+    required this.delay,
+  });
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 140,
-      height: 140,
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: color,
+          width: borderWidth,
+        ),
+      ),
+    )
+        .animate(onPlay: (controller) => controller.repeat(), delay: delay)
+        .scale(
+          duration: Duration(milliseconds: AppConstants.pulseDuration),
+          curve: Curves.easeOut,
+          begin: const Offset(1.0, 1.0),
+          end: const Offset(1.8, 1.8),
+        )
+        .fadeOut(
+          duration: Duration(milliseconds: AppConstants.pulseDuration),
+          curve: Curves.easeIn,
+        );
+  }
+}
+
+/// Optimized microphone icon with breathing animation
+class _MicrophoneIcon extends StatelessWidget {
+  final double size;
+  final double iconSize;
+  final bool isRecording;
+  final bool isPaused;
+  final bool shouldAnimate;
+  final ThemeData theme;
+
+  const _MicrophoneIcon({
+    required this.size,
+    required this.iconSize,
+    required this.isRecording,
+    required this.isPaused,
+    required this.shouldAnimate,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -214,12 +349,6 @@ class RecordingVisualization extends StatelessWidget {
         ),
         shape: BoxShape.circle,
         boxShadow: [
-          if (isRecording)
-            BoxShadow(
-              color: theme.colorScheme.primary.withValues(alpha: 0.4),
-              blurRadius: 30,
-              spreadRadius: 5,
-            ),
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 20,
@@ -231,27 +360,27 @@ class RecordingVisualization extends StatelessWidget {
         isRecording 
             ? (isPaused ? Icons.pause_rounded : Icons.mic_rounded)
             : Icons.mic_none_rounded,
-        size: 64,
+        size: iconSize,
         color: isRecording 
             ? theme.colorScheme.onPrimary
             : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
       ),
     )
-      .animate(
-        onPlay: (controller) {
-          if (isRecording && !isPaused) {
-            controller.repeat(reverse: true);
-          } else {
-            controller.reset();
-          }
-        },
-      )
-      .scale(
-        duration: 1000.ms,
-        curve: Curves.easeInOut,
-        begin: const Offset(1.0, 1.0),
-        end: const Offset(1.08, 1.08),
-      );
+        .animate(
+          onPlay: (controller) {
+            if (shouldAnimate) {
+              controller.repeat(reverse: true);
+            } else {
+              controller.reset();
+            }
+          },
+        )
+        .scale(
+          duration: Duration(milliseconds: AppConstants.breathingDuration),
+          curve: Curves.easeInOutSine,
+          begin: const Offset(1.0, 1.0),
+          end: const Offset(1.05, 1.05),
+        );
   }
 }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'dreamy_background.dart';
 
 /// Yazılı rüya girişi için ekran widget
 class TextInputScreen extends StatelessWidget {
@@ -24,27 +25,7 @@ class TextInputScreen extends StatelessWidget {
         padding: const EdgeInsets.all(24.0),
         child: Column(
           children: [
-            const SizedBox(height: 8),
-            
-            Text(
-              'Rüyanızı Yazın',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w700,
-              ),
-            ).animate().fadeIn(duration: 500.ms).slideY(begin: -0.3, end: 0),
-            
-            const SizedBox(height: 8),
-            
-            Text(
-              'Detaylı anlatın, daha iyi analiz edelim',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-              ),
-              textAlign: TextAlign.center,
-            ).animate().fadeIn(delay: 100.ms, duration: 500.ms),
-            
-           
+            const SizedBox(height: 20),
             
             Expanded(
               child: _buildTextEditor(theme),
@@ -64,23 +45,9 @@ class TextInputScreen extends StatelessWidget {
   }
 
   Widget _buildTextEditor(ThemeData theme) {
-    return Container(
+    return GlassCard(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: theme.colorScheme.primary.withValues(alpha: 0.2),
-          width: 2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: theme.colorScheme.primary.withValues(alpha: 0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+      borderRadius: 24,
       child: TextField(
         controller: controller,
         maxLines: null,

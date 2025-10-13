@@ -34,8 +34,45 @@ android {
 
     buildTypes {
         release {
+            // Code shrinking, obfuscation, and optimization
+            isMinifyEnabled = true
+            isShrinkResources = true
+            
+            // R8 optimizations
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            
             signingConfig = signingConfigs.getByName("debug")
         }
+        
+        debug {
+            // Disable minification in debug for faster builds
+            isMinifyEnabled = false
+            isShrinkResources = false
+        }
+    }
+    
+    // Performance optimizations
+    packagingOptions {
+        resources {
+            excludes += setOf(
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/license.txt",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt",
+                "META-INF/notice.txt",
+                "META-INF/*.kotlin_module"
+            )
+        }
+    }
+    
+    // Dex options for faster builds
+    dexOptions {
+        javaMaxHeapSize = "4g"
     }
 }
 

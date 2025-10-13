@@ -281,7 +281,7 @@ class AppTheme {
       
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         elevation: 0,
-        backgroundColor: lightSurface,
+        backgroundColor: const Color(0xFFE3CCFF), // Light mode - biraz daha açık lavanta
         selectedItemColor: deepPurple,
         unselectedItemColor: lightOnSurfaceVariant,
         type: BottomNavigationBarType.fixed,

@@ -8,6 +8,7 @@ import '../widgets/tab_selector.dart';
 import '../widgets/recording_screen.dart';
 import '../widgets/text_input_screen.dart';
 import '../widgets/transcription_dialog.dart';
+import '../widgets/dreamy_background.dart';
 
 class AddDreamScreen extends StatefulWidget {
   const AddDreamScreen({super.key});
@@ -36,10 +37,13 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
   }
 
   void _onTabChanged() {
-    setState(() {
-      _inputMode = _tabController.index == 0 ? 'voice' : 'text';
-    });
-    debugPrint('📝 Input mode changed to: $_inputMode');
+    // Only update when the animation is complete, not during the animation
+    if (!_tabController.indexIsChanging) {
+      setState(() {
+        _inputMode = _tabController.index == 0 ? 'voice' : 'text';
+      });
+      debugPrint('📝 Input mode changed to: $_inputMode');
+    }
   }
 
   Future<void> _initializeRecorder() async {
@@ -275,7 +279,7 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
     final theme = Theme.of(context);
     
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
+      backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text(
@@ -288,8 +292,12 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
         leading: Container(
           margin: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surface.withValues(alpha: 0.7),
+            color: theme.colorScheme.surface.withValues(alpha: 0.3),
             shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.white.withOpacity(0.2),
+              width: 1.5,
+            ),
           ),
           child: IconButton(
             icon: const Icon(Icons.close),
@@ -298,44 +306,52 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
           ),
         ),
       ),
-      body: Column(
-        children: [
-          SizedBox(height: MediaQuery.of(context).padding.top + 56),
+      body: DreamyBackground(
+        child: Column(
+          children: [
+            SizedBox(height: MediaQuery.of(context).padding.top + 56),
+            
+            const SizedBox(height: 20),
           
-          // Modern Tab Selector
+          // Ekran ortasında icon seçici
           ModernTabSelector(
             tabController: _tabController,
             theme: theme,
           ),
           
+          const SizedBox(height: 20),
+          
+          // Seçilen moda göre içerik göster
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                ListenableBuilder(
-                  listenable: _recordingController,
-                  builder: (context, _) => RecordingScreen(
-                    isRecording: _recordingController.isRecording,
-                    isPaused: _recordingController.isPaused,
-                    recordingDuration: _recordingController.recordingDuration,
-                    onRecord: _recordingController.isRecording ? _stopRecording : _startRecording,
-                    onPause: _pauseRecording,
-                    onResume: _resumeRecording,
-                    onDelete: () async {
-                      await _stopRecording(shouldSave: false);
-                      _discardRecording();
-                    },
-                  ),
-                ),
-                TextInputScreen(
-                  controller: _dreamTextController,
-                  onSend: _saveTextDream,
-                  onTextChanged: () => setState(() {}),
-                ),
-              ],
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: _tabController.index == 0
+                  ? ListenableBuilder(
+                      key: const ValueKey('recording'),
+                      listenable: _recordingController,
+                      builder: (context, _) => RecordingScreen(
+                        isRecording: _recordingController.isRecording,
+                        isPaused: _recordingController.isPaused,
+                        recordingDuration: _recordingController.recordingDuration,
+                        onRecord: _recordingController.isRecording ? _stopRecording : _startRecording,
+                        onPause: _pauseRecording,
+                        onResume: _resumeRecording,
+                        onDelete: () async {
+                          await _stopRecording(shouldSave: false);
+                          _discardRecording();
+                        },
+                      ),
+                    )
+                  : TextInputScreen(
+                      key: const ValueKey('text'),
+                      controller: _dreamTextController,
+                      onSend: _saveTextDream,
+                      onTextChanged: () => setState(() {}),
+                    ),
             ),
           ),
         ],
+        ),
       ),
     );
   }

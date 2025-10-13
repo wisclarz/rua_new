@@ -9,6 +9,7 @@ import 'package:animations/animations.dart';
 import '../providers/dream_provider.dart';
 import '../models/dream_model.dart';
 import '../widgets/dream_detail_widget.dart';
+import '../widgets/dreamy_background.dart';
 
 class DreamHistoryScreen extends StatefulWidget {
   const DreamHistoryScreen({super.key});
@@ -58,29 +59,42 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
     final theme = Theme.of(context);
     
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
+      backgroundColor: Colors.transparent,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text('Rüya Geçmişi')
           .animate()
           .fadeIn(duration: 400.ms)
           .slideX(begin: -0.2, end: 0),
-        backgroundColor: theme.colorScheme.surface,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              HapticFeedback.lightImpact();
-              _loadDreams();
-            },
-            tooltip: 'Yenile',
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface.withValues(alpha: 0.3),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withOpacity(0.2),
+                width: 1.5,
+              ),
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                _loadDreams();
+              },
+              tooltip: 'Yenile',
+            ),
           )
             .animate()
             .fadeIn(delay: 200.ms, duration: 400.ms)
             .rotate(delay: 200.ms, duration: 600.ms, curve: Curves.elasticOut),
         ],
       ),
-      body: Consumer<DreamProvider>(
+      body: DreamyBackground(
+        child: Consumer<DreamProvider>(
         builder: (context, dreamProvider, child) {
           if (dreamProvider.isLoading) {
             return _buildLoadingState(theme);
@@ -101,6 +115,9 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
             color: theme.colorScheme.primary,
             child: Column(
               children: [
+                SizedBox(height: MediaQuery.of(context).padding.top + 56),
+                const SizedBox(height: 12),
+                
                 _buildFilterChips(dreamProvider.dreams, theme),
                 
                 Expanded(
@@ -134,6 +151,7 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
             ),
           );
         },
+        ),
       ),
     );
   }
@@ -251,42 +269,25 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      child: Material(
-        elevation: 0,
-        borderRadius: BorderRadius.circular(20),
-        color: theme.colorScheme.surface,
-        child: OpenContainer(
+      child: OpenContainer(
           closedElevation: 0,
           openElevation: 0,
           closedShape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-          closedColor: theme.colorScheme.surface,
+          closedColor: Colors.transparent,
           openColor: theme.colorScheme.surface,
           transitionDuration: const Duration(milliseconds: 500),
           transitionType: ContainerTransitionType.fadeThrough,
           closedBuilder: (context, action) {
-            return InkWell(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                action();
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: theme.dividerColor.withOpacity(0.5),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.03),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                padding: const EdgeInsets.all(16),
+            return GlassCard(
+              padding: const EdgeInsets.all(16),
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  action();
+                },
+                borderRadius: BorderRadius.circular(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -459,7 +460,6 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
             return DreamDetailWidget(dream: dream);
           },
         ),
-      ),
     );
   }
 

@@ -15,6 +15,8 @@ import 'screens/splash_screen.dart';
 import 'screens/phone_auth_screen.dart';
 import 'screens/main_navigation.dart';
 import 'screens/profile_screen.dart';
+import 'utils/navigation_utils.dart';
+import 'utils/fps_monitor.dart';
 
 bool _isFirebaseInitialized = false;
 
@@ -30,6 +32,11 @@ void main() async {
       systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
+  
+  // ⚡ PERFORMANCE: Enable high refresh rate (90Hz, 120Hz support)
+  // Flutter will automatically match the device's native refresh rate
+  // This ensures FPS = Screen Hz (60/90/120 FPS based on device)
+  // No additional code needed - Flutter handles this automatically
   
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([
@@ -100,10 +107,30 @@ class MyApp extends StatelessWidget {
         darkTheme: AppTheme.darkTheme,
         themeMode: ThemeMode.system,
         debugShowCheckedModeBanner: false,
+        // ⚡ FPS Monitor - AÇIK (Test için gerçek zamanlı FPS gösterir)
+        // Sağ üstte FPS counter göreceksiniz
+        builder: (context, child) {
+          return FPSMonitor(
+            enabled: true, // ✅ FPS counter aktif - Performans testi için
+            child: child ?? const SizedBox.shrink(),
+          );
+        },
         home: const AuthWrapper(),
-        routes: {
-          '/home': (context) => const MainNavigation(),
-          '/profile': (context) => const ProfileScreen(),
+        // ⚡ Custom fast transitions for ALL named routes (120ms instead of 300ms)
+        onGenerateRoute: (settings) {
+          Widget page;
+          switch (settings.name) {
+            case '/home':
+              page = const MainNavigation();
+              break;
+            case '/profile':
+              page = const ProfileScreen();
+              break;
+            default:
+              return null;
+          }
+          // ⚡ Use fast custom transitions (120ms fade + slide)
+          return createFastRoute(page);
         },
       ),
     );
@@ -115,23 +142,23 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<AuthProviderInterface, SubscriptionProvider>(
-      builder: (context, authProvider, subscriptionProvider, child) {
-        // Show splash screen while loading
-        if (authProvider.isLoading || 
-            !authProvider.isInitialized ||
-            subscriptionProvider.isLoading) {
+    return Consumer<AuthProviderInterface>(
+      builder: (context, authProvider, child) {
+        // Show splash screen only while auth is initializing
+        if (authProvider.isLoading || !authProvider.isInitialized) {
           return const SplashScreen();
         }
         
         // Show main navigation if authenticated
         if (authProvider.isAuthenticated) {
-          // Load user subscription
-          Future.microtask(() {
-            if (subscriptionProvider.currentSubscription == null) {
+          // Load subscription asynchronously (don't block navigation)
+          final subscriptionProvider = context.read<SubscriptionProvider>();
+          if (subscriptionProvider.currentSubscription == null && 
+              !subscriptionProvider.isLoading) {
+            Future.microtask(() {
               subscriptionProvider.loadUserSubscription();
-            }
-          });
+            });
+          }
           
           return const MainNavigation();
         }

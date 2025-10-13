@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:ui';
@@ -13,50 +12,19 @@ class PhoneAuthScreen extends StatefulWidget {
   State<PhoneAuthScreen> createState() => _PhoneAuthScreenState();
 }
 
-class _PhoneAuthScreenState extends State<PhoneAuthScreen>
-    with TickerProviderStateMixin {
+class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
   final _phoneController = TextEditingController();
   final _codeController = TextEditingController();
   final _nameController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   
-  late AnimationController _shimmerController;
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
-  
   bool _isCodeSent = false;
-  
-  @override
-  void initState() {
-    super.initState();
-    _setupAnimations();
-  }
-  
-  void _setupAnimations() {
-    _shimmerController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
-      vsync: this,
-    )..repeat();
-    
-    _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
-    
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-    
-    _pulseController.repeat(reverse: true);
-  }
   
   @override
   void dispose() {
     _phoneController.dispose();
     _codeController.dispose();
     _nameController.dispose();
-    _shimmerController.dispose();
-    _pulseController.dispose();
     super.dispose();
   }
 
@@ -66,16 +34,16 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
     final theme = Theme.of(context);
     
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0B1E),
+      backgroundColor: const Color(0xFF1A1A2E),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFF0A0B1E),
-              Color(0xFF1A1B2E),
-              Color(0xFF2D1B69),
+              Color(0xFF1A1A2E), // Matching splash screen
+              Color(0xFF0F3460),
+              Color(0xFF533483),
             ],
           ),
         ),
@@ -96,7 +64,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
                   const SizedBox(height: 30),
                   _buildGoogleSignInButton(theme),
                 ],
-              ).animate().fadeIn(duration: 800.ms),
+              ),
             ),
           ),
         ),
@@ -107,57 +75,63 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
   Widget _buildModernHeader() {
     return Column(
       children: [
-        // App Icon with Pulse Animation
-        ScaleTransition(
-          scale: _pulseAnimation,
-          child: Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF6366F1).withValues(alpha: 0.5),
-                  blurRadius: 30,
-                  spreadRadius: 10,
-                ),
+        // App Icon - Matching Splash Screen (no animation for faster load)
+        Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white.withOpacity(0.2),
+                Colors.white.withOpacity(0.05),
               ],
             ),
-            child: const Icon(
-              Icons.nightlight_round,
-              size: 50,
-              color: Colors.white,
+            border: Border.all(
+              color: Colors.white.withOpacity(0.3),
+              width: 2,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.purple.withOpacity(0.3),
+                blurRadius: 30,
+                spreadRadius: 5,
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.nightlight_round,
+            size: 50,
+            color: Colors.white,
           ),
         ),
         
         const SizedBox(height: 24),
         
-        // App Title
+        // App Title - Matching Splash Screen
         Text(
-          'Rüya Defteri',
-          style: GoogleFonts.orbitron(
-            fontSize: 36,
+          'Dreamp',
+          style: GoogleFonts.poppins(
+            fontSize: 42,
             fontWeight: FontWeight.bold,
             color: Colors.white,
-            letterSpacing: 2,
+            letterSpacing: 1.5,
           ),
-        ).animate().fadeIn(delay: 200.ms, duration: 600.ms),
+        ),
         
         const SizedBox(height: 8),
         
         // Subtitle
         Text(
-          _isCodeSent ? 'Doğrulama Kodu Gönderildi' : 'Hoş Geldiniz',
+          _isCodeSent ? 'Doğrulama Kodu Gönderildi' : 'Rüyalarınızı keşfedin',
           style: GoogleFonts.poppins(
-            fontSize: 16,
-            color: Colors.white70,
-            letterSpacing: 1,
+            fontSize: 15,
+            color: Colors.white.withOpacity(0.8),
+            letterSpacing: 0.5,
           ),
-        ).animate().fadeIn(delay: 400.ms, duration: 600.ms),
+        ),
       ],
     );
   }
@@ -211,7 +185,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
           ),
         ),
       ),
-    ).animate().scale(delay: 600.ms, duration: 600.ms);
+    );
   }
 
   Widget _buildPhoneInput() {
@@ -486,7 +460,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
               ),
             ),
           ),
-        ).animate().fadeIn(delay: 800.ms, duration: 600.ms);
+        );
       },
     );
   }

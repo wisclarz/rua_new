@@ -7,9 +7,14 @@ import 'google_sign_in_helper.dart';
 class FirebaseAuthService {
   final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  
+  // ✨ Optimized Google Sign-In Configuration
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: <String>['email'],
-    forceCodeForRefreshToken: true,
+    scopes: <String>[
+      'email',
+      'profile',
+    ],
+    // forceCodeForRefreshToken: true,  // Kaldırıldı - gereksiz consent screen'e sebep oluyor
   );
 
   Stream<firebase_auth.User?> get authStateChanges => _auth.authStateChanges();
@@ -72,33 +77,20 @@ class FirebaseAuthService {
 
   Future<app_models.User?> signInSilently() async {
     try {
-      print('🤫 Attempting silent Google Sign-In...');
-      
       final GoogleSignInAccount? googleUser = await _googleSignIn.signInSilently();
       
-      if (googleUser == null) {
-        print('ℹ️ No cached Google user found');
-        return null;
-      }
-      
-      print('✅ Found cached Google user: ${googleUser.email}');
+      if (googleUser == null) return null;
       
       final currentFirebaseUser = _auth.currentUser;
       if (currentFirebaseUser != null && currentFirebaseUser.email == googleUser.email) {
-        print('✅ Firebase user already signed in: ${currentFirebaseUser.uid}');
         return await getUserProfile(currentFirebaseUser.uid);
       }
       
       GoogleSignInAuthentication? googleAuth;
       try {
         googleAuth = await googleUser.authentication;
-        
-        if (!GoogleSignInHelper.validateGoogleAuthTokens(googleAuth)) {
-          print('⚠️ Invalid Google auth tokens in silent sign-in');
-          return null;
-        }
+        if (!GoogleSignInHelper.validateGoogleAuthTokens(googleAuth)) return null;
       } catch (e) {
-        print('⚠️ Failed to get Google auth tokens: $e');
         return null;
       }
       
@@ -111,8 +103,6 @@ class FirebaseAuthService {
       
       if (userCredential.user != null) {
         final firebaseUser = userCredential.user!;
-        print('✅ Silent Firebase authentication successful: ${firebaseUser.uid}');
-        
         app_models.User? user = await getUserProfile(firebaseUser.uid);
         
         if (user == null) {
@@ -128,10 +118,8 @@ class FirebaseAuthService {
           );
           
           await _createUserProfile(user);
-          print('✅ New user profile created for silent sign-in: ${user.name}');
         } else {
           await _updateLastLoginTime(firebaseUser.uid);
-          print('✅ Last login time updated for: ${user.name}');
         }
         
         return user;
@@ -140,56 +128,29 @@ class FirebaseAuthService {
       return null;
       
     } catch (e) {
-      print('ℹ️ Silent sign-in failed (this is normal): $e');
       return null;
     }
   }
 
   Future<app_models.User?> signInWithGoogle() async {
     try {
-      await GoogleSignInHelper.safeClearGoogleSignIn(_googleSignIn);
+      // Try silent sign-in first (cached)
+      GoogleSignInAccount? googleUser = await _googleSignIn.signInSilently();
       
-      GoogleSignInAccount? googleUser;
-      GoogleSignInAuthentication? googleAuth;
-      
-      int attempts = 0;
-      const maxAttempts = 3;
-      
-      while (attempts < maxAttempts) {
-        try {
-          googleUser = await _googleSignIn.signIn();
-          if (googleUser == null) return null;
-
-          googleAuth = await googleUser.authentication;
-          
-          if (GoogleSignInHelper.validateGoogleAuthTokens(googleAuth)) {
-            break;
-          } else {
-            throw Exception('Invalid tokens received');
-          }
-        } catch (e) {
-          attempts++;
-          print('🔄 Google Sign-In attempt $attempts failed: $e');
-          
-          if (GoogleSignInHelper.isPigeonUserDetailsError(e)) {
-            print('⚠️ PigeonUserDetails error detected, retrying...');
-            await GoogleSignInHelper.safeClearGoogleSignIn(_googleSignIn);
-            await Future.delayed(const Duration(milliseconds: 500));
-            continue;
-          }
-          
-          if (attempts >= maxAttempts) {
-            rethrow;
-          }
-          
-          await Future.delayed(const Duration(milliseconds: 1000));
-        }
+      // If no cached account, show account picker
+      if (googleUser == null) {
+        googleUser = await _googleSignIn.signIn();
+        if (googleUser == null) return null; // User cancelled
       }
       
-      if (googleAuth == null || !GoogleSignInHelper.validateGoogleAuthTokens(googleAuth)) {
-        throw Exception('Failed to get valid Google authentication after $maxAttempts attempts');
+      // Get authentication tokens
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      
+      if (!GoogleSignInHelper.validateGoogleAuthTokens(googleAuth)) {
+        throw Exception('Invalid authentication tokens');
       }
       
+      // Authenticate with Firebase
       final credential = firebase_auth.GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
@@ -197,51 +158,46 @@ class FirebaseAuthService {
 
       final userCredential = await _auth.signInWithCredential(credential);
       
-      if (userCredential.user != null) {
-        final firebaseUser = userCredential.user!;
-        print('✅ Firebase authentication successful for: ${firebaseUser.uid}');
-        
-        app_models.User? user = await getUserProfile(firebaseUser.uid);
-        
-        if (user == null) {
-          user = app_models.User(
-            id: firebaseUser.uid,
-            email: firebaseUser.email ?? '',
-            name: firebaseUser.displayName ?? 'Google User',
-            profileImageUrl: firebaseUser.photoURL,
-            createdAt: DateTime.now(),
-            preferences: app_models.UserPreferences.defaultPreferences(),
-          );
-          
-          await _createUserProfile(user);
-          print('✅ New user profile created: ${user.name}');
-        } else {
-          await _updateLastLoginTime(firebaseUser.uid);
-          print('✅ User login time updated: ${user.name}');
-        }
-        
-        return user;
+      if (userCredential.user == null) {
+        throw Exception('Firebase authentication failed');
       }
-      return null;
+      
+      final firebaseUser = userCredential.user!;
+      
+      // Get or create user profile
+      app_models.User? user = await getUserProfile(firebaseUser.uid);
+      
+      if (user == null) {
+        user = app_models.User(
+          id: firebaseUser.uid,
+          email: firebaseUser.email ?? googleUser.email,
+          name: firebaseUser.displayName ?? googleUser.displayName ?? 'User',
+          profileImageUrl: firebaseUser.photoURL ?? googleUser.photoUrl,
+          createdAt: DateTime.now(),
+          lastLoginAt: DateTime.now(),
+          preferences: app_models.UserPreferences.defaultPreferences(),
+          isEmailVerified: firebaseUser.emailVerified,
+        );
+        
+        await _createUserProfile(user);
+      } else {
+        await _updateLastLoginTime(firebaseUser.uid);
+      }
+      
+      return user;
+      
     } on firebase_auth.FirebaseAuthException catch (e) {
-      print('🔥 Firebase Auth Exception in Google Sign-In: ${e.code} - ${e.message}');
       throw Exception(_handleAuthException(e));
     } catch (e) {
-      print('❌ Error in Google Sign-In: $e');
-      
+      // Error recovery attempt
       if (GoogleSignInHelper.isPigeonUserDetailsError(e)) {
         final currentUser = _auth.currentUser;
         if (currentUser != null) {
-          print('🔄 PigeonUserDetails error but Firebase user exists, attempting recovery...');
-          
           try {
             final user = await getUserProfile(currentUser.uid);
-            if (user != null) {
-              print('✅ Successfully recovered user session: ${user.name}');
-              return user;
-            }
+            if (user != null) return user;
           } catch (recoveryError) {
-            print('❌ Recovery attempt failed: $recoveryError');
+            // Recovery failed, continue to throw
           }
         }
       }
@@ -257,31 +213,23 @@ class FirebaseAuthService {
     Function()? onAutoVerificationCompleted,
   }) async {
     try {
-      print('📱 Starting phone verification for: $phoneNumber');
-      
       await _auth.verifyPhoneNumber(
         phoneNumber: phoneNumber,
         timeout: const Duration(seconds: 60),
         verificationCompleted: (firebase_auth.PhoneAuthCredential credential) async {
-          print('✅ Phone verification completed automatically');
           if (onAutoVerificationCompleted != null) {
             onAutoVerificationCompleted();
           }
         },
-        verificationFailed: (firebase_auth.FirebaseAuthException e) {
-          print('❌ Phone verification failed: ${e.code} - ${e.message}');
-          onVerificationFailed(e);
-        },
+        verificationFailed: onVerificationFailed,
         codeSent: (String verificationId, int? resendToken) {
-          print('📨 SMS code sent, verification ID: $verificationId');
           onCodeSent(verificationId);
         },
         codeAutoRetrievalTimeout: (String verificationId) {
-          print('⏰ Auto retrieval timeout for: $verificationId');
+          // Auto retrieval timeout
         },
       );
     } catch (e) {
-      print('💥 Exception in sendPhoneVerificationCode: $e');
       throw Exception('SMS gönderilirken hata oluştu: $e');
     }
   }
@@ -331,29 +279,20 @@ class FirebaseAuthService {
 
   Future<void> signOut() async {
     try {
-      print('🚪 Starting sign out process...');
-      
+      // Sign out from Google (clear cache)
       try {
-        await _googleSignIn.signOut();
-        print('✅ Google Sign-In signed out');
+        final isSignedIn = await _googleSignIn.isSignedIn();
+        if (isSignedIn) {
+          await _googleSignIn.signOut();
+        }
       } catch (e) {
-        print('⚠️ Google sign out warning: $e');
+        // Non-critical error
       }
       
-      try {
-        await _googleSignIn.disconnect();
-        print('✅ Google Sign-In disconnected');
-      } catch (e) {
-        print('⚠️ Google disconnect warning: $e');
-      }
-      
+      // Sign out from Firebase
       await _auth.signOut();
-      print('✅ Firebase sign out completed');
-      
-      print('✅ Sign out process completed successfully');
       
     } catch (e) {
-      print('❌ Error during sign out: $e');
       throw Exception('Çıkış yapılırken hata oluştu: $e');
     }
   }
@@ -425,32 +364,25 @@ class FirebaseAuthService {
 
   Future<app_models.User?> getUserProfile(String userId) async {
     try {
-      print('📄 Getting user profile from Firestore for: $userId');
       final doc = await _firestore.collection('users').doc(userId).get();
       
       if (doc.exists && doc.data() != null) {
-        print('✅ User document found in Firestore');
         return app_models.User.fromJson({
           'id': doc.id,
           ...doc.data()!,
         });
       }
       
-      print('⚠️ User document not found in Firestore');
       return null;
     } catch (e) {
-      print('❌ Error getting user profile: $e');
       throw Exception('Kullanıcı profili alınırken hata oluştu: $e');
     }
   }
 
   Future<void> updateUserProfile(app_models.User user) async {
     try {
-      print('💾 Saving user profile to Firestore: ${user.id}');
       await _firestore.collection('users').doc(user.id).set(user.toJson(), SetOptions(merge: true));
-      print('✅ User profile saved successfully');
     } catch (e) {
-      print('❌ Error saving user profile: $e');
       throw Exception('Profil güncellenirken hata oluştu: $e');
     }
   }

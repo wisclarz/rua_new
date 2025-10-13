@@ -66,34 +66,34 @@ class FirebaseAuthProvider extends ChangeNotifier implements AuthProviderInterfa
     }
   }
   
-  /// ✨ Otomatik sessiz giriş kontrolü
+  /// ✨ Otomatik sessiz giriş kontrolü - Uygulama başlangıcında
   Future<void> _attemptSilentSignIn() async {
     try {
-      debugPrint('🔍 Checking for existing Google Sign-In session...');
+      debugPrint('🔍 Checking for existing authenticated session...');
       
-      // Firebase'de zaten giriş yapmış kullanıcı var mı kontrol et
+      // 1. Firebase'de zaten aktif oturum var mı?
       final firebaseUser = _authService!.currentUser;
       if (firebaseUser != null) {
-        debugPrint('✅ Firebase user already signed in: ${firebaseUser.uid}');
-        // Auth listener zaten handle edecek
+        debugPrint('✅ Firebase session exists: ${firebaseUser.uid}');
+        // Auth listener kullanıcı bilgilerini yükleyecek
         return;
       }
       
-      // Google Sign-In'den sessizce giriş dene
+      // 2. Google Sign-In önbelleğinde oturum var mı?
+      debugPrint('🤫 Checking Google Sign-In cache...');
       final user = await _authService!.signInSilently();
       
       if (user != null) {
-        debugPrint('✅ Silent sign-in successful: ${user.name}');
+        debugPrint('✅ Automatic sign-in successful: ${user.name}');
         _currentUser = user;
-        _setLoading(false);
         _safeNotify();
       } else {
-        debugPrint('ℹ️ No existing Google session found');
-        _setLoading(false);
+        debugPrint('ℹ️ No cached session found, user will need to sign in manually');
       }
       
     } catch (e) {
-      debugPrint('ℹ️ Silent sign-in not available: $e');
+      debugPrint('ℹ️ Auto sign-in failed (normal for first time): $e');
+    } finally {
       _setLoading(false);
     }
   }
@@ -189,7 +189,7 @@ class FirebaseAuthProvider extends ChangeNotifier implements AuthProviderInterfa
     }
   }
   
-  /// ✨ Google ile giriş - Önce sessiz, sonra normal
+  /// ✨ Google ile giriş - Kullanıcı giriş butonuna bastığında
   @override
   Future<bool> signInWithGoogle() async {
     if (_authService == null) {
@@ -201,25 +201,16 @@ class FirebaseAuthProvider extends ChangeNotifier implements AuthProviderInterfa
       _setLoading(true);
       _clearError();
       
-      debugPrint('🔐 Attempting Google Sign-In...');
+      debugPrint('🔐 User initiated Google Sign-In...');
       
-      // 1. Önce sessiz giriş dene (kullanıcı daha önce giriş yaptıysa)
-      debugPrint('🤫 Trying silent sign-in first...');
-      var user = await _authService!.signInSilently();
-      
-      if (user != null) {
-        _currentUser = user;
-        debugPrint('✅ Silent sign-in successful: ${user.name}');
-        return true;
-      }
-      
-      // 2. Sessiz giriş başarısız, normal giriş yap
-      debugPrint('📱 Silent sign-in failed, showing sign-in UI...');
-      user = await _authService!.signInWithGoogle();
+      // signInWithGoogle içinde zaten silentSignIn önce deneniyor
+      // Eğer cache'de hesap varsa direkt giriş yapar
+      // Yoksa hesap seçme ekranı gösterir
+      final user = await _authService!.signInWithGoogle();
       
       if (user != null) {
         _currentUser = user;
-        debugPrint('✅ Google Sign-In successful: ${user.name}');
+        debugPrint('✅ Sign-in completed: ${user.name}');
         return true;
       }
       

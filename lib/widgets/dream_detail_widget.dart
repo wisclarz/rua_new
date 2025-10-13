@@ -8,6 +8,7 @@ import 'dart:ui';
 import '../models/dream_model.dart';
 import '../providers/subscription_provider.dart';
 import '../screens/subscription_screen.dart';
+import '../utils/navigation_utils.dart';
 
 class DreamDetailWidget extends StatefulWidget {
   final Dream dream;
@@ -25,7 +26,9 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
     with TickerProviderStateMixin {
   late AnimationController _unlockController;
   late AnimationController _shimmerController;
+  final ScrollController _scrollController = ScrollController();
   bool _isUnlocked = false;
+  double _dragDistance = 0;
 
   @override
   void initState() {
@@ -45,6 +48,7 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
   void dispose() {
     _unlockController.dispose();
     _shimmerController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -150,62 +154,34 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
         final isPro = provider.isPro;
         final shouldBlur = !isPro && !_isUnlocked;
 
-        return Scaffold(
-          backgroundColor: theme.scaffoldBackgroundColor,
-          appBar: AppBar(
-            title: const Text('Rüya Detayları')
-              .animate()
-              .fadeIn(duration: 400.ms)
-              .slideX(begin: -0.2, end: 0),
-            backgroundColor: theme.colorScheme.surface,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () {
-                HapticFeedback.lightImpact();
-                Navigator.pop(context);
-              },
-            ),
-            actions: [
-              if (!isPro && !_isUnlocked)
-                Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  child: TextButton.icon(
-                    onPressed: () {
-                      HapticFeedback.lightImpact();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const SubscriptionScreen(),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.workspace_premium, size: 18),
-                    label: const Text('Pro'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.amber,
-                      backgroundColor: Colors.amber.withOpacity(0.1),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                  ),
-                )
-                  .animate(onPlay: (controller) => controller.repeat())
-                  .shimmer(
-                    delay: 1000.ms,
-                    duration: 2000.ms,
-                    color: Colors.amber.withOpacity(0.3),
-                  ),
-            ],
-          ),
-          body: CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
+        return GestureDetector(
+          onVerticalDragUpdate: (details) {
+            // Sadece scroll en üstteyken ve aşağı sürükleniyorsa
+            if (_scrollController.hasClients && 
+                _scrollController.position.pixels <= 0 &&
+                details.primaryDelta! > 0) {
+              setState(() {
+                _dragDistance += details.primaryDelta!;
+              });
+            }
+          },
+          onVerticalDragEnd: (details) {
+            // Yeterince aşağı sürüklendiyse kapat
+            if (_dragDistance > 100) {
+              Navigator.pop(context);
+            }
+            setState(() {
+              _dragDistance = 0;
+            });
+          },
+          child: Scaffold(
+            backgroundColor: theme.scaffoldBackgroundColor,
+            body: Stack(
+              children: [
+                CustomScrollView(
+                  controller: _scrollController,
+                  physics: const BouncingScrollPhysics(),
+                  slivers: [
               // Animated Header Section
               SliverToBoxAdapter(
                 child: _buildHeader(theme)
@@ -289,6 +265,80 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
               ),
             ],
           ),
+              
+              // Close Button - Top Right
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 8,
+                right: 16,
+                child: IconButton(
+                  icon: const Icon(Icons.close, size: 28),
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.pop(context);
+                  },
+                  color: theme.colorScheme.onSurface,
+                  padding: const EdgeInsets.all(8),
+                  constraints: const BoxConstraints(
+                    minWidth: 44,
+                    minHeight: 44,
+                  ),
+                ),
+              )
+                .animate()
+                .fadeIn(duration: 400.ms)
+                .scale(duration: 400.ms, curve: Curves.elasticOut),
+              
+              // Pro Button - Top Left (if not pro)
+              if (!isPro && !_isUnlocked)
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + 8,
+                  left: 16,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Colors.amber.withOpacity(0.4),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.amber.withOpacity(0.2),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: TextButton.icon(
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        // ⚡ Fast transition (120ms)
+                        context.pushFast(const SubscriptionScreen());
+                      },
+                      icon: const Icon(Icons.workspace_premium, size: 18),
+                      label: const Text('Pro'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.amber[700],
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+                  .animate(onPlay: (controller) => controller.repeat())
+                  .shimmer(
+                    delay: 1000.ms,
+                    duration: 2000.ms,
+                    color: Colors.amber.withOpacity(0.3),
+                  ),
+              ],
+            ),
+          ),
         );
       },
     );
@@ -296,17 +346,21 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
 
   Widget _buildHeader(ThemeData theme) {
     return Container(
+      padding: EdgeInsets.fromLTRB(
+        24,
+        MediaQuery.of(context).padding.top + 64,
+        24,
+        24,
+      ),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            theme.colorScheme.primary.withOpacity(0.1),
-            theme.colorScheme.secondary.withOpacity(0.05),
-          ],
+        color: theme.scaffoldBackgroundColor,
+        border: Border(
+          bottom: BorderSide(
+            color: theme.dividerColor.withOpacity(0.1),
+            width: 1,
+          ),
         ),
       ),
-      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -323,6 +377,10 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
                     ],
                   ),
                   borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: theme.colorScheme.primary.withOpacity(0.2),
+                    width: 1,
+                  ),
                 ),
                 child: Icon(
                   Icons.bedtime,
@@ -806,12 +864,8 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
           child: ElevatedButton.icon(
             onPressed: () {
               HapticFeedback.mediumImpact();
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const SubscriptionScreen(),
-                ),
-              );
+              // ⚡ Fast transition (120ms)
+              context.pushFast(const SubscriptionScreen());
             },
             icon: const Icon(Icons.workspace_premium),
             label: const Text(
