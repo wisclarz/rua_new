@@ -106,10 +106,6 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
 
           final filteredDreams = _getFilteredDreams(dreamProvider.dreams);
 
-          if (filteredDreams.isEmpty) {
-            return _buildEmptyState(theme);
-          }
-
           return RefreshIndicator(
             onRefresh: _loadDreams,
             color: theme.colorScheme.primary,
@@ -117,35 +113,39 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
               children: [
                 SizedBox(height: MediaQuery.of(context).padding.top + 56),
                 const SizedBox(height: 12),
-                
+
+                // Filtreler her zaman görünür
                 _buildFilterChips(dreamProvider.dreams, theme),
-                
+
+                // Liste veya boş durum
                 Expanded(
-                  child: AnimationLimiter(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-                      physics: const BouncingScrollPhysics(
-                        parent: AlwaysScrollableScrollPhysics(),
-                      ),
-                      itemCount: filteredDreams.length,
-                      itemBuilder: (context, index) {
-                        return AnimationConfiguration.staggeredList(
-                          position: index,
-                          duration: const Duration(milliseconds: 400),
-                          child: SlideAnimation(
-                            verticalOffset: 50.0,
-                            child: FadeInAnimation(
-                              child: _buildDreamCard(
-                                filteredDreams[index],
-                                theme,
-                                index,
-                              ),
+                  child: filteredDreams.isEmpty
+                      ? _buildEmptyContent(theme)
+                      : AnimationLimiter(
+                          child: ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                            physics: const BouncingScrollPhysics(
+                              parent: AlwaysScrollableScrollPhysics(),
                             ),
+                            itemCount: filteredDreams.length,
+                            itemBuilder: (context, index) {
+                              return AnimationConfiguration.staggeredList(
+                                position: index,
+                                duration: const Duration(milliseconds: 400),
+                                child: SlideAnimation(
+                                  verticalOffset: 50.0,
+                                  child: FadeInAnimation(
+                                    child: _buildDreamCard(
+                                      filteredDreams[index],
+                                      theme,
+                                      index,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
-                  ),
+                        ),
                 ),
               ],
             ),
@@ -221,7 +221,8 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
     int index,
   ) {
     final isSelected = _selectedFilter == value;
-    
+    final isDark = theme.brightness == Brightness.dark;
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOutCubic,
@@ -229,9 +230,23 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
         label: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16),
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected
+                  ? (isDark ? Colors.white : theme.colorScheme.primary)
+                  : theme.colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
             const SizedBox(width: 6),
-            Text('$label ($count)'),
+            Text(
+              '$label ($count)',
+              style: TextStyle(
+                color: isSelected
+                    ? (isDark ? Colors.white : theme.colorScheme.primary)
+                    : theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
           ],
         ),
         selected: isSelected,
@@ -241,18 +256,24 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
             _selectedFilter = value;
           });
         },
-        backgroundColor: theme.colorScheme.surfaceContainerHigh,
-        selectedColor: theme.colorScheme.primaryContainer,
-        checkmarkColor: theme.colorScheme.primary,
+        backgroundColor: isDark
+            ? Colors.white.withValues(alpha: 0.08)
+            : theme.colorScheme.surfaceContainerHigh,
+        selectedColor: isDark
+            ? theme.colorScheme.primary.withValues(alpha: 0.25)
+            : theme.colorScheme.primary.withValues(alpha: 0.15),
+        showCheckmark: false, // Checkmark'ı kaldır
         side: BorderSide(
-          color: isSelected 
+          color: isSelected
               ? theme.colorScheme.primary
-              : theme.colorScheme.outlineVariant,
-          width: isSelected ? 1.5 : 1,
+              : (isDark
+                  ? Colors.white.withValues(alpha: 0.2)
+                  : theme.colorScheme.outlineVariant),
+          width: isSelected ? 2 : 1,
         ),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        elevation: isSelected ? 2 : 0,
-        shadowColor: theme.colorScheme.primary.withOpacity(0.2),
+        elevation: isSelected ? 3 : 0,
+        shadowColor: theme.colorScheme.primary.withValues(alpha: 0.3),
       ),
     )
       .animate()
@@ -330,7 +351,7 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                dream.title,
+                                dream.baslik ?? dream.title,
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -367,7 +388,8 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
                     ),
                     
                     // Content Preview
-                    if (dream.isCompleted && dream.interpretation != null) ...[
+                    if (dream.isCompleted && dream.fullAnalysis.isNotEmpty &&
+                        dream.fullAnalysis != 'Analiz bekleniyor...') ...[
                       const SizedBox(height: 12),
                       Divider(
                         height: 1,
@@ -384,9 +406,9 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
                           children: [
                             Expanded(
                               child: Text(
-                                dream.interpretation!.length > 100
-                                    ? '${dream.interpretation!.substring(0, 100)}...'
-                                    : dream.interpretation!,
+                                dream.fullAnalysis.length > 100
+                                    ? '${dream.fullAnalysis.substring(0, 100)}...'
+                                    : dream.fullAnalysis,
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: theme.colorScheme.onSurface.withOpacity(0.8),
                                   height: 1.5,
@@ -400,12 +422,12 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
                       ),
                       
                       // Symbols Badge
-                      if (dream.symbols != null && dream.symbols!.isNotEmpty) ...[
+                      if (dream.allSymbols.isNotEmpty) ...[
                         const SizedBox(height: 12),
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
-                          children: dream.symbols!.take(3).map((symbol) {
+                          children: dream.allSymbols.take(3).map((symbol) {
                             return Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 10,
@@ -463,75 +485,72 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
     );
   }
 
-  Widget _buildEmptyState(ThemeData theme) {
-    return RefreshIndicator(
-      onRefresh: _loadDreams,
-      child: CustomScrollView(
+  Widget _buildEmptyContent(ThemeData theme) {
+    return Center(
+      child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverFillRemaining(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          theme.colorScheme.primary.withOpacity(0.2),
-                          theme.colorScheme.secondary.withOpacity(0.1),
-                        ],
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.nights_stay_outlined,
-                      size: 60,
-                      color: theme.colorScheme.primary.withOpacity(0.6),
-                    ),
-                  )
-                    .animate()
-                    .scale(duration: 800.ms, curve: Curves.elasticOut)
-                    .then(delay: 1000.ms)
-                    .shake(duration: 500.ms, hz: 2),
-                  
-                  const SizedBox(height: 32),
-                  
-                  Text(
-                    _selectedFilter == 'all' 
-                        ? 'Henüz Rüya Kaydın Yok'
-                        : 'Bu Kategoride Rüya Bulunamadı',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  )
-                    .animate()
-                    .fadeIn(delay: 400.ms, duration: 600.ms)
-                    .slideY(begin: 0.2, end: 0),
-                  
-                  const SizedBox(height: 12),
-                  
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 40),
-                    child: Text(
-                      _selectedFilter == 'all'
-                          ? 'Ana ekrandan yeni bir rüya kaydet\nve analiz sonuçlarını gör!'
-                          : 'Farklı bir kategori seçmeyi dene',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  )
-                    .animate()
-                    .fadeIn(delay: 600.ms, duration: 600.ms),
-                ],
-              ),
-            ),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      theme.colorScheme.primary.withValues(alpha: 0.2),
+                      theme.colorScheme.secondary.withValues(alpha: 0.1),
+                    ],
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.nights_stay_outlined,
+                  size: 60,
+                  color: theme.colorScheme.primary.withValues(alpha: 0.6),
+                ),
+              )
+                .animate()
+                .scale(duration: 800.ms, curve: Curves.elasticOut)
+                .then(delay: 1000.ms)
+                .shake(duration: 500.ms, hz: 2),
+
+              const SizedBox(height: 32),
+
+              Text(
+                _selectedFilter == 'all'
+                    ? 'Henüz Rüya Kaydın Yok'
+                    : 'Bu Kategoride Rüya Bulunamadı',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              )
+                .animate()
+                .fadeIn(delay: 400.ms, duration: 600.ms)
+                .slideY(begin: 0.2, end: 0),
+
+              const SizedBox(height: 12),
+
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40),
+                child: Text(
+                  _selectedFilter == 'all'
+                      ? 'Ana ekrandan yeni bir rüya kaydet\nve analiz sonuçlarını gör!'
+                      : 'Farklı bir kategori seçmeyi dene',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              )
+                .animate()
+                .fadeIn(delay: 600.ms, duration: 600.ms),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

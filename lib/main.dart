@@ -17,12 +17,13 @@ import 'screens/main_navigation.dart';
 import 'screens/profile_screen.dart';
 import 'utils/navigation_utils.dart';
 import 'utils/fps_monitor.dart';
+import 'services/cache_service.dart';
 
 bool _isFirebaseInitialized = false;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -32,18 +33,26 @@ void main() async {
       systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
-  
+
   // ⚡ PERFORMANCE: Enable high refresh rate (90Hz, 120Hz support)
   // Flutter will automatically match the device's native refresh rate
   // This ensures FPS = Screen Hz (60/90/120 FPS based on device)
   // No additional code needed - Flutter handles this automatically
-  
+
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-  
+
+  // 🗄️ Initialize CacheService
+  try {
+    await CacheService.instance.initialize();
+    debugPrint('✅ CacheService initialized successfully');
+  } catch (e) {
+    debugPrint('⚠️ CacheService initialization error: $e');
+  }
+
   try {
     // Initialize Firebase
     await Firebase.initializeApp(
@@ -56,7 +65,7 @@ void main() async {
     debugPrint('❌ Firebase initialization error: $e');
     debugPrint('📱 Using mock authentication provider');
   }
-  
+
   runApp(const MyApp());
 }
 
@@ -137,32 +146,55 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  bool _showSplash = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Keep splash visible for smooth transition
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        setState(() {
+          _showSplash = false;
+        });
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<AuthProviderInterface>(
       builder: (context, authProvider, child) {
-        // Show splash screen only while auth is initializing
-        if (authProvider.isLoading || !authProvider.isInitialized) {
+        // IMPORTANT: Show splash while:
+        // 1. Auth is initializing
+        // 2. Initial delay for smooth UX
+        // 3. Auth is loading
+        if (_showSplash || !authProvider.isInitialized || authProvider.isLoading) {
           return const SplashScreen();
         }
-        
+
         // Show main navigation if authenticated
         if (authProvider.isAuthenticated) {
           // Load subscription asynchronously (don't block navigation)
           final subscriptionProvider = context.read<SubscriptionProvider>();
-          if (subscriptionProvider.currentSubscription == null && 
+          if (subscriptionProvider.currentSubscription == null &&
               !subscriptionProvider.isLoading) {
             Future.microtask(() {
               subscriptionProvider.loadUserSubscription();
             });
           }
-          
+
           return const MainNavigation();
         }
-        
+
         // Show authentication screen
         return const PhoneAuthScreen();
       },

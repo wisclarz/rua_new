@@ -124,7 +124,6 @@ class MockDreamRepository implements DreamRepository {
       _mockDreams[index] = Dream(
         id: dream.id,
         userId: dream.userId,
-        audioUrl: data['audioUrl'] ?? dream.audioUrl,
         fileName: data['fileName'] ?? dream.fileName,
         title: data['title'] ?? dream.title,
         dreamText: data['dreamText'] ?? dream.dreamText,

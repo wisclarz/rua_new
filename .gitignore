@@ -46,3 +46,4 @@ app.*.map.json
 
 # ⚠️ SENSITIVE - OpenAI Config (API Keys)
 lib/config/openai_config.dart
+nul

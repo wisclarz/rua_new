@@ -9,7 +9,6 @@ enum DreamStatus {
 class Dream {
   final String id;
   final String userId;
-  final String audioUrl;
   final String? fileName;
   
   // Başlık (hem eski hem yeni format)
@@ -35,7 +34,6 @@ class Dream {
   
   // Eski alanlar (backward compatibility için)
   final String? interpretation; // Artık kullanılmıyor ama eski veriler için
-  final String? connectionToPast; // Artık kullanılmıyor
   
   final DreamStatus status;
   final DateTime createdAt;
@@ -44,7 +42,6 @@ class Dream {
   Dream({
     required this.id,
     required this.userId,
-    required this.audioUrl,
     this.fileName,
     required this.title,
     this.baslik,
@@ -57,7 +54,6 @@ class Dream {
     this.analiz,
     this.ruhSagligi,
     this.interpretation,
-    this.connectionToPast,
     required this.status,
     required this.createdAt,
     this.updatedAt,
@@ -86,7 +82,6 @@ class Dream {
     return Dream(
       id: map['id'] ?? '',
       userId: map['userId'] ?? '',
-      audioUrl: map['audioUrl'] ?? '',
       fileName: map['fileName'],
       
       // Başlık: Önce baslik'e bak, yoksa title kullan
@@ -112,7 +107,6 @@ class Dream {
       
       // Eski alanlar
       interpretation: map['interpretation'],
-      connectionToPast: map['connectionToPast'] ?? map['connection_to_past'],
       
       status: _parseStatus(map['status']),
       createdAt: _parseDateTime(map['createdAt']) ?? DateTime.now(),
@@ -125,15 +119,12 @@ class Dream {
     return {
       'id': id,
       'userId': userId,
-      'audioUrl': audioUrl,
       'fileName': fileName,
       
       // Başlık (her iki format da)
-      'title': baslik ?? title,
       'baslik': baslik ?? title,
       
       'dreamText': dreamText,
-      'dream_text': dreamText,
       
       // Duygular (her iki format da)
       'mood': duygular?['anaDuygu'] ?? duygular?['ana_duygu'] ?? mood,
@@ -143,26 +134,20 @@ class Dream {
       },
       
       // Semboller (her iki format da)
-      'symbols': semboller ?? symbols,
       'semboller': semboller ?? symbols,
       
       // Analiz (her iki format da)
-      'analysis': analiz ?? analysis,
       'analiz': analiz ?? analysis,
       'interpretation': analiz ?? analysis, // Backward compatibility
       
       // Yeni alanlar
       'ruhSagligi': ruhSagligi,
-      'ruh_sagligi': ruhSagligi,
       
       // Eski alanlar
-      'connectionToPast': connectionToPast,
-      'connection_to_past': connectionToPast,
       
       'status': status.name,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
     };
   }
 
@@ -235,7 +220,6 @@ class Dream {
     return Dream(
       id: id ?? this.id,
       userId: userId ?? this.userId,
-      audioUrl: audioUrl ?? this.audioUrl,
       fileName: fileName ?? this.fileName,
       title: title ?? this.title,
       baslik: baslik ?? this.baslik,
@@ -248,7 +232,6 @@ class Dream {
       analiz: analiz ?? this.analiz,
       ruhSagligi: ruhSagligi ?? this.ruhSagligi,
       interpretation: interpretation ?? this.interpretation,
-      connectionToPast: connectionToPast ?? this.connectionToPast,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
