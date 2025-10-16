@@ -43,12 +43,10 @@ class RecordingControls extends StatelessWidget {
               label: 'Sil',
               color: Colors.red.shade400,
               onPressed: onDelete ?? () {},
-            ).animate()
-                .fadeIn(duration: AppConstants.animationNormal)
-                .slideX(begin: -0.5, end: 0),
+            ),
             const SizedBox(width: AppConstants.spacingXL),
           ],
-          
+
           if (isRecording) ...[
             _RecordingIconButton(
               theme: theme,
@@ -56,11 +54,7 @@ class RecordingControls extends StatelessWidget {
               label: isPaused ? 'Devam' : 'Duraklat',
               color: theme.colorScheme.primary,
               onPressed: isPaused ? (onResume ?? () {}) : (onPause ?? () {}),
-            ).animate()
-                .fadeIn(
-                  duration: AppConstants.animationNormal,
-                  delay: AppConstants.delayShort,
-                ),
+            ),
             const SizedBox(width: AppConstants.spacingXL),
           ],
           
@@ -220,97 +214,25 @@ class RecordingVisualization extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final shouldAnimate = isRecording && !isPaused;
-    
+
     return SizedBox(
       width: AppConstants.recordingVisualizationSize,
       height: AppConstants.recordingVisualizationSize,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Pulse halkası 1 - En dış (sadece recording sırasında render edilir)
-          if (shouldAnimate)
-            _PulseRing(
-              size: _iconContainerSize,
-              color: theme.colorScheme.primary.withValues(alpha: 0.15),
-              borderWidth: AppConstants.borderThin,
-              delay: Duration.zero,
-            ),
-          
-          // Pulse halkası 2 - Orta
-          if (shouldAnimate)
-            _PulseRing(
-              size: _iconContainerSize,
-              color: theme.colorScheme.primary.withValues(alpha: 0.2),
-              borderWidth: AppConstants.borderThin,
-              delay: const Duration(milliseconds: 1000),
-            ),
-          
-          // Pulse halkası 3 - İç
-          if (shouldAnimate)
-            _PulseRing(
-              size: _iconContainerSize,
-              color: theme.colorScheme.primary.withValues(alpha: 0.25),
-              borderWidth: AppConstants.borderNormal,
-              delay: const Duration(milliseconds: 2000),
-            ),
-          
-          // Ana mikrofon ikonu
-          _MicrophoneIcon(
-            size: _iconContainerSize,
-            iconSize: _iconSize,
-            isRecording: isRecording,
-            isPaused: isPaused,
-            shouldAnimate: shouldAnimate,
-            theme: theme,
-          ),
-        ],
+      child: Center(
+        child: _MicrophoneIcon(
+          size: _iconContainerSize,
+          iconSize: _iconSize,
+          isRecording: isRecording,
+          isPaused: isPaused,
+          shouldAnimate: shouldAnimate,
+          theme: theme,
+        ),
       ),
     );
   }
 }
 
-/// Optimized pulse ring component
-class _PulseRing extends StatelessWidget {
-  final double size;
-  final Color color;
-  final double borderWidth;
-  final Duration delay;
-
-  const _PulseRing({
-    required this.size,
-    required this.color,
-    required this.borderWidth,
-    required this.delay,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: color,
-          width: borderWidth,
-        ),
-      ),
-    )
-        .animate(onPlay: (controller) => controller.repeat(), delay: delay)
-        .scale(
-          duration: Duration(milliseconds: AppConstants.pulseDuration),
-          curve: Curves.easeOut,
-          begin: const Offset(1.0, 1.0),
-          end: const Offset(1.8, 1.8),
-        )
-        .fadeOut(
-          duration: Duration(milliseconds: AppConstants.pulseDuration),
-          curve: Curves.easeIn,
-        );
-  }
-}
-
-/// Optimized microphone icon with breathing animation
+/// Optimized microphone icon
 class _MicrophoneIcon extends StatelessWidget {
   final double size;
   final double iconSize;
@@ -357,30 +279,15 @@ class _MicrophoneIcon extends StatelessWidget {
         ],
       ),
       child: Icon(
-        isRecording 
+        isRecording
             ? (isPaused ? Icons.pause_rounded : Icons.mic_rounded)
             : Icons.mic_none_rounded,
         size: iconSize,
-        color: isRecording 
+        color: isRecording
             ? theme.colorScheme.onPrimary
             : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
       ),
-    )
-        .animate(
-          onPlay: (controller) {
-            if (shouldAnimate) {
-              controller.repeat(reverse: true);
-            } else {
-              controller.reset();
-            }
-          },
-        )
-        .scale(
-          duration: Duration(milliseconds: AppConstants.breathingDuration),
-          curve: Curves.easeInOutSine,
-          begin: const Offset(1.0, 1.0),
-          end: const Offset(1.05, 1.05),
-        );
+    );
   }
 }
 

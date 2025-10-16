@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'dreamy_background.dart';
 
 /// Yazılı rüya girişi için ekran widget
@@ -23,39 +22,53 @@ class TextInputScreen extends StatelessWidget {
 
     return SafeArea(
       top: false,
-      child: Column(
-        children: [
-          const SizedBox(height: 20),
-
-          // TextField - Genişleyebilir alan
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: _buildTextEditor(theme),
-            ),
+      bottom: false, // Klavye için manual padding yapacağız
+      child: SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: MediaQuery.of(context).size.height -
+                       MediaQuery.of(context).padding.top -
+                       MediaQuery.of(context).padding.bottom -
+                       56 - // AppBar height
+                       100 - // Tab selector ve spacing
+                       keyboardHeight,
           ),
-
-          // Alt bilgiler - Klavye açıkken daha compact
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: EdgeInsets.fromLTRB(
-              24.0,
-              isKeyboardOpen ? 8.0 : 20.0,
-              24.0,
-              isKeyboardOpen ? 8.0 : 20.0,
-            ),
+          child: IntrinsicHeight(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                _buildCharacterInfo(theme),
-                SizedBox(height: isKeyboardOpen ? 12.0 : 20.0),
-                _buildSendButton(theme),
-                // Klavye için padding
-                if (isKeyboardOpen) SizedBox(height: keyboardHeight),
+                const SizedBox(height: 20),
+
+                // TextField - Genişleyebilir alan
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: _buildTextEditor(theme),
+                  ),
+                ),
+
+                // Alt bilgiler - Klavye açıkken daha compact
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: EdgeInsets.fromLTRB(
+                    24.0,
+                    isKeyboardOpen ? 8.0 : 20.0,
+                    24.0,
+                    isKeyboardOpen ? 8.0 : 20.0,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildCharacterInfo(theme),
+                      SizedBox(height: isKeyboardOpen ? 12.0 : 20.0),
+                      _buildSendButton(theme),
+                      SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -79,7 +92,7 @@ class TextInputScreen extends StatelessWidget {
           ),
         ),
       ),
-    ).animate().fadeIn(delay: 200.ms, duration: 600.ms).scale(begin: const Offset(0.95, 0.95));
+    );
   }
 
   Widget _buildCharacterInfo(ThemeData theme) {
@@ -128,7 +141,7 @@ class TextInputScreen extends StatelessWidget {
           ),
         ],
       ),
-    ).animate().fadeIn(delay: 300.ms);
+    );
   }
 
   Widget _buildSendButton(ThemeData theme) {
@@ -159,7 +172,7 @@ class TextInputScreen extends StatelessWidget {
           disabledForegroundColor: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.38),
         ),
       ),
-    ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.3, end: 0);
+    );
   }
 }
 

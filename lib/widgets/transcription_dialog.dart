@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
 /// Transkripsiyon sonuçlarını göstermek için dialog widget
 /// Loading ve editing state'lerini yönetir
@@ -33,16 +32,9 @@ class _TranscriptionDialogState extends State<TranscriptionDialog> {
           color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: theme.colorScheme.primary.withValues(alpha: 0.2),
-            width: 2,
+            color: theme.dividerColor.withValues(alpha: 0.2),
+            width: 1,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: theme.colorScheme.primary.withValues(alpha: 0.1),
-              blurRadius: 30,
-              spreadRadius: 5,
-            ),
-          ],
         ),
         child: Padding(
           padding: const EdgeInsets.all(28.0),
@@ -51,49 +43,32 @@ class _TranscriptionDialogState extends State<TranscriptionDialog> {
               : _buildLoadingView(theme),
         ),
       ),
-    ).animate().fadeIn(duration: 300.ms).scale(begin: const Offset(0.9, 0.9));
+    );
   }
 
   Widget _buildLoadingView(ThemeData theme) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              colors: [
-                theme.colorScheme.primary.withValues(alpha: 0.2),
-                theme.colorScheme.primary.withValues(alpha: 0.05),
-              ],
-            ),
+        SizedBox(
+          width: 60,
+          height: 60,
+          child: CircularProgressIndicator(
+            strokeWidth: 4,
+            color: theme.colorScheme.primary,
           ),
-          child: Center(
-            child: SizedBox(
-              width: 50,
-              height: 50,
-              child: CircularProgressIndicator(
-                strokeWidth: 4,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-          ),
-        ).animate(onPlay: (controller) => controller.repeat())
-            .rotate(duration: 3000.ms),
-        const SizedBox(height: 28),
+        ),
+        const SizedBox(height: 24),
         Text(
           'Sesiniz metne çevriliyor...',
           style: theme.textTheme.titleMedium?.copyWith(
-            color: theme.colorScheme.primary,
             fontWeight: FontWeight.w600,
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         Text(
-          'Yapay zeka rüyanızı analiz ediyor',
+          'Lütfen bekleyin',
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
           ),
