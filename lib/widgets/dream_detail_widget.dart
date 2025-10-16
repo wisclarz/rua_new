@@ -52,6 +52,91 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
     super.dispose();
   }
 
+  Widget _buildProcessingState(ThemeData theme) {
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: Stack(
+        children: [
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Animated hourglass icon
+                  Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [
+                          theme.colorScheme.primary.withValues(alpha: 0.2),
+                          theme.colorScheme.primary.withValues(alpha: 0.05),
+                        ],
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.hourglass_empty,
+                      size: 60,
+                      color: theme.colorScheme.primary,
+                    ),
+                  )
+                    .animate(onPlay: (controller) => controller.repeat())
+                    .rotate(duration: 2000.ms),
+
+                  const SizedBox(height: 32),
+
+                  Text(
+                    'Rüyanız Analiz Ediliyor',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  Text(
+                    'Analiz tamamlandığında size bildireceğiz.',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                      height: 1.5,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Close Button - Top Right
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 8,
+            right: 16,
+            child: IconButton(
+              icon: const Icon(Icons.close, size: 28),
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                Navigator.pop(context);
+              },
+              color: theme.colorScheme.onSurface,
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(
+                minWidth: 44,
+                minHeight: 44,
+              ),
+            ),
+          )
+            .animate()
+            .fadeIn(duration: 400.ms)
+            .scale(duration: 400.ms, curve: Curves.elasticOut),
+        ],
+      ),
+    );
+  }
+
   Future<void> _watchAdToUnlock(SubscriptionProvider provider) async {
     HapticFeedback.mediumImpact();
     
@@ -148,7 +233,12 @@ class _DreamDetailWidgetState extends State<DreamDetailWidget>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
+    // Eğer rüya hala analiz ediliyorsa, processing ekranı göster
+    if (widget.dream.isProcessing) {
+      return _buildProcessingState(theme);
+    }
+
     return Consumer<SubscriptionProvider>(
       builder: (context, provider, _) {
         final isPro = provider.isPro;

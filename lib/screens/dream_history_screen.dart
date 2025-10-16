@@ -9,7 +9,6 @@ import 'package:animations/animations.dart';
 import '../providers/dream_provider.dart';
 import '../models/dream_model.dart';
 import '../widgets/dream_detail_widget.dart';
-import '../widgets/processing_dream_screen.dart';
 import '../widgets/dreamy_background.dart';
 
 class DreamHistoryScreen extends StatefulWidget {
@@ -481,10 +480,6 @@ class _DreamHistoryScreenState extends State<DreamHistoryScreen>
             );
           },
           openBuilder: (context, action) {
-            // Eğer rüya hala analiz ediliyorsa, özel ekran göster
-            if (dream.isProcessing) {
-              return const ProcessingDreamScreen();
-            }
             return DreamDetailWidget(dream: dream);
           },
         ),
