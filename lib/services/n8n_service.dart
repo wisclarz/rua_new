@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/cache_service.dart';
-
+import 'package:firebase_messaging/firebase_messaging.dart';
 /// N8N Service (Refactored)
 ///
 /// SOLID Principles:
@@ -38,7 +38,16 @@ class N8nService {
             },
         _firestore = firestore ?? FirebaseFirestore.instance,
         _cacheService = cacheService ?? CacheService.instance;
-
+Future<String?> _getFCMToken() async {
+  try {
+    final fcmToken = await FirebaseMessaging.instance.getToken();
+    debugPrint('📱 FCM Token: $fcmToken');
+    return fcmToken;
+  } catch (e) {
+    debugPrint('❌ FCM Token error: $e');
+    return null;
+  }
+}
   /// Transcribe audio only (no analysis)
   Future<String?> transcribeAudioOnly({
     required String audioUrl,
@@ -52,6 +61,7 @@ class N8nService {
         audioUrl: audioUrl,
         userId: user.uid,
         idToken: idToken,
+        fcmToken: await _getFCMToken() ?? '',
       );
 
       final response = await _sendRequest(payload, timeout: 45);
@@ -68,7 +78,10 @@ class N8nService {
     }
   }
 
-  /// Trigger dream analysis with history
+  /// Trigger dream analysis with history and return result
+  ///
+  /// N8N workflow analizi yapar ve sonucu JSON olarak döndürür.
+  /// Flutter app bu sonucu alıp Firestore'u günceller.
   Future<Map<String, dynamic>?> triggerDreamAnalysisWithHistory({
     required String dreamId,
     String? audioUrl,
@@ -80,6 +93,7 @@ class N8nService {
       debugPrint('🚀 Starting $inputType dream analysis for: $dreamId');
 
       final idToken = await _getIdToken(user);
+      final fcmToken = await _getFCMToken();
       final previousDreams = await _fetchPreviousDreamsWithCache(
         user.uid,
         dreamId,
@@ -89,21 +103,24 @@ class N8nService {
         dreamId: dreamId,
         userId: user.uid,
         idToken: idToken,
+        fcmToken: fcmToken ?? '',
         audioUrl: audioUrl,
         dreamText: dreamText,
         previousDreams: previousDreams,
       );
 
+      // N8N'den analiz sonucunu bekle (timeout artırıldı)
       final response = await _sendRequest(payload, timeout: 60);
 
       if (_isSuccessResponse(response)) {
+        debugPrint('✅ N8N analysis completed successfully');
         return _parseAnalysisResponse(response);
       }
 
-      debugPrint('❌ N8N webhook failed: ${response.statusCode}');
+      debugPrint('❌ N8N analysis failed: ${response.statusCode}');
       return null;
     } catch (e) {
-      debugPrint('💥 N8N webhook error: $e');
+      debugPrint('💥 N8N analysis error: $e');
       return null;
     }
   }
@@ -127,11 +144,13 @@ class N8nService {
     required String audioUrl,
     required String userId,
     required String idToken,
+    required String fcmToken,
   }) {
     return {
       'audioUrl': audioUrl,
       'userId': userId,
       'idToken': idToken,
+      'fcmToken': fcmToken,
       'action': 'transcribe_only',
       'timestamp': DateTime.now().toIso8601String(),
       'openai_config': {
@@ -151,6 +170,7 @@ class N8nService {
     required String dreamId,
     required String userId,
     required String idToken,
+    required String fcmToken,
     String? audioUrl,
     String? dreamText,
     required List<Map<String, dynamic>> previousDreams,
@@ -161,6 +181,7 @@ class N8nService {
       'dreamId': dreamId,
       'userId': userId,
       'idToken': idToken,
+      'fcmToken': fcmToken,
       'inputType': inputType,
       'action': 'analyze_dream',
       'timestamp': DateTime.now().toIso8601String(),
@@ -242,9 +263,34 @@ class N8nService {
   /// Parse analysis response
   Map<String, dynamic>? _parseAnalysisResponse(http.Response response) {
     try {
-      final responseData = jsonDecode(response.body) as Map<String, dynamic>;
-      debugPrint('📥 Analysis received from N8N');
-      return responseData;
+      debugPrint('📥 Raw N8N response: ${response.body}');
+
+      final decodedData = jsonDecode(response.body);
+      debugPrint('📥 Decoded type: ${decodedData.runtimeType}');
+
+      // N8N array olarak dönebilir: [{json: {...}}]
+      if (decodedData is List && decodedData.isNotEmpty) {
+        debugPrint('📥 Response is a List, taking first item');
+        final firstItem = decodedData[0];
+
+        // Eğer {json: {...}} formatındaysa
+        if (firstItem is Map<String, dynamic> && firstItem.containsKey('json')) {
+          debugPrint('✅ Found "json" key, extracting...');
+          return firstItem['json'] as Map<String, dynamic>;
+        }
+
+        // Eğer direkt obje ise
+        return firstItem as Map<String, dynamic>;
+      }
+
+      // Direkt obje olarak dönmüşse
+      if (decodedData is Map<String, dynamic>) {
+        debugPrint('✅ Response is a Map');
+        return decodedData;
+      }
+
+      debugPrint('❌ Unexpected response format');
+      return null;
     } catch (e) {
       debugPrint('❌ Failed to parse N8N response: $e');
       debugPrint('📥 Raw response: ${response.body}');
@@ -361,20 +407,43 @@ class N8nService {
         continue;
       }
 
+      // Firestore'da Türkçe field isimleri kullanılıyor
+      final baslik = data['baslik'] ?? data['title'] ?? '';
+      final semboller = data['semboller'] ?? data['symbols'] ?? [];
+      final analiz = data['analiz'] ?? data['interpretation'] ?? data['analysis'] ?? '';
+      final ruhSagligi = data['ruhSagligi'] ?? data['ruh_sagligi'] ?? '';
+
+      // Duygular object'inden ana duyguyu al
+      String anaDuygu = data['mood'] ?? 'Belirsiz';
+      List<String> altDuygular = [];
+
+      if (data['duygular'] != null && data['duygular'] is Map) {
+        final duygularMap = data['duygular'] as Map<String, dynamic>;
+        anaDuygu = duygularMap['anaDuygu'] ?? duygularMap['ana_duygu'] ?? anaDuygu;
+
+        final altDuygularRaw = duygularMap['altDuygular'] ?? duygularMap['alt_duygular'];
+        if (altDuygularRaw is List) {
+          altDuygular = List<String>.from(altDuygularRaw);
+        }
+      }
+
       previousDreams.add({
         'dreamId': doc.id,
         'dreamText': dreamText,
-        'title': data['title'] ?? '',
-        'mood': data['mood'] ?? '',
-        'symbols': data['symbols'] ?? [],
-        'interpretation': data['interpretation'] ?? '',
-        'analysis': data['analysis'] ?? '',
+        'baslik': baslik,
+        'duygular': {
+          'anaDuygu': anaDuygu,
+          'altDuygular': altDuygular,
+        },
+        'semboller': semboller is List ? List<String>.from(semboller) : [],
+        'analiz': analiz,
+        'ruhSagligi': ruhSagligi,
         'timestamp': data['timestamp']?.toString() ??
             data['createdAt']?.toString() ??
             '',
       });
 
-      debugPrint('✅ Added dream: ${data['title'] ?? doc.id}');
+      debugPrint('✅ Added dream: $baslik (${doc.id})');
 
       if (previousDreams.length >= 5) break;
     }

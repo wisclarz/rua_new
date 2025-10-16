@@ -18,28 +18,44 @@ class TextInputScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    final isKeyboardOpen = keyboardHeight > 0;
+
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-            
-            Expanded(
+      child: Column(
+        children: [
+          const SizedBox(height: 20),
+
+          // TextField - Genişleyebilir alan
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: _buildTextEditor(theme),
             ),
-            
-            const SizedBox(height: 20),
-            
-            _buildCharacterInfo(theme),
-            
-            const SizedBox(height: 20),
-            
-            _buildSendButton(theme),
-          ],
-        ),
+          ),
+
+          // Alt bilgiler - Klavye açıkken daha compact
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: EdgeInsets.fromLTRB(
+              24.0,
+              isKeyboardOpen ? 8.0 : 20.0,
+              24.0,
+              isKeyboardOpen ? 8.0 : 20.0,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildCharacterInfo(theme),
+                SizedBox(height: isKeyboardOpen ? 12.0 : 20.0),
+                _buildSendButton(theme),
+                // Klavye için padding
+                if (isKeyboardOpen) SizedBox(height: keyboardHeight),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

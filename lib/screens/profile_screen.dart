@@ -8,9 +8,13 @@ import '../providers/auth_provider_interface.dart';
 import '../providers/dream_provider.dart';
 import '../providers/subscription_provider.dart';
 import '../screens/subscription_screen.dart';
+import '../screens/settings_screen.dart';
+import '../screens/help_support_screen.dart';
+import '../screens/privacy_policy_screen.dart';
 import '../utils/navigation_utils.dart';
 import '../utils/staggered_animation.dart';
 import '../widgets/dreamy_background.dart';
+import '../widgets/optimized_glass_card.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -373,7 +377,7 @@ class _ProfileScreenState extends State<ProfileScreen> with AutomaticKeepAliveCl
       duration: const Duration(milliseconds: 350),
       begin: const Offset(0, 0.1),
       child: RepaintBoundary(
-        child: GlassCard(
+        child: OptimizedGlassCard(
           padding: const EdgeInsets.all(16),
           borderRadius: 16,
           child: Column(
@@ -435,7 +439,8 @@ class _ProfileScreenState extends State<ProfileScreen> with AutomaticKeepAliveCl
             subtitle: 'Uygulama ayarlarını düzenle',
             delay: subscriptionProvider.isPro ? menuDelay + 60 : menuDelay,
             onTap: () {
-              // TODO: Navigate to settings
+              HapticFeedback.lightImpact();
+              context.pushFast(const SettingsScreen());
             },
           ),
           
@@ -447,7 +452,8 @@ class _ProfileScreenState extends State<ProfileScreen> with AutomaticKeepAliveCl
             subtitle: 'SSS ve iletişim',
             delay: subscriptionProvider.isPro ? menuDelay + 120 : menuDelay + 60,
             onTap: () {
-              // TODO: Navigate to help
+              HapticFeedback.lightImpact();
+              context.pushFast(const HelpSupportScreen());
             },
           ),
           
@@ -459,7 +465,8 @@ class _ProfileScreenState extends State<ProfileScreen> with AutomaticKeepAliveCl
             subtitle: 'Verilerinizin korunması',
             delay: subscriptionProvider.isPro ? menuDelay + 180 : menuDelay + 120,
             onTap: () {
-              // TODO: Show privacy policy
+              HapticFeedback.lightImpact();
+              context.pushFast(const PrivacyPolicyScreen());
             },
           ),
           
@@ -516,7 +523,7 @@ class _ProfileScreenState extends State<ProfileScreen> with AutomaticKeepAliveCl
       duration: const Duration(milliseconds: 350),
       begin: const Offset(-0.1, 0),
       child: RepaintBoundary(
-        child: GlassCard(
+        child: OptimizedGlassCard(
           padding: EdgeInsets.zero,
           margin: const EdgeInsets.only(bottom: 12),
           borderRadius: 16,

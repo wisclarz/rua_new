@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'config/app_theme.dart';
 import 'config/firebase_options.dart';
 import 'providers/auth_provider_interface.dart';
@@ -18,8 +19,45 @@ import 'screens/profile_screen.dart';
 import 'utils/navigation_utils.dart';
 import 'utils/fps_monitor.dart';
 import 'services/cache_service.dart';
+import 'services/notification_service.dart';
+import 'widgets/dream_detail_widget.dart';
 
 bool _isFirebaseInitialized = false;
+
+/// Global navigator key for handling notifications when app is not focused
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+/// Background message handler (must be top-level)
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  debugPrint('📩 Background message: ${message.notification?.title}');
+}
+
+/// Handle notification tap and navigate to dream detail
+void _handleNotificationTap(BuildContext context, String dreamId) {
+  debugPrint('🔔 Handling notification tap for dream: $dreamId');
+
+  try {
+    final dreamProvider = Provider.of<DreamProvider>(context, listen: false);
+    final dream = dreamProvider.dreams.firstWhere(
+      (d) => d.id == dreamId,
+      orElse: () => throw Exception('Dream not found'),
+    );
+
+    // Navigate using global navigator key
+    navigatorKey.currentState?.push(
+      MaterialPageRoute(
+        builder: (context) => DreamDetailWidget(dream: dream),
+        fullscreenDialog: true,
+      ),
+    );
+
+    debugPrint('✅ Navigated to dream detail: $dreamId');
+  } catch (e) {
+    debugPrint('❌ Error navigating to dream: $e');
+  }
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,6 +98,10 @@ void main() async {
     );
     _isFirebaseInitialized = true;
     debugPrint('✅ Firebase initialized successfully');
+
+    // 📱 Initialize Firebase Cloud Messaging
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    debugPrint('✅ FCM background handler registered');
   } catch (e) {
     _isFirebaseInitialized = false;
     debugPrint('❌ Firebase initialization error: $e');
@@ -111,6 +153,7 @@ class MyApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
+        navigatorKey: navigatorKey,
         title: 'Rüya - Dream Analysis',
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
@@ -191,6 +234,20 @@ class _AuthWrapperState extends State<AuthWrapper> {
               subscriptionProvider.loadUserSubscription();
             });
           }
+
+          // 📱 Initialize notification service when user is authenticated
+          Future.microtask(() async {
+            try {
+              await NotificationService().initialize();
+
+              // Set notification tap callback
+              NotificationService().onNotificationTapped = (String dreamId) {
+                _handleNotificationTap(context, dreamId);
+              };
+            } catch (e) {
+              debugPrint('⚠️ Notification service initialization error: $e');
+            }
+          });
 
           return const MainNavigation();
         }

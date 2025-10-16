@@ -19,7 +19,7 @@ dependencies:
   
   # Google Sign In
   google_sign_in: ^6.2.2
-  
+  firebase_messaging: 15.2.10
   # ==================== ABONELIK SISTEMI ====================
   # In-App Purchase (Subscription Management)
   in_app_purchase: ^3.1.13
@@ -67,6 +67,8 @@ dependencies:
   # Utilities
   intl: ^0.20.2
   shared_preferences: ^2.2.2
+  package_info_plus: ^8.0.0
+  url_launcher: ^6.3.0
   
   # Audio Recording
   flutter_sound: ^9.5.0
@@ -75,6 +77,9 @@ dependencies:
   # HTTP
   http: ^1.2.2
   dio: ^5.4.0
+
+  # Local Notifications
+  flutter_local_notifications: ^17.0.0
 
 dev_dependencies:
   flutter_test:

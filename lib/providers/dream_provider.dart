@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:io';
 import 'dart:math';
 import 'dart:async';
@@ -10,6 +9,7 @@ import '../services/transcription_service.dart';
 import '../services/audio_upload_service.dart';
 import '../services/n8n_service.dart';
 import '../repositories/dream_repository.dart';
+import '../services/notification_service.dart';
 
 /// Dream Provider (Refactored)
 ///
@@ -36,6 +36,9 @@ class DreamProvider extends ChangeNotifier {
 
   String? _pendingTranscription;
   String? get pendingTranscription => _pendingTranscription;
+
+  // Track which dreams already sent notification
+  final Set<String> _notifiedDreams = {};
 
   // Services (Dependency Injection)
   final RecordingService _recordingService;
@@ -93,6 +96,15 @@ class DreamProvider extends ChangeNotifier {
         .listen(
           (dreams) {
             debugPrint('🔄 Received ${dreams.length} dreams');
+
+            // Debug: Print each dream status
+            for (var dream in dreams) {
+              debugPrint('  - Dream ${dream.id}: status=${dream.status}, title=${dream.title}');
+            }
+
+            // Check for newly completed dreams
+            _checkForCompletedDreams(dreams);
+
             _dreams = dreams;
             _safeNotify();
           },
@@ -253,17 +265,20 @@ class DreamProvider extends ChangeNotifier {
       final user = _auth.currentUser;
       if (user == null) return;
 
+      // N8N'den analiz sonucunu al
       final analysisResult = await _n8nService.triggerDreamAnalysisWithHistory(
         dreamId: dreamId,
         dreamText: dreamText,
         user: user,
       );
 
-      if (analysisResult != null) {
-        debugPrint('✅ TEXT analysis completed');
-        await _updateDreamWithAnalysis(dreamId, analysisResult);
-      } else {
+      if (analysisResult == null) {
+        debugPrint('⚠️ Failed to get TEXT analysis result');
         await _markDreamAsFailed(dreamId, 'Analiz başlatılamadı');
+      } else {
+        debugPrint('✅ TEXT analysis completed, updating Firestore...');
+        // Analiz sonucunu Firestore'a kaydet
+        await _updateDreamWithAnalysis(dreamId, analysisResult);
       }
     } catch (e) {
       debugPrint('❌ TEXT analysis error: $e');
@@ -383,17 +398,20 @@ class DreamProvider extends ChangeNotifier {
     try {
       debugPrint('🚀 Triggering VOICE analysis for: $dreamId');
 
+      // N8N'den analiz sonucunu al
       final analysisResult = await _n8nService.triggerDreamAnalysisWithHistory(
         dreamId: dreamId,
         dreamText: transcription,
         user: user,
       );
 
-      if (analysisResult != null) {
-        debugPrint('✅ VOICE analysis completed');
-        await _updateDreamWithAnalysis(dreamId, analysisResult);
+      if (analysisResult == null) {
+        debugPrint('⚠️ Failed to get VOICE analysis result');
+        await _markDreamAsFailed(dreamId, 'Analiz başlatılamadı');
       } else {
-        await _markDreamAsFailed(dreamId, 'Analiz başarısız');
+        debugPrint('✅ VOICE analysis completed, updating Firestore...');
+        // Analiz sonucunu Firestore'a kaydet
+        await _updateDreamWithAnalysis(dreamId, analysisResult);
       }
     } catch (e) {
       debugPrint('❌ VOICE analysis error: $e');
@@ -488,19 +506,25 @@ class DreamProvider extends ChangeNotifier {
     User user,
   ) async {
     try {
+      debugPrint('🚀 Triggering AUDIO analysis for: $dreamId');
+
+      // N8N'den analiz sonucunu al
       final analysisResult = await _n8nService.triggerDreamAnalysisWithHistory(
         dreamId: dreamId,
         audioUrl: audioUrl,
         user: user,
       );
 
-      if (analysisResult != null) {
-        await _updateDreamWithAnalysis(dreamId, analysisResult);
+      if (analysisResult == null) {
+        debugPrint('⚠️ Failed to get AUDIO analysis result');
+        await _markDreamAsFailed(dreamId, 'Analiz başlatılamadı');
       } else {
-        await _markDreamAsFailed(dreamId, 'Analiz başarısız');
+        debugPrint('✅ AUDIO analysis completed, updating Firestore...');
+        // Analiz sonucunu Firestore'a kaydet
+        await _updateDreamWithAnalysis(dreamId, analysisResult);
       }
     } catch (e) {
-      debugPrint('❌ Audio analysis error: $e');
+      debugPrint('❌ AUDIO analysis error: $e');
       await _markDreamAsFailed(dreamId, 'Analiz hatası: $e');
     }
   }
@@ -567,6 +591,40 @@ class DreamProvider extends ChangeNotifier {
   }
 
   // ==================== HELPER METHODS ====================
+
+  /// Check for newly completed dreams and show notification
+  void _checkForCompletedDreams(List<Dream> newDreams) {
+    final now = DateTime.now();
+
+    for (final dream in newDreams) {
+      // Skip if already notified
+      if (_notifiedDreams.contains(dream.id)) {
+        continue;
+      }
+
+      // Check if dream just completed (within last 2 minutes)
+      if (dream.status == DreamStatus.completed) {
+        // Sadece son 2 dakika içinde tamamlanan rüyalar için bildirim göster
+        final updatedAt = dream.updatedAt ?? dream.createdAt;
+        final timeDifference = now.difference(updatedAt);
+
+        if (timeDifference.inMinutes <= 2) {
+          debugPrint('🔔 New completed dream detected: ${dream.id} (completed ${timeDifference.inSeconds}s ago)');
+          _notifiedDreams.add(dream.id);
+
+          // Show local notification
+          NotificationService().showDreamAnalysisCompleteNotification(
+            dreamId: dream.id,
+            dreamTitle: dream.title ?? 'Rüyanız',
+          );
+        } else {
+          debugPrint('⏭️ Skipping old completed dream: ${dream.id} (completed ${timeDifference.inMinutes}m ago)');
+          // Eski rüyayı da _notifiedDreams'e ekle ki tekrar kontrol etmeyelim
+          _notifiedDreams.add(dream.id);
+        }
+      }
+    }
+  }
 
   String _generateDreamId() {
     return 'dream_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}';
