@@ -30,7 +30,7 @@ class RecordingControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppConstants.spacingL),
       child: Row(
@@ -43,7 +43,7 @@ class RecordingControls extends StatelessWidget {
               label: 'Sil',
               color: Colors.red.shade400,
               onPressed: onDelete ?? () {},
-            ),
+            ).animate().fadeIn(duration: 200.ms).slideX(begin: -0.3, end: 0),
             const SizedBox(width: AppConstants.spacingXL),
           ],
 
@@ -54,10 +54,10 @@ class RecordingControls extends StatelessWidget {
               label: isPaused ? 'Devam' : 'Duraklat',
               color: theme.colorScheme.primary,
               onPressed: isPaused ? (onResume ?? () {}) : (onPause ?? () {}),
-            ),
+            ).animate().fadeIn(duration: 200.ms, delay: 50.ms).slideX(begin: -0.2, end: 0),
             const SizedBox(width: AppConstants.spacingXL),
           ],
-          
+
           // Ana kayıt butonu
           _MainRecordButton(
             isRecording: isRecording,

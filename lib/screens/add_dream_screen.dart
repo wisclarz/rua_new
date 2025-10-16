@@ -324,7 +324,9 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
           // Seçilen moda göre içerik göster
           Expanded(
             child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
+              duration: const Duration(milliseconds: 150),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
               child: _tabController.index == 0
                   ? ListenableBuilder(
                       key: const ValueKey('recording'),

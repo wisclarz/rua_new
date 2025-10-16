@@ -119,14 +119,16 @@ class _DurationDisplay extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        Text(
-          isRecording ? 'Kaydediliyor...' : 'Kaydı başlatmak için tıklayın',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-            fontWeight: FontWeight.w500,
+        if (isRecording) ...[
+          const SizedBox(height: 12),
+          Text(
+            'Kaydediliyor...',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+              fontWeight: FontWeight.w500,
+            ),
           ),
-        ),
+        ],
       ],
     );
   }

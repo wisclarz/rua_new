@@ -86,8 +86,6 @@ class _TranscriptionDialogState extends State<TranscriptionDialog> {
         _buildHeader(theme),
         const SizedBox(height: 20),
         _buildTextEditor(theme),
-        const SizedBox(height: 20),
-        _buildCharacterCounter(theme),
         const SizedBox(height: 24),
         _buildActionButtons(theme),
       ],
@@ -140,7 +138,8 @@ class _TranscriptionDialogState extends State<TranscriptionDialog> {
         color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: theme.colorScheme.primary.withValues(alpha: 0.2),
+          color: theme.dividerColor.withValues(alpha: 0.2),
+          width: 1,
         ),
       ),
       padding: const EdgeInsets.all(4),
@@ -160,38 +159,7 @@ class _TranscriptionDialogState extends State<TranscriptionDialog> {
             color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
           ),
         ),
-        style: theme.textTheme.bodyMedium,
-      ),
-    );
-  }
-
-  Widget _buildCharacterCounter(ThemeData theme) {
-    final isValid = widget.controller.text.trim().length >= 20;
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: isValid
-            ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3)
-            : theme.colorScheme.errorContainer.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isValid ? Icons.check_circle_rounded : Icons.info_outline,
-            size: 18,
-            color: isValid ? theme.colorScheme.primary : theme.colorScheme.error,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '${widget.controller.text.length} karakter',
-            style: theme.textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
+        style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
       ),
     );
   }
