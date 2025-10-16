@@ -289,22 +289,15 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: Container(
-          margin: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface.withValues(alpha: 0.3),
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: Colors.white.withOpacity(0.2),
-              width: 1.5,
-            ),
-          ),
-          child: IconButton(
+        automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
             icon: const Icon(Icons.close),
             onPressed: () => Navigator.pop(context),
-            padding: EdgeInsets.zero,
+            tooltip: 'Kapat',
           ),
-        ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: DreamyBackground(
         child: Column(
@@ -323,11 +316,7 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
           
           // Seçilen moda göre içerik göster
           Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 150),
-              switchInCurve: Curves.easeOut,
-              switchOutCurve: Curves.easeIn,
-              child: _tabController.index == 0
+            child: _tabController.index == 0
                   ? ListenableBuilder(
                       key: const ValueKey('recording'),
                       listenable: _recordingController,
@@ -350,7 +339,6 @@ class _AddDreamScreenState extends State<AddDreamScreen> with TickerProviderStat
                       onSend: _saveTextDream,
                       onTextChanged: () => setState(() {}),
                     ),
-            ),
           ),
         ],
         ),
