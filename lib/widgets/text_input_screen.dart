@@ -74,21 +74,29 @@ class TextInputScreen extends StatelessWidget {
   }
 
   Widget _buildTextEditor(ThemeData theme) {
-    return GlassCard(
+    return Container(
       padding: const EdgeInsets.all(20),
-      borderRadius: 24,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: theme.dividerColor.withValues(alpha: 0.1),
+          width: 1,
+        ),
+      ),
       child: TextField(
         controller: controller,
         maxLines: null,
         expands: true,
         textAlignVertical: TextAlignVertical.top,
-        style: theme.textTheme.bodyLarge,
+        style: theme.textTheme.bodyLarge?.copyWith(height: 1.6),
         onChanged: (_) => onTextChanged(),
         decoration: InputDecoration(
-          hintText: 'Dün gece gördüğüm rüyada...',
+          hintText: 'Dün gece gördüğüm rüyada...\n\nDetaylı anlatın, her ayrıntı önemli.',
           border: InputBorder.none,
           hintStyle: TextStyle(
             color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+            height: 1.6,
           ),
         ),
       ),
@@ -96,80 +104,79 @@ class TextInputScreen extends StatelessWidget {
   }
 
   Widget _buildCharacterInfo(ThemeData theme) {
-    final isValid = controller.text.trim().length >= 20;
-    
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.primary.withValues(alpha: 0.2),
+    final charCount = controller.text.trim().length;
+    final isValid = charCount >= 20;
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            isValid ? 'Rüyanız kaydedilmeye hazır' : 'En az 20 karakter gerekli',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+            ),
+          ),
         ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.info_outline,
-            size: 20,
-            color: theme.colorScheme.primary,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: isValid
+                ? theme.colorScheme.primaryContainer
+                : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(12),
           ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Text(
-              'En az 20 karakter',
-              style: TextStyle(fontSize: 14),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: isValid
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              '${controller.text.length}',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: isValid
-                    ? theme.colorScheme.onPrimary
-                    : theme.colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w700,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isValid)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Icon(
+                    Icons.check_circle,
+                    size: 16,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              Text(
+                '$charCount',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: isValid
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildSendButton(ThemeData theme) {
     final isValid = controller.text.trim().length >= 20;
-    
+
     return SizedBox(
       width: double.infinity,
       height: 56,
-      child: ElevatedButton.icon(
+      child: FilledButton.icon(
         onPressed: isValid ? onSend : null,
-        icon: const Icon(Icons.send_rounded, size: 22),
+        icon: const Icon(Icons.auto_awesome, size: 20),
         label: const Text(
-          'Gönder',
+          'Rüyayı Analiz Et',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
         ),
-        style: ElevatedButton.styleFrom(
+        style: FilledButton.styleFrom(
           backgroundColor: theme.colorScheme.primary,
           foregroundColor: theme.colorScheme.onPrimary,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          elevation: isValid ? 4 : 0,
-          shadowColor: theme.colorScheme.primary.withValues(alpha: 0.5),
           disabledBackgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-          disabledForegroundColor: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.38),
+          disabledForegroundColor: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
         ),
       ),
     );

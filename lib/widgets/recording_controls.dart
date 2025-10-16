@@ -158,16 +158,9 @@ class _RecordingIconButton extends StatelessWidget {
               shape: BoxShape.circle,
               color: color.withValues(alpha: 0.15),
               border: Border.all(
-                color: color.withValues(alpha: 0.4),
-                width: AppConstants.borderThick,
+                color: color.withValues(alpha: 0.3),
+                width: 2,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.2),
-                  blurRadius: 12,
-                  offset: const Offset(0, 2),
-                ),
-              ],
             ),
             child: Icon(
               icon,
@@ -218,17 +211,67 @@ class RecordingVisualization extends StatelessWidget {
     return SizedBox(
       width: AppConstants.recordingVisualizationSize,
       height: AppConstants.recordingVisualizationSize,
-      child: Center(
-        child: _MicrophoneIcon(
-          size: _iconContainerSize,
-          iconSize: _iconSize,
-          isRecording: isRecording,
-          isPaused: isPaused,
-          shouldAnimate: shouldAnimate,
-          theme: theme,
-        ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Single pulse ring - subtle feedback during recording
+          if (shouldAnimate)
+            _PulseRing(
+              size: _iconContainerSize,
+              color: theme.colorScheme.primary,
+              theme: theme,
+            ),
+
+          // Ana mikrofon ikonu
+          _MicrophoneIcon(
+            size: _iconContainerSize,
+            iconSize: _iconSize,
+            isRecording: isRecording,
+            isPaused: isPaused,
+            theme: theme,
+          ),
+        ],
       ),
     );
+  }
+}
+
+/// Simple pulse ring for recording feedback
+class _PulseRing extends StatelessWidget {
+  final double size;
+  final Color color;
+  final ThemeData theme;
+
+  const _PulseRing({
+    required this.size,
+    required this.color,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: color.withValues(alpha: 0.3),
+          width: 2,
+        ),
+      ),
+    )
+        .animate(onPlay: (controller) => controller.repeat())
+        .scale(
+          duration: const Duration(milliseconds: 1500),
+          curve: Curves.easeOut,
+          begin: const Offset(1.0, 1.0),
+          end: const Offset(1.4, 1.4),
+        )
+        .fadeOut(
+          duration: const Duration(milliseconds: 1500),
+          curve: Curves.easeIn,
+        );
   }
 }
 
@@ -238,7 +281,6 @@ class _MicrophoneIcon extends StatelessWidget {
   final double iconSize;
   final bool isRecording;
   final bool isPaused;
-  final bool shouldAnimate;
   final ThemeData theme;
 
   const _MicrophoneIcon({
@@ -246,7 +288,6 @@ class _MicrophoneIcon extends StatelessWidget {
     required this.iconSize,
     required this.isRecording,
     required this.isPaused,
-    required this.shouldAnimate,
     required this.theme,
   });
 

@@ -88,23 +88,46 @@ class _DurationDisplay extends StatelessWidget {
   
   @override
   Widget build(BuildContext context) {
-    return GlassCard(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 40,
-        vertical: AppConstants.spacingXL,
-      ),
-      borderRadius: AppConstants.radiusXXL,
-      child: Text(
-        _formatDuration(duration),
-        style: theme.textTheme.displayMedium?.copyWith(
-          fontWeight: FontWeight.w800,
-          color: isRecording 
-              ? theme.colorScheme.primary 
-              : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-          fontFeatures: const [FontFeature.tabularFigures()],
-          letterSpacing: 4,
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 32,
+            vertical: 16,
+          ),
+          decoration: BoxDecoration(
+            color: isRecording
+                ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3)
+                : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isRecording
+                  ? theme.colorScheme.primary.withValues(alpha: 0.2)
+                  : theme.dividerColor.withValues(alpha: 0.1),
+              width: 1,
+            ),
+          ),
+          child: Text(
+            _formatDuration(duration),
+            style: theme.textTheme.displayMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: isRecording
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+              fontFeatures: const [FontFeature.tabularFigures()],
+              letterSpacing: 2,
+            ),
+          ),
         ),
-      ),
+        const SizedBox(height: 12),
+        Text(
+          isRecording ? 'Kaydediliyor...' : 'Kaydı başlatmak için tıklayın',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 

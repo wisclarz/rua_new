@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
 /// Ekran ortasında icon seçici
 /// Sesli ve yazılı kayıt modları arasında geçiş yapar
@@ -16,38 +15,49 @@ class ModernTabSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _ModeButton(
-            theme: theme,
-            icon: Icons.mic_rounded,
-            isSelected: tabController.index == 0,
-            onTap: () => tabController.animateTo(0),
-          ),
-          const SizedBox(width: 40),
-          _ModeButton(
-            theme: theme,
-            icon: Icons.edit_rounded,
-            isSelected: tabController.index == 1,
-            onTap: () => tabController.animateTo(1),
-          ),
-        ],
-      ).animate().fadeIn(duration: 500.ms).scale(begin: const Offset(0.9, 0.9)),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _ModeButton(
+              theme: theme,
+              icon: Icons.mic_rounded,
+              label: 'Sesli',
+              isSelected: tabController.index == 0,
+              onTap: () => tabController.animateTo(0),
+            ),
+            const SizedBox(width: 8),
+            _ModeButton(
+              theme: theme,
+              icon: Icons.edit_rounded,
+              label: 'Yazılı',
+              isSelected: tabController.index == 1,
+              onTap: () => tabController.animateTo(1),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-/// Tek bir mod butonu (ekran ortasında büyük icon - minimalist)
+/// Tek bir mod butonu - Modern segmented control
 class _ModeButton extends StatelessWidget {
   final ThemeData theme;
   final IconData icon;
+  final String label;
   final bool isSelected;
   final VoidCallback onTap;
 
   const _ModeButton({
     required this.theme,
     required this.icon,
+    required this.label,
     required this.isSelected,
     required this.onTap,
   });
@@ -56,32 +66,39 @@ class _ModeButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: TweenAnimationBuilder<double>(
+      child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
-        tween: Tween<double>(begin: 0, end: isSelected ? 1 : 0),
-        builder: (context, value, child) {
-          return Container(
-            padding: const EdgeInsets.all(16),
-            child: Icon(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.colorScheme.primary
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
               icon,
-              color: Color.lerp(
-                theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-                theme.colorScheme.primary,
-                value,
-              ),
-              size: 48 + (value * 16), // 48 -> 64
-              shadows: isSelected
-                  ? [
-                      Shadow(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.4),
-                        blurRadius: 20,
-                      ),
-                    ]
-                  : null,
+              color: isSelected
+                  ? theme.colorScheme.onPrimary
+                  : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+              size: 20,
             ),
-          );
-        },
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected
+                    ? theme.colorScheme.onPrimary
+                    : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                fontSize: 15,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
