@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'dart:io';
 import 'dart:math';
 import 'dart:async';
@@ -8,8 +9,8 @@ import '../services/recording_service.dart';
 import '../services/transcription_service.dart';
 import '../services/audio_upload_service.dart';
 import '../services/n8n_service.dart';
+import '../services/cache_service.dart';
 import '../repositories/dream_repository.dart';
-import '../services/notification_service.dart';
 
 /// Dream Provider (Refactored)
 ///
@@ -91,11 +92,14 @@ class DreamProvider extends ChangeNotifier {
 
     debugPrint('🎧 Starting real-time listener for dreams...');
 
+    // ⚡ PERFORMANCE: Load cached dreams immediately for instant UI
+    _loadCachedDreams(user.uid);
+
     _dreamsSubscription = _dreamRepository
         .watchUserDreams(user.uid)
         .listen(
-          (dreams) {
-            debugPrint('🔄 Received ${dreams.length} dreams');
+          (dreams) async {
+            debugPrint('🔄 Received ${dreams.length} dreams from Firestore');
 
             // Debug: Print each dream status
             for (var dream in dreams) {
@@ -107,12 +111,58 @@ class DreamProvider extends ChangeNotifier {
 
             _dreams = dreams;
             _safeNotify();
+
+            // ⚡ CACHE: Save to cache for next app launch
+            await _cacheDreams(user.uid, dreams);
           },
           onError: (error) {
             debugPrint('❌ Stream error: $error');
             _setError('Rüyalar yüklenirken hata: $error');
           },
         );
+  }
+
+  /// ⚡ Load cached dreams for instant UI
+  Future<void> _loadCachedDreams(String userId) async {
+    try {
+      final cachedData = await CacheService.instance.get<List>(
+        CacheKeys.previousDreams(userId),
+      );
+
+      if (cachedData != null && cachedData.isNotEmpty) {
+        debugPrint('✅ Loaded ${cachedData.length} dreams from cache');
+
+        _dreams = cachedData
+            .map((data) => Dream.fromMap(Map<String, dynamic>.from(data)))
+            .toList();
+        _safeNotify();
+
+        debugPrint('⚡ UI populated with cached dreams (instant load!)');
+      } else {
+        debugPrint('📭 No cached dreams found');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Cache load error: $e');
+      // Continue without cache
+    }
+  }
+
+  /// ⚡ Cache dreams for next app launch
+  Future<void> _cacheDreams(String userId, List<Dream> dreams) async {
+    try {
+      final dreamsData = dreams.map((d) => d.toMap()).toList();
+
+      await CacheService.instance.put(
+        CacheKeys.previousDreams(userId),
+        dreamsData,
+        ttl: const Duration(days: 7), // Cache for 7 days
+      );
+
+      debugPrint('💾 Cached ${dreams.length} dreams');
+    } catch (e) {
+      debugPrint('⚠️ Cache save error: $e');
+      // Continue without caching
+    }
   }
 
   void stopListeningToDreams() {
@@ -126,6 +176,12 @@ class DreamProvider extends ChangeNotifier {
   Future<void> loadDreams() async {
     if (_isLoading) {
       debugPrint('⚠️ Already loading dreams');
+      return;
+    }
+
+    // ⚡ Check if already listening - skip if active
+    if (_dreamsSubscription != null) {
+      debugPrint('⚠️ Already listening to dreams');
       return;
     }
 
@@ -164,6 +220,30 @@ class DreamProvider extends ChangeNotifier {
       debugPrint('✅ Dreams refreshed');
     } catch (e) {
       debugPrint('❌ Error refreshing dreams: $e');
+    }
+  }
+
+  /// Get a specific dream by ID from Firestore (fresh data)
+  /// Used for notification navigation to ensure latest data
+  Future<Dream?> getDreamById(String dreamId) async {
+    debugPrint('📥 [PROVIDER] Fetching dream from Firestore: $dreamId');
+
+    try {
+      final dream = await _dreamRepository.getDreamById(dreamId);
+
+      if (dream == null) {
+        debugPrint('⚠️ [PROVIDER] Dream not found: $dreamId');
+        return null;
+      }
+
+      debugPrint('✅ [PROVIDER] Dream fetched successfully');
+      debugPrint('✅ [PROVIDER] Title: ${dream.baslik ?? dream.title}');
+      debugPrint('✅ [PROVIDER] Status: ${dream.status}');
+
+      return dream;
+    } catch (e) {
+      debugPrint('❌ [PROVIDER] Error fetching dream: $e');
+      return null;
     }
   }
 
@@ -229,14 +309,37 @@ class DreamProvider extends ChangeNotifier {
   }) async {
     final String dreamId = _generateDreamId();
 
+    // FCM Token'ı al
+    final fcmToken = await _getFCMToken();
+
     final Dream newDream = Dream(
       id: dreamId,
       userId: userId,
+      fcmToken: fcmToken,
       fileName: null,
       title: title ?? 'Analiz Ediliyor',
+      baslik: title ?? 'Analiz Ediliyor', // n8n için gerekli
       dreamText: dreamText,
-      analysis: 'Analiz yapılıyor...',
+
+      // Duygular - başlangıç değerleri
       mood: 'Belirsiz',
+      duygular: {
+        'anaDuygu': 'Belirsiz',
+        'altDuygular': <String>[],
+      },
+
+      // Semboller - başlangıç değerleri
+      symbols: [],
+      semboller: [],
+
+      // Analiz - başlangıç değerleri
+      analysis: 'Analiz yapılıyor...',
+      analiz: 'Analiz yapılıyor...',
+      interpretation: 'Analiz yapılıyor...',
+
+      // Ruh sağlığı - başlangıç değeri
+      ruhSagligi: '',
+
       status: DreamStatus.processing,
       createdAt: DateTime.now(),
     );
@@ -276,9 +379,10 @@ class DreamProvider extends ChangeNotifier {
         debugPrint('⚠️ Failed to get TEXT analysis result');
         await _markDreamAsFailed(dreamId, 'Analiz başlatılamadı');
       } else {
-        debugPrint('✅ TEXT analysis completed, updating Firestore...');
-        // Analiz sonucunu Firestore'a kaydet
-        await _updateDreamWithAnalysis(dreamId, analysisResult);
+        debugPrint('✅ TEXT analysis completed!');
+        debugPrint('📊 Analysis result: baslik=${analysisResult['baslik']}, analiz=${analysisResult['analiz']?.toString().substring(0, 50)}...');
+        // n8n zaten Firestore'u güncelliyor, Flutter sadece dinlesin
+        debugPrint('📡 Firestore will be updated by n8n, listening for changes...');
       }
     } catch (e) {
       debugPrint('❌ TEXT analysis error: $e');
@@ -357,14 +461,37 @@ class DreamProvider extends ChangeNotifier {
 
       final String dreamId = _generateDreamId();
 
+      // FCM Token'ı al
+      final fcmToken = await _getFCMToken();
+
       final Dream newDream = Dream(
         id: dreamId,
         userId: user.uid,
+        fcmToken: fcmToken,
         fileName: null,
         title: title ?? 'Yeni Sesli Rüya',
+        baslik: title ?? 'Yeni Sesli Rüya', // n8n için gerekli
         dreamText: transcription,
-        analysis: 'Analiz yapılıyor...',
+
+        // Duygular - başlangıç değerleri
         mood: 'Belirsiz',
+        duygular: {
+          'anaDuygu': 'Belirsiz',
+          'altDuygular': <String>[],
+        },
+
+        // Semboller - başlangıç değerleri
+        symbols: [],
+        semboller: [],
+
+        // Analiz - başlangıç değerleri
+        analysis: 'Analiz yapılıyor...',
+        analiz: 'Analiz yapılıyor...',
+        interpretation: 'Analiz yapılıyor...',
+
+        // Ruh sağlığı - başlangıç değeri
+        ruhSagligi: '',
+
         status: DreamStatus.processing,
         createdAt: DateTime.now(),
       );
@@ -409,9 +536,10 @@ class DreamProvider extends ChangeNotifier {
         debugPrint('⚠️ Failed to get VOICE analysis result');
         await _markDreamAsFailed(dreamId, 'Analiz başlatılamadı');
       } else {
-        debugPrint('✅ VOICE analysis completed, updating Firestore...');
-        // Analiz sonucunu Firestore'a kaydet
-        await _updateDreamWithAnalysis(dreamId, analysisResult);
+        debugPrint('✅ VOICE analysis completed!');
+        debugPrint('📊 Analysis result: baslik=${analysisResult['baslik']}, analiz=${analysisResult['analiz']?.toString().substring(0, 50)}...');
+        // n8n zaten Firestore'u güncelliyor, Flutter sadece dinlesin
+        debugPrint('📡 Firestore will be updated by n8n, listening for changes...');
       }
     } catch (e) {
       debugPrint('❌ VOICE analysis error: $e');
@@ -473,14 +601,37 @@ class DreamProvider extends ChangeNotifier {
   }) async {
     final String dreamId = _generateDreamId();
 
+    // FCM Token'ı al
+    final fcmToken = await _getFCMToken();
+
     final Dream newDream = Dream(
       id: dreamId,
       userId: userId,
+      fcmToken: fcmToken,
       fileName: null,
       title: 'Analiz Ediliyor',
+      baslik: 'Analiz Ediliyor', // n8n için gerekli
       dreamText: null,
-      analysis: 'Analiz yapılıyor...',
+
+      // Duygular - başlangıç değerleri
       mood: 'Belirsiz',
+      duygular: {
+        'anaDuygu': 'Belirsiz',
+        'altDuygular': <String>[],
+      },
+
+      // Semboller - başlangıç değerleri
+      symbols: [],
+      semboller: [],
+
+      // Analiz - başlangıç değerleri
+      analysis: 'Analiz yapılıyor...',
+      analiz: 'Analiz yapılıyor...',
+      interpretation: 'Analiz yapılıyor...',
+
+      // Ruh sağlığı - başlangıç değeri
+      ruhSagligi: '',
+
       status: DreamStatus.processing,
       createdAt: DateTime.now(),
     );
@@ -519,9 +670,10 @@ class DreamProvider extends ChangeNotifier {
         debugPrint('⚠️ Failed to get AUDIO analysis result');
         await _markDreamAsFailed(dreamId, 'Analiz başlatılamadı');
       } else {
-        debugPrint('✅ AUDIO analysis completed, updating Firestore...');
-        // Analiz sonucunu Firestore'a kaydet
-        await _updateDreamWithAnalysis(dreamId, analysisResult);
+        debugPrint('✅ AUDIO analysis completed!');
+        debugPrint('📊 Analysis result: baslik=${analysisResult['baslik']}, analiz=${analysisResult['analiz']?.toString().substring(0, 50)}...');
+        // n8n zaten Firestore'u güncelliyor, Flutter sadece dinlesin
+        debugPrint('📡 Firestore will be updated by n8n, listening for changes...');
       }
     } catch (e) {
       debugPrint('❌ AUDIO analysis error: $e');
@@ -541,7 +693,19 @@ class DreamProvider extends ChangeNotifier {
       // N8N'den gelen field'lar: baslik, analiz, duygular, semboller
       final baslik = analysisResult['baslik'] ?? 'Başlıksız Rüya';
       final analiz = analysisResult['analiz'] ?? '';
-      final semboller = analysisResult['semboller'] ?? [];
+
+      // Semboller - array olarak gelir
+      final semboller = analysisResult['semboller'] is List
+          ? List<String>.from(analysisResult['semboller'])
+          : <String>[];
+
+      // Duygular - map olarak gelir
+      final duygular = analysisResult['duygular'] is Map
+          ? Map<String, dynamic>.from(analysisResult['duygular'])
+          : {
+              'anaDuygu': 'Belirsiz',
+              'altDuygular': <String>[],
+            };
 
       final updateData = {
         // Rüya Metni
@@ -550,18 +714,15 @@ class DreamProvider extends ChangeNotifier {
         // Başlık (hem yeni hem eski format)
         'baslik': baslik,
 
-        // Duygular
-        'duygular': analysisResult['duygular'] ?? {},
-        'mood': analysisResult['duygular']?['anaDuygu'] ??
-                analysisResult['duygular']?['ana_duygu'] ??
-                'Belirsiz',
+        // Duygular (Map olarak)
+        'duygular': duygular,
+        'mood': duygular['anaDuygu'] ?? duygular['ana_duygu'] ?? 'Belirsiz',
 
-        // Semboller (hem yeni hem eski format)
+        // Semboller (Array olarak)
         'semboller': semboller,
 
-        // Analiz (hem yeni hem eski format)
+        // Analiz
         'analiz': analiz,
-        'interpretation': analiz, // Backward compatibility
 
         // Ruh Sağlığı
         'ruhSagligi': analysisResult['ruhSagligi'] ?? '',
@@ -592,36 +753,31 @@ class DreamProvider extends ChangeNotifier {
 
   // ==================== HELPER METHODS ====================
 
-  /// Check for newly completed dreams and show notification
-  void _checkForCompletedDreams(List<Dream> newDreams) {
-    final now = DateTime.now();
+  /// Get FCM Token for push notifications
+  Future<String?> _getFCMToken() async {
+    try {
+      final fcmToken = await FirebaseMessaging.instance.getToken();
+      debugPrint('📱 FCM Token retrieved: ${fcmToken?.substring(0, 20)}...');
+      return fcmToken;
+    } catch (e) {
+      debugPrint('❌ FCM Token error: $e');
+      return null;
+    }
+  }
 
+  /// Check for newly completed dreams (n8n sends notification, we just log)
+  void _checkForCompletedDreams(List<Dream> newDreams) {
     for (final dream in newDreams) {
-      // Skip if already notified
+      // Skip if already logged
       if (_notifiedDreams.contains(dream.id)) {
         continue;
       }
 
-      // Check if dream just completed (within last 2 minutes)
+      // Log newly completed dreams
       if (dream.status == DreamStatus.completed) {
-        // Sadece son 2 dakika içinde tamamlanan rüyalar için bildirim göster
-        final updatedAt = dream.updatedAt ?? dream.createdAt;
-        final timeDifference = now.difference(updatedAt);
-
-        if (timeDifference.inMinutes <= 2) {
-          debugPrint('🔔 New completed dream detected: ${dream.id} (completed ${timeDifference.inSeconds}s ago)');
-          _notifiedDreams.add(dream.id);
-
-          // Show local notification
-          NotificationService().showDreamAnalysisCompleteNotification(
-            dreamId: dream.id,
-            dreamTitle: dream.title ?? 'Rüyanız',
-          );
-        } else {
-          debugPrint('⏭️ Skipping old completed dream: ${dream.id} (completed ${timeDifference.inMinutes}m ago)');
-          // Eski rüyayı da _notifiedDreams'e ekle ki tekrar kontrol etmeyelim
-          _notifiedDreams.add(dream.id);
-        }
+        debugPrint('✅ Completed dream detected: ${dream.id}, title=${dream.baslik ?? dream.title}');
+        _notifiedDreams.add(dream.id);
+        // n8n zaten FCM notification gönderiyor, Flutter local notification göstermesin
       }
     }
   }

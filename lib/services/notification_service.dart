@@ -22,6 +22,7 @@ class NotificationService {
 
   bool _initialized = false;
   String? _currentToken;
+  bool _messageHandled = false; // ⚡ Flag to prevent double handling
 
   // Callback for handling notification taps (set from main app)
   Function(String dreamId)? onNotificationTapped;
@@ -54,8 +55,9 @@ class NotificationService {
 
       // Background message handler (main.dart'ta tanımlanacak)
 
-      // Background/Terminated notification tap handler
-      _setupNotificationTapHandler();
+      // ⚡ REMOVED: _setupNotificationTapHandler
+      // onMessageOpenedApp double handling'e sebep oluyor
+      // Bunun yerine sadece getInitialMessage + pending system kullanıyoruz
 
       // Local notifications initialize
       await _initializeLocalNotifications();
@@ -118,42 +120,89 @@ class NotificationService {
       debugPrint('📩 Body: ${message.notification?.body}');
       debugPrint('📩 Data: ${message.data}');
 
-      // Uygulama açıkken local notification göster
-      _showLocalNotification(message);
+      // Uygulama açıkken bildirim GÖSTERME (n8n zaten gönderiyor)
+      // Sadece data'yı log'la
+      debugPrint('✅ Foreground notification received - n8n handles notification display');
     });
   }
 
-  /// Background/Terminated notification tap handler
+  /// ⚡ REMOVED: Background/Terminated notification tap handler
+  /// onMessageOpenedApp double handling'e sebep oluyordu
+  /// Artık sadece getInitialMessage + pending message system kullanıyoruz
+  /*
   void _setupNotificationTapHandler() {
     // Uygulama kapalıyken bildirime tıklanınca çalışır
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       debugPrint('📱 Notification tapped (background state)');
+      debugPrint('📱 Message data: ${message.data}');
+      debugPrint('📱 Message notification: ${message.notification?.title}');
       _handleNotificationTap(message);
     });
+  }
+  */
 
-    // Uygulama tamamen kapalıyken bildirime tıklanmışsa kontrol et
-    FirebaseMessaging.instance.getInitialMessage().then((RemoteMessage? message) {
-      if (message != null) {
-        debugPrint('📱 Notification tapped (terminated state)');
-        _handleNotificationTap(message);
-      }
-    });
+  // Pending initial message (uygulama kapalıyken tıklanmışsa)
+  RemoteMessage? _pendingInitialMessage;
+
+  /// Store initial message (called from main.dart BEFORE app runs)
+  /// This ensures message is captured before any UI renders
+  Future<void> storeInitialMessage(RemoteMessage message) async {
+    debugPrint('📱 [SERVICE] Storing initial message');
+    debugPrint('📱 [SERVICE] Message data: ${message.data}');
+    debugPrint('📱 [SERVICE] Message notification: ${message.notification?.title}');
+
+    _pendingInitialMessage = message;
+    debugPrint('✅ [SERVICE] Initial message stored, will handle when navigation ready');
+  }
+
+  /// Check for initial message (uygulama kapalıyken tıklanmış bildirim)
+  /// NOT: Bu method artık kullanılmıyor - main.dart'ta zaten check ediliyor
+  @Deprecated('Use storeInitialMessage from main.dart instead')
+  Future<void> checkInitialMessage() async {
+    // Bu method artık kullanılmıyor çünkü main.dart'ta daha erken çağrılıyor
+    debugPrint('⚠️ [SERVICE] checkInitialMessage called but deprecated - message should be stored from main.dart');
+  }
+
+  /// Handle pending initial message (navigation ready olduğunda çağrılacak)
+  Future<void> handlePendingInitialMessage() async {
+    // ⚡ Flag check - sadece bir kere handle et
+    if (_messageHandled) {
+      debugPrint('📱 Message already handled, skipping');
+      return;
+    }
+
+    if (_pendingInitialMessage != null) {
+      debugPrint('📱 Handling pending initial message...');
+      final message = _pendingInitialMessage!;
+      _pendingInitialMessage = null;
+      _messageHandled = true; // ⚡ Flag'i set et
+
+      // ⚡ Direkt handle et - _handleNotificationTap kendi retry logic'i var
+      _handleNotificationTap(message);
+    } else {
+      debugPrint('📱 No pending initial message to handle');
+    }
   }
 
   /// Handle notification tap (navigate to dream detail)
   void _handleNotificationTap(RemoteMessage message) {
+    debugPrint('🔔 Notification tapped - Data: ${message.data}');
+
     final data = message.data;
 
     if (data.containsKey('dreamId')) {
       final dreamId = data['dreamId'] as String;
-      debugPrint('🔔 Navigating to dream: $dreamId');
+      debugPrint('✅ Found dreamId: $dreamId');
 
       // Callback'i çağır (main app'te set edilecek)
       if (onNotificationTapped != null) {
+        debugPrint('✅ Calling onNotificationTapped callback');
         onNotificationTapped!(dreamId);
       } else {
-        debugPrint('⚠️ onNotificationTapped callback not set');
+        debugPrint('❌ onNotificationTapped callback not set');
       }
+    } else {
+      debugPrint('❌ dreamId not found in notification data');
     }
   }
 
@@ -214,6 +263,36 @@ class NotificationService {
       debugPrint('✅ FCM token saved to Firestore for user: ${user.uid}');
     } catch (e) {
       debugPrint('❌ Failed to save FCM token to Firestore: $e');
+    }
+  }
+
+  /// FCM token'ı temizle (logout veya account deletion için)
+  /// Bu metod hem Firebase'den token'ı siler hem de Firestore'dan temizler
+  Future<void> clearFCMToken() async {
+    try {
+      debugPrint('🗑️ Clearing FCM token...');
+
+      // 1. Firebase'den token'ı sil
+      await _fcm.deleteToken();
+      debugPrint('✅ FCM token deleted from Firebase');
+
+      // 2. Firestore'dan token'ı temizle
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await _firestore.collection('users').doc(user.uid).set({
+          'fcmToken': FieldValue.delete(),
+          'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        debugPrint('✅ FCM token cleared from Firestore for user: ${user.uid}');
+      }
+
+      // 3. Local token'ı temizle
+      _currentToken = null;
+      _initialized = false;
+
+      debugPrint('✅ FCM token cleared successfully');
+    } catch (e) {
+      debugPrint('❌ Failed to clear FCM token: $e');
     }
   }
 

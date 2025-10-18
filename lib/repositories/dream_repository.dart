@@ -11,6 +11,7 @@ import '../models/dream_model.dart';
 /// Allows for easy testing and swapping implementations
 abstract class DreamRepository {
   Stream<List<Dream>> watchUserDreams(String userId);
+  Future<Dream?> getDreamById(String dreamId);
   Future<void> createDream(String dreamId, Dream dream);
   Future<void> updateDream(String dreamId, Map<String, dynamic> data);
   Future<String> uploadAudio(String userId, File audioFile, String fileName);
@@ -49,10 +50,37 @@ class FirebaseDreamRepository implements DreamRepository {
       }).toList();
     });
   }
-  
+
+  @override
+  Future<Dream?> getDreamById(String dreamId) async {
+    try {
+      final doc = await _firestore.collection('dreams').doc(dreamId).get();
+
+      if (!doc.exists) {
+        return null;
+      }
+
+      final data = doc.data();
+      if (data == null) {
+        return null;
+      }
+
+      data['id'] = doc.id;
+      return Dream.fromMap(data);
+    } catch (e) {
+      print('❌ getDreamById error: $e');
+      return null;
+    }
+  }
+
   @override
   Future<void> createDream(String dreamId, Dream dream) async {
     final dreamMap = dream.toMap();
+
+    // createdAt ve updatedAt'i Firestore Timestamp olarak set et
+    dreamMap['createdAt'] = Timestamp.fromDate(dream.createdAt);
+    dreamMap['updatedAt'] = Timestamp.fromDate(dream.updatedAt ?? DateTime.now());
+
     await _firestore.collection('dreams').doc(dreamId).set(dreamMap);
   }
   
@@ -102,14 +130,23 @@ class FirebaseDreamRepository implements DreamRepository {
 /// Can be used without Firebase
 class MockDreamRepository implements DreamRepository {
   final List<Dream> _mockDreams = [];
-  
+
   @override
   Stream<List<Dream>> watchUserDreams(String userId) {
     return Stream.value(
       _mockDreams.where((d) => d.userId == userId).toList(),
     );
   }
-  
+
+  @override
+  Future<Dream?> getDreamById(String dreamId) async {
+    try {
+      return _mockDreams.firstWhere((d) => d.id == dreamId);
+    } catch (e) {
+      return null;
+    }
+  }
+
   @override
   Future<void> createDream(String dreamId, Dream dream) async {
     _mockDreams.add(dream);

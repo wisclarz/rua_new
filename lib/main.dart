@@ -7,6 +7,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'config/app_theme.dart';
 import 'config/firebase_options.dart';
+import 'models/dream_model.dart';
 import 'providers/auth_provider_interface.dart';
 import 'providers/firebase_auth_provider.dart';
 import 'providers/mock_auth_provider.dart';
@@ -35,27 +36,88 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 /// Handle notification tap and navigate to dream detail
-void _handleNotificationTap(BuildContext context, String dreamId) {
-  debugPrint('🔔 Handling notification tap for dream: $dreamId');
+/// This function is called by NotificationService when user taps a notification
+void _handleNotificationTap(String dreamId) async {
+  debugPrint('🔔 [HANDLER] Handling notification tap for dream: $dreamId');
+
+  // ⚡ Navigator context'i bekle (max 5 saniye)
+  int contextAttempts = 0;
+  const maxContextAttempts = 50;
+
+  while (navigatorKey.currentContext == null && contextAttempts < maxContextAttempts) {
+    debugPrint('⏳ Waiting for navigator context... attempt ${contextAttempts + 1}/$maxContextAttempts');
+    await Future.delayed(const Duration(milliseconds: 100));
+    contextAttempts++;
+  }
+
+  final context = navigatorKey.currentContext;
+  if (context == null) {
+    debugPrint('❌ Navigator context not available, aborting navigation');
+    return;
+  }
+
+  debugPrint('✅ Navigator context ready!');
 
   try {
     final dreamProvider = Provider.of<DreamProvider>(context, listen: false);
-    final dream = dreamProvider.dreams.firstWhere(
-      (d) => d.id == dreamId,
-      orElse: () => throw Exception('Dream not found'),
-    );
+
+    debugPrint('📥 [HANDLER] Fetching dream from Firestore: $dreamId');
+
+    // ⚡ Direkt Firestore'dan güncel dream'i fetch et
+    // Stream beklemek yerine specific dream'i oku (daha hızlı ve güncel!)
+    Dream? dream;
+    try {
+      dream = await dreamProvider.getDreamById(dreamId);
+    } catch (e) {
+      debugPrint('⚠️ [HANDLER] Failed to fetch dream from Firestore: $e');
+      debugPrint('⚠️ [HANDLER] Falling back to local dreams list...');
+
+      // Fallback: Local listeden bul (eğer Firestore fetch başarısız olursa)
+      int attempts = 0;
+      const maxAttempts = 50;
+
+      while (dreamProvider.dreams.isEmpty && attempts < maxAttempts) {
+        debugPrint('⏳ Waiting for dreams to load... attempt ${attempts + 1}/$maxAttempts');
+        await Future.delayed(const Duration(milliseconds: 100));
+        attempts++;
+      }
+
+      if (dreamProvider.dreams.isEmpty) {
+        debugPrint('❌ Dreams not loaded after timeout, aborting navigation');
+        return;
+      }
+
+      dream = dreamProvider.dreams.firstWhere(
+        (d) => d.id == dreamId,
+        orElse: () => throw Exception('Dream not found: $dreamId'),
+      );
+    }
+
+    if (dream == null) {
+      debugPrint('❌ [HANDLER] Dream not found: $dreamId');
+      return;
+    }
+
+    debugPrint('✅ [HANDLER] Found dream: ${dream.id}');
+    debugPrint('✅ [HANDLER] Title: ${dream.baslik ?? dream.title}');
+    debugPrint('✅ [HANDLER] Status: ${dream.status}');
+    debugPrint('✅ [HANDLER] Has analysis: ${dream.analiz != null}');
+
+    // ⚡ Kısa delay - UI render olsun
+    await Future.delayed(const Duration(milliseconds: 200));
 
     // Navigate using global navigator key
     navigatorKey.currentState?.push(
       MaterialPageRoute(
-        builder: (context) => DreamDetailWidget(dream: dream),
+        builder: (context) => DreamDetailWidget(dream: dream!),
         fullscreenDialog: true,
       ),
     );
 
-    debugPrint('✅ Navigated to dream detail: $dreamId');
+    debugPrint('✅ [HANDLER] Navigated to dream detail successfully');
   } catch (e) {
-    debugPrint('❌ Error navigating to dream: $e');
+    debugPrint('❌ [HANDLER] Error navigating to dream: $e');
+    debugPrint('❌ [HANDLER] Stack trace: $e');
   }
 }
 
@@ -87,6 +149,11 @@ void main() async {
   try {
     await CacheService.instance.initialize();
     debugPrint('✅ CacheService initialized successfully');
+
+    // ⚡ PERFORMANCE: Clean expired cache on app start
+    Future.microtask(() async {
+      await CacheService.instance.clearExpired();
+    });
   } catch (e) {
     debugPrint('⚠️ CacheService initialization error: $e');
   }
@@ -108,6 +175,30 @@ void main() async {
     debugPrint('📱 Using mock authentication provider');
   }
 
+  // ⚡ Set notification tap callback BEFORE running the app
+  // This ensures the callback is ready when pending notifications are handled
+  NotificationService().onNotificationTapped = _handleNotificationTap;
+  debugPrint('✅ Notification tap callback registered');
+
+  // ⚡ Check for initial message (notification tap while app was terminated)
+  // Do this BEFORE runApp to ensure message is stored before UI renders
+  try {
+    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    if (initialMessage != null) {
+      debugPrint('📱 [MAIN] Initial message found: ${initialMessage.data}');
+      debugPrint('📱 [MAIN] Notification title: ${initialMessage.notification?.title}');
+      debugPrint('📱 [MAIN] Notification body: ${initialMessage.notification?.body}');
+
+      // Store it in NotificationService for later handling
+      await NotificationService().storeInitialMessage(initialMessage);
+    } else {
+      debugPrint('📱 [MAIN] No initial message found');
+    }
+  } catch (e) {
+    debugPrint('⚠️ [MAIN] Error checking initial message: $e');
+    debugPrint('⚠️ [MAIN] Stack trace: ${StackTrace.current}');
+  }
+
   runApp(const MyApp());
 }
 
@@ -120,25 +211,40 @@ class MyApp extends StatelessWidget {
       providers: [
         // ⚡ Auth provider - initialized early but async
         ChangeNotifierProvider<AuthProviderInterface>(
-          create: (_) => _isFirebaseInitialized 
+          create: (_) => _isFirebaseInitialized
               ? FirebaseAuthProvider()
               : MockAuthProvider(),
           lazy: false,
         ),
-        
-        // ⚡ Subscription provider - initialized early for all screens
-        ChangeNotifierProvider<SubscriptionProvider>(
+
+        // ⚡ Subscription provider - initialized early and loaded immediately
+        ChangeNotifierProxyProvider<AuthProviderInterface, SubscriptionProvider>(
           create: (_) => SubscriptionProvider(),
           lazy: false,
+          update: (context, auth, subscriptionProvider) {
+            if (subscriptionProvider == null) {
+              return SubscriptionProvider();
+            }
+
+            // ⚡ Load subscription immediately when auth is ready
+            // loadUserSubscription() has built-in deduplication (only loads once)
+            if (auth.isAuthenticated && auth.isInitialized) {
+              Future.microtask(() {
+                subscriptionProvider.loadUserSubscription();
+              });
+            }
+
+            return subscriptionProvider;
+          },
         ),
-        
+
         // ⚡ Dream provider - lazy loaded
         ChangeNotifierProxyProvider<AuthProviderInterface, DreamProvider>(
           create: (_) => DreamProvider(),
           lazy: true,
           update: (context, auth, dreamProvider) {
             if (dreamProvider == null) return DreamProvider();
-            
+
             // ⚡ Use Future.microtask to avoid blocking UI
             if (auth.isAuthenticated && auth.isInitialized) {
               Future.microtask(() {
@@ -147,7 +253,7 @@ class MyApp extends StatelessWidget {
             } else {
               dreamProvider.stopListeningToDreams();
             }
-            
+
             return dreamProvider;
           },
         ),
@@ -163,7 +269,7 @@ class MyApp extends StatelessWidget {
         // Sağ üstte FPS counter göreceksiniz
         builder: (context, child) {
           return FPSMonitor(
-            enabled: true, // ✅ FPS counter aktif - Performans testi için
+            enabled: false, // ✅ FPS counter aktif - Performans testi için
             child: child ?? const SizedBox.shrink(),
           );
         },
@@ -197,17 +303,24 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
-  bool _showSplash = true;
+  bool _minSplashTimeElapsed = false;
+  bool _notificationServiceInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    // Keep splash visible for smooth transition
-    Future.delayed(const Duration(milliseconds: 500), () {
+    // ⚡ Minimum splash screen süresi (UX için)
+    // Auth kontrolü tamamlansa bile minimum bu süre kadar splash gösterilir
+    _startMinimumSplashTimer();
+  }
+
+  void _startMinimumSplashTimer() {
+    Future.delayed(const Duration(milliseconds: 1500), () {
       if (mounted) {
         setState(() {
-          _showSplash = false;
+          _minSplashTimeElapsed = true;
         });
+        debugPrint('⏱️ Minimum splash time elapsed');
       }
     });
   }
@@ -216,43 +329,44 @@ class _AuthWrapperState extends State<AuthWrapper> {
   Widget build(BuildContext context) {
     return Consumer<AuthProviderInterface>(
       builder: (context, authProvider, child) {
-        // IMPORTANT: Show splash while:
-        // 1. Auth is initializing
-        // 2. Initial delay for smooth UX
-        // 3. Auth is loading
-        if (_showSplash || !authProvider.isInitialized || authProvider.isLoading) {
+        // ✨ Splash screen'i göster eğer:
+        // 1. Minimum süre henüz geçmediyse VEYA
+        // 2. Auth henüz initialize olmadıysa VEYA
+        // 3. Auth yükleniyor ise
+        final shouldShowSplash = !_minSplashTimeElapsed ||
+                                 !authProvider.isInitialized ||
+                                 authProvider.isLoading;
+
+        if (shouldShowSplash) {
+          debugPrint('🎨 Showing splash: minTime=${_minSplashTimeElapsed}, initialized=${authProvider.isInitialized}, loading=${authProvider.isLoading}');
           return const SplashScreen();
         }
 
+        debugPrint('✅ Splash complete, auth=${authProvider.isAuthenticated}');
+
         // Show main navigation if authenticated
         if (authProvider.isAuthenticated) {
-          // Load subscription asynchronously (don't block navigation)
-          final subscriptionProvider = context.read<SubscriptionProvider>();
-          if (subscriptionProvider.currentSubscription == null &&
-              !subscriptionProvider.isLoading) {
-            Future.microtask(() {
-              subscriptionProvider.loadUserSubscription();
+          // 📱 Initialize notification service ONCE when user is authenticated
+          if (!_notificationServiceInitialized) {
+            Future.microtask(() async {
+              try {
+                await NotificationService().initialize();
+
+                // ⚡ REMOVED: checkInitialMessage() - already called in main()
+                // Initial message is stored BEFORE app runs, no need to check again
+
+                _notificationServiceInitialized = true;
+                debugPrint('✅ [AUTH] Notification service initialized');
+              } catch (e) {
+                debugPrint('⚠️ [AUTH] Notification service initialization error: $e');
+              }
             });
           }
-
-          // 📱 Initialize notification service when user is authenticated
-          Future.microtask(() async {
-            try {
-              await NotificationService().initialize();
-
-              // Set notification tap callback
-              NotificationService().onNotificationTapped = (String dreamId) {
-                _handleNotificationTap(context, dreamId);
-              };
-            } catch (e) {
-              debugPrint('⚠️ Notification service initialization error: $e');
-            }
-          });
 
           return const MainNavigation();
         }
 
-        // Show authentication screen
+        // Show authentication screen if not authenticated
         return const PhoneAuthScreen();
       },
     );

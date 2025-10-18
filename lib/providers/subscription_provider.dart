@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../models/subscription_model.dart';
+import '../services/cache_service.dart';
 
 class SubscriptionProvider with ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -16,6 +17,7 @@ class SubscriptionProvider with ChangeNotifier {
 
   Subscription? _currentSubscription;
   bool _isLoading = false;
+  bool _hasLoadedFromFirestore = false; // ⚡ Track if already loaded from Firestore
   String? _errorMessage;
   StreamSubscription<List<PurchaseDetails>>? _purchaseSubscription;
   List<ProductDetails> _products = [];
@@ -26,32 +28,67 @@ class SubscriptionProvider with ChangeNotifier {
   Subscription? get currentSubscription => _currentSubscription;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
-  bool get isPro => _currentSubscription?.isPro ?? false;
-  SubscriptionPlan get currentPlan => _currentSubscription?.plan ?? SubscriptionPlan.free;
+
+  // 🔒 SECURITY: Always check expiration before granting Pro access
+  bool get isPro {
+    if (_currentSubscription == null) return false;
+
+    // Check if subscription has expired
+    if (_currentSubscription!.hasExpired) {
+      // Trigger expiration in background (don't block UI)
+      Future.microtask(() => _expireSubscriptionIfNeeded());
+      return false; // Return false immediately for expired subscriptions
+    }
+
+    return _currentSubscription!.isPro;
+  }
+
+  SubscriptionPlan get currentPlan {
+    if (_currentSubscription == null) return SubscriptionPlan.free;
+
+    // Check if subscription has expired
+    if (_currentSubscription!.hasExpired) {
+      return SubscriptionPlan.free; // Return free plan for expired subscriptions
+    }
+
+    return _currentSubscription!.plan;
+  }
+
   List<ProductDetails> get products => _products;
   bool get isAdLoaded => _isAdLoaded;
 
   SubscriptionProvider() {
-    _initialize();
-  }
+    // ⚡ Set default free subscription (prevents null crashes)
+    _currentSubscription = Subscription(
+      id: 'temp',
+      userId: '',
+      plan: SubscriptionPlan.free,
+      startDate: DateTime.now(),
+      isActive: true,
+    );
 
-  Future<void> _initialize() async {
-    try {
-      // Initialize In-App Purchase
-      final bool available = await _iap.isAvailable();
-      if (available) {
-        await _loadProducts();
-        _listenToPurchaseUpdated();
+    // ⚡ CHANGED: Don't auto-load subscription in constructor
+    // Subscription will be loaded by ChangeNotifierProxyProvider when auth is ready
+    // Cache will replace this default instantly if available
+
+    // Initialize In-App Purchase and AdMob in background
+    Future.microtask(() async {
+      try {
+        // Initialize In-App Purchase
+        final bool available = await _iap.isAvailable();
+        if (available) {
+          await _loadProducts();
+          _listenToPurchaseUpdated();
+        }
+
+        // Initialize AdMob
+        await MobileAds.instance.initialize();
+
+        debugPrint('✅ IAP and AdMob initialized');
+      } catch (e) {
+        debugPrint('❌ IAP/AdMob initialization error: $e');
       }
-      
-      // Initialize AdMob
-      await MobileAds.instance.initialize();
-      
-      // Load user subscription
-      await loadUserSubscription();
-    } catch (e) {
-      debugPrint('❌ Subscription initialization error: $e');
-    }
+    });
   }
 
   Future<void> loadUserSubscription() async {
@@ -68,6 +105,15 @@ class SubscriptionProvider with ChangeNotifier {
       return;
     }
 
+    // ⚡ Skip if already loaded from Firestore
+    if (_hasLoadedFromFirestore) {
+      debugPrint('⚡ Subscription already loaded from Firestore, skipping');
+      return;
+    }
+
+    // ⚡ PERFORMANCE: Load cached subscription immediately for instant UI
+    await _loadCachedSubscription(user.uid);
+
     _isLoading = true;
     notifyListeners();
 
@@ -81,11 +127,14 @@ class SubscriptionProvider with ChangeNotifier {
         final data = doc.data()!;
         data['id'] = doc.id;
         _currentSubscription = Subscription.fromMap(data);
-        
+
         // Check if subscription has expired
         if (_currentSubscription!.hasExpired) {
           await _expireSubscription();
         }
+
+        // ⚡ CACHE: Save to cache for next app launch
+        await _cacheSubscription(user.uid, _currentSubscription!);
       } else {
         // Create free subscription for new users
         _currentSubscription = Subscription(
@@ -95,20 +144,87 @@ class SubscriptionProvider with ChangeNotifier {
           startDate: DateTime.now(),
           isActive: true,
         );
-        
+
         await _firestore
             .collection('subscriptions')
             .doc(user.uid)
             .set(_currentSubscription!.toMap());
+
+        // ⚡ CACHE: Save free subscription
+        await _cacheSubscription(user.uid, _currentSubscription!);
       }
 
       _errorMessage = null;
+      _hasLoadedFromFirestore = true; // ⚡ Mark as loaded
+      debugPrint('✅ Subscription loaded from Firestore: ${_currentSubscription!.plan.name}');
     } catch (e) {
       _errorMessage = 'Abonelik yüklenemedi: $e';
       debugPrint('❌ Load subscription error: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  /// ⚡ Load cached subscription for instant UI
+  Future<void> _loadCachedSubscription(String userId) async {
+    try {
+      final cachedData = await CacheService.instance.get<Map>(
+        'subscription_$userId',
+      );
+
+      if (cachedData != null) {
+        final subscription = Subscription.fromMap(
+          Map<String, dynamic>.from(cachedData),
+        );
+
+        // 🔒 SECURITY: Check if cached subscription has expired
+        if (subscription.hasExpired) {
+          debugPrint('⏰ Cached subscription EXPIRED, using free plan instead');
+
+          // Remove expired cache
+          await CacheService.instance.remove('subscription_$userId');
+
+          // Set to free plan
+          _currentSubscription = Subscription(
+            id: userId,
+            userId: userId,
+            plan: SubscriptionPlan.free,
+            startDate: DateTime.now(),
+            isActive: true,
+          );
+          notifyListeners();
+
+          debugPrint('✅ Switched to free plan due to expiration');
+        } else {
+          // Cache is valid, use it
+          _currentSubscription = subscription;
+          notifyListeners();
+
+          debugPrint('⚡ UI populated with cached subscription: ${_currentSubscription!.plan.name} (instant load!)');
+        }
+      } else {
+        debugPrint('📭 No cached subscription found');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Subscription cache load error: $e');
+      // Continue without cache
+    }
+  }
+
+  /// ⚡ Cache subscription for next app launch
+  Future<void> _cacheSubscription(String userId, Subscription subscription) async {
+    try {
+      await CacheService.instance.put(
+        'subscription_$userId',
+        subscription.toMap(),
+        ttl: const Duration(days: 7), // Cache for 7 days
+      );
+
+      debugPrint('💾 Cached subscription: ${subscription.plan.name}');
+    } catch (e) {
+      debugPrint('⚠️ Subscription cache save error: $e');
+      // Continue without caching
     }
   }
 
@@ -250,11 +366,33 @@ class SubscriptionProvider with ChangeNotifier {
           .set(freeSubscription.toMap());
 
       _currentSubscription = freeSubscription;
+      _hasLoadedFromFirestore = true;
+
+      // Update cache with free subscription
+      await _cacheSubscription(user.uid, freeSubscription);
+
       debugPrint('⏰ Subscription expired, moved to free plan');
       notifyListeners();
     } catch (e) {
       debugPrint('❌ Expire subscription error: $e');
     }
+  }
+
+  /// 🔒 Expire subscription if needed (called from getter)
+  /// Only runs once to prevent multiple Firestore writes
+  bool _isExpiring = false;
+
+  Future<void> _expireSubscriptionIfNeeded() async {
+    if (_isExpiring) return; // Prevent duplicate expiration calls
+    if (_currentSubscription == null) return;
+    if (!_currentSubscription!.hasExpired) return;
+
+    _isExpiring = true;
+    debugPrint('🔒 Expiring subscription in background...');
+
+    await _expireSubscription();
+
+    _isExpiring = false;
   }
 
   Future<void> restorePurchases() async {

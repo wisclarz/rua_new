@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import '../models/dream_model.dart';
 import '../providers/auth_provider_interface.dart';
 import '../providers/dream_provider.dart';
@@ -456,14 +457,55 @@ class _ProfileScreenState extends State<ProfileScreen> with AutomaticKeepAliveCl
               context.pushFast(const HelpSupportScreen());
             },
           ),
-          
+
+          // DEBUG: FCM Token
+          _buildMenuItem(
+            theme: theme,
+            icon: Icons.notification_important,
+            title: 'FCM Token (Debug)',
+            subtitle: 'Push notification token görüntüle',
+            delay: subscriptionProvider.isPro ? menuDelay + 180 : menuDelay + 120,
+            onTap: () async {
+              final token = await FirebaseMessaging.instance.getToken();
+              debugPrint('🔥 FCM TOKEN: $token');
+
+              if (context.mounted) {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('FCM Token'),
+                    content: SelectableText(token ?? 'NULL'),
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          if (token != null) {
+                            Clipboard.setData(ClipboardData(text: token));
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Token kopyalandı!')),
+                            );
+                          }
+                        },
+                        child: const Text('Kopyala'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Kapat'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+            },
+          ),
+
           // Privacy Policy
           _buildMenuItem(
             theme: theme,
             icon: Icons.privacy_tip_outlined,
             title: 'Gizlilik Politikası',
             subtitle: 'Verilerinizin korunması',
-            delay: subscriptionProvider.isPro ? menuDelay + 180 : menuDelay + 120,
+            delay: subscriptionProvider.isPro ? menuDelay + 240 : menuDelay + 180,
             onTap: () {
               HapticFeedback.lightImpact();
               context.pushFast(const PrivacyPolicyScreen());
@@ -471,14 +513,95 @@ class _ProfileScreenState extends State<ProfileScreen> with AutomaticKeepAliveCl
           ),
           
           const SizedBox(height: 20),
-          
+
+          // Account Settings Section Header
+          Padding(
+            padding: const EdgeInsets.only(left: 16, bottom: 8),
+            child: Text(
+              'Hesap Ayarları',
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+
+          // Delete Account
+          _buildMenuItem(
+            theme: theme,
+            icon: Icons.delete_forever,
+            title: 'Hesabı Sil',
+            subtitle: 'Hesabınızı kalıcı olarak silin',
+            delay: subscriptionProvider.isPro ? menuDelay + 300 : menuDelay + 240,
+            onTap: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Hesabı Sil'),
+                  content: const Text(
+                    'Hesabınızı silmek istediğinize emin misiniz?\n\n'
+                    'Bu işlem geri alınamaz ve tüm verileriniz (rüyalar, analizler, abonelik bilgileri) '
+                    'kalıcı olarak silinecektir.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('İptal'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.red,
+                      ),
+                      child: const Text('Hesabı Sil'),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirm == true && context.mounted) {
+                // Don't show loading dialog here - AuthWrapper will show SplashScreen
+                // based on authProvider.isLoading state
+
+                try {
+                  final success = await authProvider.deleteAccount();
+
+                  // If deletion failed, show error
+                  if (!success && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(authProvider.errorMessage ?? 'Hesap silinirken bir hata oluştu'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                  // If success, user will be automatically redirected to login screen
+                  // by the auth state listener (AuthWrapper will handle navigation)
+
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Hata: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              }
+            },
+            isDestructive: true,
+          ),
+
+          const SizedBox(height: 12),
+
           // Logout
           _buildMenuItem(
             theme: theme,
             icon: Icons.logout,
             title: 'Çıkış Yap',
             subtitle: 'Hesaptan çıkış yap',
-            delay: subscriptionProvider.isPro ? menuDelay + 240 : menuDelay + 180,
+            delay: subscriptionProvider.isPro ? menuDelay + 360 : menuDelay + 300,
             onTap: () async {
               final confirm = await showDialog<bool>(
                 context: context,
@@ -502,7 +625,6 @@ class _ProfileScreenState extends State<ProfileScreen> with AutomaticKeepAliveCl
                 await authProvider.signOut();
               }
             },
-            isDestructive: true,
           ),
         ],
       ),

@@ -12,6 +12,8 @@ class User {
   final UserStats? stats;
   final bool isEmailVerified;
   final String? phoneNumber;
+  final bool isAnonymous; // ✨ Anonymous user flag
+  final bool isLoggedIn; // 🔐 Login status flag (for n8n notification control)
 
   const User({
     required this.id,
@@ -25,6 +27,8 @@ class User {
     this.stats,
     this.isEmailVerified = false,
     this.phoneNumber,
+    this.isAnonymous = false, // ✨ Default to false
+    this.isLoggedIn = false, // 🔐 Default to false
   });
 
   // Convert to JSON for Firestore
@@ -40,6 +44,8 @@ class User {
       'stats': stats?.toJson(),
       'isEmailVerified': isEmailVerified,
       'phoneNumber': phoneNumber,
+      'isAnonymous': isAnonymous, // ✨ Added
+      'isLoggedIn': isLoggedIn, // 🔐 Added
     };
   }
 
@@ -57,6 +63,8 @@ class User {
       stats: json['stats'] != null ? UserStats.fromJson(json['stats']) : null,
       isEmailVerified: json['isEmailVerified'] ?? false,
       phoneNumber: json['phoneNumber'],
+      isAnonymous: json['isAnonymous'] ?? false, // ✨ Added
+      isLoggedIn: json['isLoggedIn'] ?? false, // 🔐 Added
     );
   }
 
@@ -73,6 +81,8 @@ class User {
     UserStats? stats,
     bool? isEmailVerified,
     String? phoneNumber,
+    bool? isAnonymous, // ✨ Added
+    bool? isLoggedIn, // 🔐 Added
   }) {
     return User(
       id: id ?? this.id,
@@ -86,6 +96,8 @@ class User {
       stats: stats ?? this.stats,
       isEmailVerified: isEmailVerified ?? this.isEmailVerified,
       phoneNumber: phoneNumber ?? this.phoneNumber,
+      isAnonymous: isAnonymous ?? this.isAnonymous, // ✨ Added
+      isLoggedIn: isLoggedIn ?? this.isLoggedIn, // 🔐 Added
     );
   }
 

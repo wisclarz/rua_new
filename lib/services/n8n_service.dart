@@ -29,7 +29,7 @@ class N8nService {
     FirebaseFirestore? firestore,
     CacheService? cacheService,
   })  : webhookUrl = webhookUrl ??
-            'https://dreamdemoo.app.n8n.cloud/webhook/bf22088f-6627-4593-85b6-8dc112767901',
+            'https://dreamdemoapp.app.n8n.cloud/webhook/bf22088f-6627-4593-85b6-8dc112767901',
         headers = headers ??
             const {
               'Content-Type': 'application/json',
@@ -409,21 +409,60 @@ Future<String?> _getFCMToken() async {
 
       // Firestore'da Türkçe field isimleri kullanılıyor
       final baslik = data['baslik'] ?? data['title'] ?? '';
-      final semboller = data['semboller'] ?? data['symbols'] ?? [];
+
+      // Semboller - HEM string HEM array formatını destekle
+      List<String> semboller = [];
+      final sembollerRaw = data['semboller'] ?? data['symbols'];
+      if (sembollerRaw != null) {
+        if (sembollerRaw is String) {
+          // JSON string ise parse et (n8n'den gelen format)
+          try {
+            final decoded = jsonDecode(sembollerRaw);
+            if (decoded is List) {
+              semboller = List<String>.from(decoded);
+            }
+          } catch (e) {
+            debugPrint('⚠️ semboller parse error: $e');
+          }
+        } else if (sembollerRaw is List) {
+          // Zaten List ise direkt kullan
+          semboller = List<String>.from(sembollerRaw);
+        }
+      }
+
       final analiz = data['analiz'] ?? data['interpretation'] ?? data['analysis'] ?? '';
       final ruhSagligi = data['ruhSagligi'] ?? data['ruh_sagligi'] ?? '';
 
-      // Duygular object'inden ana duyguyu al
+      // Duygular object'inden ana duyguyu al - HEM string HEM object formatını destekle
       String anaDuygu = data['mood'] ?? 'Belirsiz';
       List<String> altDuygular = [];
 
-      if (data['duygular'] != null && data['duygular'] is Map) {
-        final duygularMap = data['duygular'] as Map<String, dynamic>;
-        anaDuygu = duygularMap['anaDuygu'] ?? duygularMap['ana_duygu'] ?? anaDuygu;
+      if (data['duygular'] != null) {
+        Map<String, dynamic>? duygularMap;
 
-        final altDuygularRaw = duygularMap['altDuygular'] ?? duygularMap['alt_duygular'];
-        if (altDuygularRaw is List) {
-          altDuygular = List<String>.from(altDuygularRaw);
+        // Eğer string ise (n8n'den gelen format), JSON parse et
+        if (data['duygular'] is String) {
+          try {
+            final decoded = jsonDecode(data['duygular']);
+            if (decoded is Map) {
+              duygularMap = Map<String, dynamic>.from(decoded);
+            }
+          } catch (e) {
+            debugPrint('⚠️ duygular parse error: $e');
+          }
+        }
+        // Eğer zaten Map ise direkt kullan
+        else if (data['duygular'] is Map) {
+          duygularMap = Map<String, dynamic>.from(data['duygular']);
+        }
+
+        if (duygularMap != null) {
+          anaDuygu = duygularMap['anaDuygu'] ?? duygularMap['ana_duygu'] ?? anaDuygu;
+
+          final altDuygularRaw = duygularMap['altDuygular'] ?? duygularMap['alt_duygular'];
+          if (altDuygularRaw is List) {
+            altDuygular = List<String>.from(altDuygularRaw);
+          }
         }
       }
 
@@ -435,7 +474,7 @@ Future<String?> _getFCMToken() async {
           'anaDuygu': anaDuygu,
           'altDuygular': altDuygular,
         },
-        'semboller': semboller is List ? List<String>.from(semboller) : [],
+        'semboller': semboller,
         'analiz': analiz,
         'ruhSagligi': ruhSagligi,
         'timestamp': data['timestamp']?.toString() ??

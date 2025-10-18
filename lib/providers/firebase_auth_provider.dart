@@ -1,7 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart' as app_models;
+import '../models/subscription_model.dart';
 import '../services/firebase_auth_service.dart';
 import '../services/google_sign_in_helper.dart';
+import '../services/cache_service.dart';
 import 'auth_provider_interface.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:async';
@@ -66,43 +69,52 @@ class FirebaseAuthProvider extends ChangeNotifier implements AuthProviderInterfa
     }
   }
   
-  /// ✨ Otomatik sessiz giriş kontrolü - Uygulama başlangıcında
+  /// ✨ Check for existing Firebase session ONLY (no Google Sign-In cache)
   Future<void> _attemptSilentSignIn() async {
     try {
-      debugPrint('🔍 Checking for existing authenticated session...');
-      
-      // 1. Firebase'de zaten aktif oturum var mı?
+      debugPrint('🔍 Checking for existing Firebase authenticated session...');
+
+      // ONLY check Firebase session - NO Google Sign-In cache check
+      // This prevents automatic sign-in for deleted users
       final firebaseUser = _authService!.currentUser;
+
       if (firebaseUser != null) {
         debugPrint('✅ Firebase session exists: ${firebaseUser.uid}');
-        // Auth listener kullanıcı bilgilerini yükleyecek
+        // Auth listener will load user profile
         return;
       }
-      
-      // 2. Google Sign-In önbelleğinde oturum var mı?
-      debugPrint('🤫 Checking Google Sign-In cache...');
-      final user = await _authService!.signInSilently();
-      
-      if (user != null) {
-        debugPrint('✅ Automatic sign-in successful: ${user.name}');
-        _currentUser = user;
-        _safeNotify();
-      } else {
-        debugPrint('ℹ️ No cached session found, user will need to sign in manually');
-      }
-      
+
+      // No Firebase session - user must sign in manually
+      debugPrint('ℹ️ No Firebase session found');
+      debugPrint('ℹ️ User will need to sign in manually');
+
+      // 🗑️ Clear cache since no valid session exists
+      await CacheService.instance.clear();
+      debugPrint('🗑️ Cache cleared (no Firebase session)');
+
     } catch (e) {
-      debugPrint('ℹ️ Auto sign-in failed (normal for first time): $e');
+      debugPrint('ℹ️ Session check failed: $e');
     } finally {
       _setLoading(false);
     }
   }
   
   void _setupAuthListener() {
+    String? _lastAuthUserId;
+
     _authService!.authStateChanges.listen(
       (firebase_auth.User? firebaseUser) async {
-        debugPrint('🔄 Auth state changed: ${firebaseUser?.uid ?? "signed out"}');
-        
+        final currentUserId = firebaseUser?.uid;
+
+        // Prevent duplicate events
+        if (_lastAuthUserId == currentUserId) {
+          debugPrint('⏭️ Skipping duplicate auth event for: ${currentUserId ?? "signed out"}');
+          return;
+        }
+
+        _lastAuthUserId = currentUserId;
+        debugPrint('🔄 Auth state changed: ${currentUserId ?? "signed out"}');
+
         if (firebaseUser != null) {
           await _handleUserSignedIn(firebaseUser);
         } else {
@@ -120,39 +132,50 @@ class FirebaseAuthProvider extends ChangeNotifier implements AuthProviderInterfa
     try {
       debugPrint('👤 Getting user profile for: ${firebaseUser.uid}');
       final user = await _authService!.getUserProfile(firebaseUser.uid);
-      
+
       if (user != null) {
         debugPrint('✅ User profile loaded: ${user.name}');
         _currentUser = user;
       } else {
-        debugPrint('⚠️ User profile not found, creating new one');
+        // 🆕 Profile not found - create NEW user (deleted account or first-time user)
+        debugPrint('⚠️ User profile not found in Firestore');
+        debugPrint('🆕 Creating new user profile and subscription...');
+
+        // Clear old cache data
+        await CacheService.instance.clear();
+
+        // Create new user profile
         final newUser = app_models.User(
           id: firebaseUser.uid,
           email: firebaseUser.email ?? '',
           phoneNumber: firebaseUser.phoneNumber,
-          name: firebaseUser.displayName ?? 'Firebase User',
+          name: firebaseUser.displayName ?? 'Kullanıcı',
           profileImageUrl: firebaseUser.photoURL,
           createdAt: DateTime.now(),
           lastLoginAt: DateTime.now(),
           preferences: app_models.UserPreferences.defaultPreferences(),
           isEmailVerified: firebaseUser.emailVerified,
         );
-        
+
         await _authService!.updateUserProfile(newUser);
+
+        // 🆕 Create FREE subscription for new user
+        await _createFreeSubscription(firebaseUser.uid);
+
         _currentUser = newUser;
-        debugPrint('✅ New user profile created: ${newUser.name}');
+        debugPrint('✅ New user profile and subscription created: ${newUser.name}');
       }
-      
+
       if (_isLoading) {
         _setLoading(false);
       }
       _safeNotify();
-      
+
     } catch (e) {
       debugPrint('❌ Error loading user profile: $e');
       _setError('Kullanıcı profili yüklenirken hata: $e');
       _currentUser = null;
-      
+
       if (_isLoading) {
         _setLoading(false);
       }
@@ -162,8 +185,18 @@ class FirebaseAuthProvider extends ChangeNotifier implements AuthProviderInterfa
   
   void _handleUserSignedOut() {
     debugPrint('🚪 User signed out');
+
+    // 🗑️ Clear cache for the signed-out user
+    if (_currentUser != null) {
+      final userId = _currentUser!.id; // Save userId before clearing
+      Future.microtask(() async {
+        await CacheService.instance.clearUserCache(userId);
+        debugPrint('🗑️ Cache cleared for signed-out user: $userId');
+      });
+    }
+
     _currentUser = null;
-    
+
     if (_isLoading) {
       _setLoading(false);
     }
@@ -513,6 +546,30 @@ class FirebaseAuthProvider extends ChangeNotifier implements AuthProviderInterfa
     });
   }
   
+  /// 🆕 Create free subscription for new user
+  Future<void> _createFreeSubscription(String userId) async {
+    try {
+      final subscription = Subscription(
+        id: userId,
+        userId: userId,
+        plan: SubscriptionPlan.free,
+        startDate: DateTime.now(),
+        isActive: true,
+        adWatchCount: 0,
+      );
+
+      await FirebaseFirestore.instance
+          .collection('subscriptions')
+          .doc(userId)
+          .set(subscription.toMap());
+
+      debugPrint('✅ Free subscription created for user: $userId');
+    } catch (e) {
+      debugPrint('❌ Failed to create free subscription: $e');
+      // Non-critical error, continue anyway
+    }
+  }
+
   String _getErrorMessage(firebase_auth.FirebaseAuthException e) {
     switch (e.code) {
       case 'invalid-phone-number':
@@ -531,7 +588,7 @@ class FirebaseAuthProvider extends ChangeNotifier implements AuthProviderInterfa
         return 'İşlem iptal edildi. Lütfen tekrar deneyin.';
       default:
         String message = e.message ?? 'Bir hata oluştu.';
-        
+
         if (message.contains('SMS unable to be sent until this region enabled')) {
           return 'Türkiye bölgesi Firebase Console\'da etkinleştirilmemiş. Test numarası kullanın veya bölgeyi etkinleştirin.';
         } else if (message.contains('No Recaptcha Enterprise siteKey')) {
@@ -539,7 +596,7 @@ class FirebaseAuthProvider extends ChangeNotifier implements AuthProviderInterfa
         } else if (message.contains('invalid-app-credential')) {
           return 'Uygulama kimlik bilgileri geçersiz. google-services.json dosyasını kontrol edin.';
         }
-        
+
         return message;
     }
   }

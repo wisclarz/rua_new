@@ -1,5 +1,7 @@
 // lib/models/dream_model.dart - camelCase/snake_case Uyumlu
 
+import 'dart:convert';
+
 enum DreamStatus {
   processing,
   completed,
@@ -9,12 +11,13 @@ enum DreamStatus {
 class Dream {
   final String id;
   final String userId;
+  final String? fcmToken; // FCM token (push notification için)
   final String? fileName;
-  
+
   // Başlık (hem eski hem yeni format)
   final String title;
   final String? baslik; // YENİ: 3 kelimelik başlık
-  
+
   final String? dreamText;
   
   // Duygular (hem eski hem yeni format)
@@ -42,6 +45,7 @@ class Dream {
   Dream({
     required this.id,
     required this.userId,
+    this.fcmToken,
     this.fileName,
     required this.title,
     this.baslik,
@@ -61,53 +65,51 @@ class Dream {
 
   // Firestore'dan oku
   factory Dream.fromMap(Map<String, dynamic> map) {
-    // Duygular objesi parse
-    Map<String, dynamic>? parsedDuygular;
-    if (map['duygular'] != null) {
-      parsedDuygular = Map<String, dynamic>.from(map['duygular']);
-    }
-    
+    // Duygular objesi parse - HEM string HEM object formatını destekle
+    Map<String, dynamic>? parsedDuygular = _parseDuygular(map['duygular']);
+
     // Ana duygu - HEM camelCase HEM snake_case destekle
     String finalMood = 'Belirsiz';
     if (parsedDuygular != null) {
       // Önce camelCase'e bak, yoksa snake_case'e bak
-      finalMood = parsedDuygular['anaDuygu'] ?? 
-                  parsedDuygular['ana_duygu'] ?? 
+      finalMood = parsedDuygular['anaDuygu'] ??
+                  parsedDuygular['ana_duygu'] ??
                   'Belirsiz';
     }
     if (finalMood == 'Belirsiz' && map['mood'] != null) {
       finalMood = map['mood'];
     }
-    
+
     return Dream(
       id: map['id'] ?? '',
       userId: map['userId'] ?? '',
+      fcmToken: map['fcmToken'],
       fileName: map['fileName'],
-      
+
       // Başlık: Önce baslik'e bak, yoksa title kullan
       title: map['baslik'] ?? map['title'] ?? 'Başlıksız Rüya',
       baslik: map['baslik'],
-      
+
       dreamText: map['dreamText'] ?? map['dream_text'],
-      
+
       // Duygular
       mood: finalMood,
       duygular: parsedDuygular,
-      
-      // Semboller
+
+      // Semboller - HEM string HEM array formatını destekle
       symbols: _parseStringList(map['symbols'] ?? map['semboller']),
       semboller: _parseStringList(map['semboller'] ?? map['symbols']),
-      
+
       // Analiz
       analysis: map['analiz'] ?? map['analysis'] ?? map['interpretation'],
       analiz: map['analiz'] ?? map['analysis'],
-      
+
       // Yeni alanlar
       ruhSagligi: map['ruhSagligi'] ?? map['ruh_sagligi'],
-      
+
       // Eski alanlar
       interpretation: map['interpretation'],
-      
+
       status: _parseStatus(map['status']),
       createdAt: _parseDateTime(map['createdAt']) ?? DateTime.now(),
       updatedAt: _parseDateTime(map['updatedAt'] ?? map['updated_at']),
@@ -116,48 +118,102 @@ class Dream {
 
   // Firestore'a yaz
   Map<String, dynamic> toMap() {
-    return {
-      'id': id,
+    final map = <String, dynamic>{
+      // dreamId - n8n Update Key için gerekli
+      'dreamId': id,
       'userId': userId,
-      'fileName': fileName,
-      
+
       // Başlık (her iki format da)
       'baslik': baslik ?? title,
-      
+
       'dreamText': dreamText,
-      
+
       // Duygular (her iki format da)
       'mood': duygular?['anaDuygu'] ?? duygular?['ana_duygu'] ?? mood,
       'duygular': duygular ?? {
         'anaDuygu': mood,
         'altDuygular': <String>[],
       },
-      
+
       // Semboller (her iki format da)
       'semboller': semboller ?? symbols,
-      
-      // Analiz (her iki format da)
+
+      // Analiz (sadece analiz field'ı)
       'analiz': analiz ?? analysis,
-      'interpretation': analiz ?? analysis, // Backward compatibility
-      
+      // interpretation kaldırıldı - gereksiz
+
       // Yeni alanlar
       'ruhSagligi': ruhSagligi,
-      
-      // Eski alanlar
-      
+
       'status': status.name,
       'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt?.toIso8601String(),
+      'updatedAt': (updatedAt ?? DateTime.now()).toIso8601String(),
     };
+
+    // fcmToken sadece null değilse ekle
+    if (fcmToken != null) {
+      map['fcmToken'] = fcmToken;
+    }
+
+    // fileName sadece null değilse ekle
+    if (fileName != null) {
+      map['fileName'] = fileName;
+    }
+
+    return map;
   }
 
-  // Helper: String list parse
+  // Helper: Duygular parse - HEM string (JSON) HEM object formatını destekle
+  static Map<String, dynamic>? _parseDuygular(dynamic value) {
+    if (value == null) return null;
+
+    try {
+      // Eğer zaten Map ise direkt kullan
+      if (value is Map<String, dynamic>) {
+        return value;
+      }
+      if (value is Map) {
+        return Map<String, dynamic>.from(value);
+      }
+
+      // Eğer JSON string ise parse et (n8n'den gelen format)
+      if (value is String && value.isNotEmpty) {
+        final decoded = jsonDecode(value);
+        if (decoded is Map) {
+          return Map<String, dynamic>.from(decoded);
+        }
+      }
+
+      return null;
+    } catch (e) {
+      // Parse hatası durumunda null döndür
+      return null;
+    }
+  }
+
+  // Helper: String list parse - HEM string (JSON) HEM array formatını destekle
   static List<String>? _parseStringList(dynamic value) {
     if (value == null) return null;
-    if (value is List) {
-      return value.map((e) => e.toString()).toList();
+
+    try {
+      // Eğer zaten List ise direkt kullan
+      if (value is List) {
+        return value.map((e) => e.toString()).toList();
+      }
+
+      // Eğer JSON string ise parse et (n8n'den gelen format)
+      if (value is String && value.isNotEmpty) {
+        final decoded = jsonDecode(value);
+        if (decoded is List) {
+          return decoded.map((e) => e.toString()).toList();
+        }
+      }
+
+      return null;
+    } catch (e) {
+      // Parse hatası durumunda null döndür
+      return null;
     }
-    return null;
   }
 
   // Helper: DateTime parse
@@ -199,6 +255,7 @@ class Dream {
   Dream copyWith({
     String? id,
     String? userId,
+    String? fcmToken,
     String? audioUrl,
     String? fileName,
     String? title,
@@ -220,6 +277,7 @@ class Dream {
     return Dream(
       id: id ?? this.id,
       userId: userId ?? this.userId,
+      fcmToken: fcmToken ?? this.fcmToken,
       fileName: fileName ?? this.fileName,
       title: title ?? this.title,
       baslik: baslik ?? this.baslik,

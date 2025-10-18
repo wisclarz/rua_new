@@ -8,8 +8,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../config/app_constants.dart';
 import '../utils/navigation_utils.dart';
+import '../providers/dream_provider.dart';
+import '../services/notification_service.dart';
 import 'home_screen.dart';
 import 'explore_screen.dart';
 import 'dream_history_screen.dart';
@@ -23,10 +26,11 @@ class MainNavigation extends StatefulWidget {
   State<MainNavigation> createState() => _MainNavigationState();
 }
 
-class _MainNavigationState extends State<MainNavigation> {
+class _MainNavigationState extends State<MainNavigation> with WidgetsBindingObserver {
   int _currentIndex = 0;
   int _previousIndex = 0;
-  
+  bool _pendingNotificationHandled = false; // ⚡ Flag to prevent double handling
+
   // Static screen list - created once with RepaintBoundary for performance
   static const List<Widget> _screens = [
     HomeScreen(),
@@ -35,11 +39,45 @@ class _MainNavigationState extends State<MainNavigation> {
     ProfileScreen(),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
+    // ⚡ Handle pending notification ONCE (uygulama kapalıyken tıklanmışsa)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_pendingNotificationHandled) {
+        debugPrint('📱 MainNavigation rendered, checking for pending notification...');
+        NotificationService().handlePendingInitialMessage();
+        _pendingNotificationHandled = true;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    // ⚡ REMOVED: loadDreams() çağrısı kaldırıldı
+    // DreamProvider zaten Firestore stream ile otomatik yüklüyor
+    // Double loading problemi çözüldü
+    if (state == AppLifecycleState.resumed) {
+      debugPrint('🔄 App resumed');
+      // Dreams zaten stream ile yükleniyor, ekstra çağrı gereksiz
+    }
+  }
+
   void _onTabTapped(int index) {
     if (!mounted || index == _currentIndex) return;
-    
+
     HapticFeedback.lightImpact();
-    
+
     setState(() {
       _previousIndex = _currentIndex;
       _currentIndex = index;

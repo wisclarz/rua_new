@@ -155,6 +155,31 @@ class CacheService {
     }
   }
 
+  /// Clear user-specific cache (subscription, dreams, etc.)
+  /// Call this when user signs out or changes
+  Future<void> clearUserCache(String userId) async {
+    try {
+      await _ensureInitialized();
+
+      // User-specific cache keys to remove
+      final userKeys = [
+        'subscription_$userId',
+        'previous_dreams_$userId',
+        'user_profile_$userId',
+      ];
+
+      for (final key in userKeys) {
+        _memoryCache.remove(key);
+        await _prefs!.remove(key);
+        debugPrint('🗑️ Removed user cache: $key');
+      }
+
+      debugPrint('✅ User cache cleared for: $userId');
+    } catch (e) {
+      debugPrint('❌ Clear user cache error: $e');
+    }
+  }
+
   /// Clear expired entries
   Future<void> clearExpired() async {
     try {
